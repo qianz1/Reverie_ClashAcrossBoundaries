@@ -394,7 +394,7 @@ word-break: break-word; }
 </div>
 </div>
 <button id="mode-confirm-btn" disabled>确认选择</button>
-<p class="mode-intro">v1.4.5  ——Qianrise</p>
+<p class="mode-intro">v1.4.5-patch-1  ——Qianrise</p>
 </div>
 <div id="selection-screen">
 <button id="back-btn" type="button">← 返回</button>
@@ -760,7 +760,7 @@ renderHeroGrid('enemy');
 const badge = document.getElementById('selection-mode-badge');
 badge.textContent = '👥 双人对战模式'; badge.className = 'pvp';
 document.querySelector('#selection-screen h1').textContent = '👤 玩家1 选择阵容（必选主角，共6人）';
-document.getElementById('enemy-selection-section').querySelector('h2').innerHTML = '🔴 敌方阵容 (<span id="enemy-count">1</span>/6 - 主角已锁定)';
+renderSectionTitle('enemy', 'default');
 checkStartButton();
 return;
 }
@@ -922,9 +922,40 @@ const selection = side === 'player' ? playerSelection : enemySelection;
 if (name === '主角') return;
 const idx = selection.indexOf(name);
 if (idx >= 0) selection.splice(idx, 1); else if (selection.length < 6) selection.push(name);
-renderHeroGrid(side); checkStartButton();
+/* try/finally：即便渲染环节出任何意外，开始按钮也必须刷新。
+   否则一旦渲染中断，就会出现「已选满却永远无法开始」的死角。 */
+try { renderHeroGrid(side); } finally { checkStartButton(); }
 }
-function updateSelectionStatus(side) { const selection = side === 'player' ? playerSelection : enemySelection; document.getElementById(side + '-count').textContent = selection.length; document.getElementById(side + '-status').textContent = selection.join(', '); }
+/* 选人区标题统一渲染。
+   ⚠️ 必须用 innerHTML：标题里内嵌 <span id="xx-count"> 计数元素，
+   若误用 textContent，整段会被当成纯文本，计数元素从 DOM 中消失，
+   之后 updateSelectionStatus 取不到元素就会抛错，进而中断 renderHeroGrid，
+   表现为「标题计数不动、能选满6人却开始不了」。 */
+function sectionTitleVariant(side) {
+if (side === 'enemy' && gameMode === 'pvp') {
+const ps = document.getElementById('player-selection-section');
+if (ps && ps.style.display === 'none') return 'player2';   // PVP 第二玩家阶段
+}
+return 'default';
+}
+function renderSectionTitle(side, variant) {
+const section = document.getElementById(side + '-selection-section');
+const h2 = section && section.querySelector('h2');
+if (!h2) return;
+const v = variant || sectionTitleVariant(side);
+const label = v === 'player2' ? '🔵 玩家2阵容' : (side === 'player' ? '🟢 我方阵容' : '🔴 敌方阵容');
+h2.innerHTML = `${label} (<span id="${side}-count">1</span>/6 - 主角已锁定)`;
+}
+function updateSelectionStatus(side) {
+const selection = side === 'player' ? playerSelection : enemySelection;
+/* 兜底：计数元素缺失时（任何历史/未来的标题重写路径都可能踩这个坑）自动重建标题，
+   而不是直接抛错中断渲染。 */
+if (!document.getElementById(side + '-count') || !document.getElementById(side + '-status')) renderSectionTitle(side);
+const cnt = document.getElementById(side + '-count');
+const stt = document.getElementById(side + '-status');
+if (cnt) cnt.textContent = selection.length;
+if (stt) stt.textContent = selection.join(', ');
+}
 function setupSearch() { document.getElementById('player-search').addEventListener('input', () => renderHeroGrid('player')); document.getElementById('enemy-search').addEventListener('input', () => renderHeroGrid('enemy')); }
 function checkStartButton() {
 const btn = document.getElementById('start-battle-btn');
@@ -965,7 +996,7 @@ checkStartButton();
 const h1 = document.querySelector('#selection-screen h1');
 h1.textContent = '👤 玩家2 选择阵容（必选主角，共6人）';
 // 更新敌方选人区标题为玩家2专属样式
-document.getElementById('enemy-selection-section').querySelector('h2').innerHTML = '🔵 玩家2阵容 (<span id="enemy-count">1</span>/6 - 主角已锁定)';
+renderSectionTitle('enemy', 'player2');
 }
 async function startBattle() {
 stopSkillCutin();          // 开局前清掉可能残留的演出遮罩
@@ -3328,7 +3359,8 @@ if (gameState.rafId) cancelAnimationFrame(gameState.rafId); gameState = { phase:
 document.getElementById('player-selection-section').style.display = 'block';
 document.querySelector('#selection-screen h1').textContent = '⚔️ 狂想：跨界之战';
 document.getElementById('enemy-selection-section').style.display = 'block';
-document.getElementById('enemy-selection-section').querySelector('h2').textContent = '🔴 敌方阵容 (1/6 - 主角已锁定)';
+renderSectionTitle('player', 'default');   // 我方标题一并重建，双保险
+renderSectionTitle('enemy', 'default');
 document.getElementById('selection-mode-badge').textContent = '';
 document.getElementById('selection-mode-badge').className = '';
 // 重置模式选择
