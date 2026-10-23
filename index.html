@@ -4,6 +4,11 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>狂想：跨界之战</title>
+<!-- 网页图标：把图片命名为 favicon.png 放在本 html 同目录即可自动生效。
+     未放图片时自动使用内置的深色⚔️图标（不会显示空白或破图）。 -->
+<link rel="icon" id="favicon">
+<link rel="apple-touch-icon" id="apple-touch-icon">
+<meta name="theme-color" content="#0a0a1a">
 <style>
 /* ==================== 全局 ==================== */
 * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -487,6 +492,39 @@ word-break: break-word; }
    ================================ */
 const HERO_IMG_BASE = '';
 const HERO_IMG_EXT  = '.png';
+/* ===== 网页图标（favicon）=====
+   用法：把图片命名为 favicon.png，与本页面放同一目录即可自动生效。
+   想改文件名或路径，改 FAVICON_FILE（支持 './xxx.png' 或完整 URL）。
+   兜底：图片加载失败（缺图 / 断网 / 文件名不符）时，自动换成内置的内联 SVG 图标，
+        绝不会出现空白或破图。 */
+const FAVICON_FILE = 'favicon.png';
+const FAVICON_FALLBACK = 'data:image/svg+xml,' + encodeURIComponent(
+`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+<defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+<stop offset="0" stop-color="#14143a"/><stop offset="1" stop-color="#0a0a1a"/></linearGradient></defs>
+<rect width="64" height="64" rx="12" fill="url(#g)"/>
+<text x="32" y="44" font-size="38" text-anchor="middle" fill="#ffd700">⚔️</text>
+</svg>`);
+function setFavicon(href, type) {
+const link = document.getElementById('favicon');
+const apple = document.getElementById('apple-touch-icon');
+if (!link) return;
+link.href = href; link.type = type;
+// iOS 加到主屏时用的是 PNG，SVG 不生效，故仅在图片可用时同步
+if (apple) apple.href = (type === 'image/png') ? href : '';
+}
+(function initFavicon() {
+/* 策略：先用一定能显示的内置 SVG 兜底，再探测 favicon.png。
+   · 图片存在 → onload 触发 → 升级为图片（更好看）
+   · 图片缺失 / 断网 → onload 不触发 → 保持内置 SVG（不会空白或破图）
+   只依赖 onload 而非 onerror：某些环境（如部分 WebView）缺图时不会触发 onerror，
+   那样反而会把兜底图标也弄丢。 */
+setFavicon(FAVICON_FALLBACK, 'image/svg+xml');
+const probe = new Image();
+probe.onload = () => setFavicon(FAVICON_FILE, 'image/png');
+probe.onerror = () => setFavicon(FAVICON_FALLBACK, 'image/svg+xml');
+probe.src = FAVICON_FILE;
+})();
 // 中文名 → 图片文件名（英文名去空格 + 扩展名）
 const HERO_IMG_FILE = {
 '主角':'Protagonist', '捷克罗姆':'Zekrom', '东丈':'JoeHigashi', '白藏主':'Hakuzosu',
