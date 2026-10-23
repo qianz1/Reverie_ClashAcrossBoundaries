@@ -1527,14 +1527,26 @@ function updateBuffDisplay(idx) {
 const u = gameState.units[idx]; const container = document.getElementById(`buffs-${idx}`); if (!container) return;
 container.innerHTML = '';
 /* 阵亡：所有状态/印记/规则一律不再显示（数据已在 killUnit 中清空，这里是显示层兜底）。
-   被放逐：规则上「目标相关所有状态与印记失效」，同样不显示。
    另见 CSS：`.unit.dead ~ .buff-container { display:none !important }` 作为最后一道保险。 */
-if (!u.alive || u.banished) {
+if (!u.alive) {
 // 数据层兜底：若还有残留（走了未预料到的置死路径），这里一并清掉
-if (!u.alive && ((u.states||[]).length || (u.marks||[]).length || (u.rules||[]).length || (Number(u.shield)||0))) clearAllEffects(u);
+if (((u.states||[]).length || (u.marks||[]).length || (u.rules||[]).length || (Number(u.shield)||0))) clearAllEffects(u);
 container.innerHTML = ''; container.style.display = 'none'; return;
 }
 container.style.display = '';
+/* 被放逐：规则上「目标相关所有状态与印记失效」，因此状态与印记不显示；
+   但**「放逐」这条规则本身必须显示** —— 否则玩家看不出该单位为何不动、不可选中。
+   这里单独渲染放逐标签后直接返回。 */
+if (u.banished) {
+// 规则不因放逐失效，逐条渲染（实际只有「放逐」自己）
+(u.rules || []).forEach(r => {
+const bt = document.createElement('span');
+bt.className = 'buff-tag buff-rule';
+bt.textContent = r.type;
+container.appendChild(bt);
+});
+return;
+}
 u.states.forEach(s => {
 const t = document.createElement('span');
 t.className = 'buff-tag buff-state';
