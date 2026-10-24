@@ -904,9 +904,13 @@ applySpeedBtn();
    数据结构：{ ver, theme?, items:[] }，ver 与主题一一对应。
    新增版本时往 CHANGELOG 数组**开头**加一条即可（渲染按数组顺序，最新的在最上面）。
    CURRENT_VERSION / CURRENT_THEME 同时驱动模式选择页底部那行文字。 */
-const CURRENT_VERSION = 'v1.4.7';
+const CURRENT_VERSION = 'v1.4.7-patch.1';
 const CURRENT_THEME   = '咒术·最强之战';   // 1.4.x 大主题：小版本沿用，不随每次调整变更
 const CHANGELOG = [
+{ ver:'v1.4.7-patch.1', items:[
+'修复：东丈技能「龙卷风」层数与描述不符 —— 应为 1 层狂风 + 2 层风行（狂风曾误给 2 层、风行曾误给 1 层），现已常量化。',
+'禅心云外镜：技能1「心净明」改为需要选择友方目标（此前只能作用于默认目标）。'
+] },
 { ver:'v1.4.7', theme:'咒术·最强之战', items:[
 '新增 BP 模式（双人对战专用）：选人界面右上角「BP模式」入口，独立全屏界面。',
 'BP 流程：P1禁1 → P2禁1 → P1选1 → P2选2 → P1选2 → P1禁1 → P2禁1 → P2选2 → P1选2 → P2选1。',
@@ -3078,6 +3082,8 @@ await killUnit(finalTarget, attacker);
 if (target !== finalTarget && target.alive) refreshUnit(target);
 }
 const STUN_CHANCE = 0.3;     // 镰鼬「胖揍」眩晕概率
+const GALE_STACKS = 1;              // 东丈「龙卷风」获得的狂风层数（描述：1层）
+const GALE_WINDWALK_STACKS = 2;     // 东丈「龙卷风」获得的风行层数（描述：2层）
 const XINJINGMING_PUSH = 30;         // 禅心云外镜「心净明」：移除到减益时的行动条加成
 const XINJINGMING_PUSH_EMPTY = 100;  // 未移除到任何减益时改为 +100%
 const RENDUO_CHANCE = 0.3;   // 镰鼬「人多势众」：回合结束使自身 +100% 行动条的概率
@@ -3304,8 +3310,10 @@ const ww = addMark(unit, '风行', { stacks:1, maxStacks:5, duration:999, effect
 log(`${getSideLabel(unit)}${unit.name} 获得1层风行！（当前${ww ? ww.stacks : 0}层）`, 'log-buff'); break;
 }
 case 'galeWind': {
-const gw = addMark(unit, '狂风', { stacks:2, maxStacks:3, duration:999, effect:'galeWind' });
-const ww = addMark(unit, '风行', { stacks:1, maxStacks:5, duration:999, effect:'windWalk' });
+/* 「龙卷风」：1 层狂风 + 2 层风行（与技能描述一致）。
+   层数改为读常量，避免再次写错 —— 此前狂风误写为 2 层、风行误写为 1 层，两处都与描述不符。 */
+const gw = addMark(unit, '狂风', { stacks:GALE_STACKS, maxStacks:3, duration:999, effect:'galeWind' });
+const ww = addMark(unit, '风行', { stacks:GALE_WINDWALK_STACKS, maxStacks:5, duration:999, effect:'windWalk' });
 log(`${getSideLabel(unit)}${unit.name} 获得狂风（${gw ? gw.stacks : 0}层）+风行（${ww ? ww.stacks : 0}层）！`, 'log-buff'); break;
 }
 /* 心友犬神「浪客归刃」：
