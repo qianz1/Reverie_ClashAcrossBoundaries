@@ -41,6 +41,26 @@ body { font-family: 'Microsoft YaHei', sans-serif; background: #0a0a1a; color: #
 .mode-desc { font-size: 11px; }
 #mode-confirm-btn { padding: 10px 32px; font-size: 16px; position: static; margin-top: 10px; }
 }
+#version-theme-line { display: flex; align-items: center; justify-content: center; gap: 14px; flex-wrap: wrap; margin-top: 14px; }
+#version-theme-line .mode-intro { margin-bottom: 0; }
+#version-theme-text .theme-name { color: #ffd700; font-weight: bold; }
+#changelog-btn { padding: 8px 18px; font-size: 13px; background: transparent; color: #4fc3f7; border: 1px solid #4fc3f766; border-radius: 18px; cursor: pointer; transition: all .3s; -webkit-tap-highlight-color: transparent; }
+#changelog-btn:hover { background: #4fc3f7; color: #000; }
+#changelog-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.88); z-index: 560; display: none; justify-content: center; align-items: center; padding: 12px; }
+#changelog-overlay.show { display: flex; }
+#changelog-card { background: #12122e; border: 2px solid #4fc3f7; border-radius: 14px; width: 100%; max-width: 620px; max-height: 88vh; display: flex; flex-direction: column; overflow: hidden; }
+#changelog-header { display: flex; justify-content: space-between; align-items: center; padding: 13px 18px; border-bottom: 1px solid #333; background: linear-gradient(135deg, #1a237e44, #0d47a144); flex-shrink: 0; }
+#changelog-title { font-size: 17px; font-weight: bold; color: #ffd700; }
+#changelog-close { font-size: 26px; color: #aaa; cursor: pointer; line-height: 1; padding: 0 4px; }
+#changelog-close:hover { color: #fff; }
+#changelog-body { padding: 14px 18px; overflow-y: auto; -webkit-overflow-scrolling: touch; font-size: 13px; line-height: 1.75; }
+#changelog-body .cl-ver { color: #4fc3f7; font-weight: bold; font-size: 15px; margin: 14px 0 4px; border-left: 3px solid #4fc3f7; padding-left: 8px; }
+#changelog-body .cl-ver:first-child { margin-top: 0; }
+#changelog-body .cl-theme { color: #ffd700; font-size: 13px; margin: 2px 0 6px 11px; }
+#changelog-body .cl-theme .tn { color: #ffd700; font-weight: bold; }
+#changelog-body ul { margin: 4px 0 8px 22px; }
+#changelog-body li { margin-bottom: 4px; color: #dcdcdc; }
+#changelog-body .cl-cur { background: #1a3a2e; border: 1px solid #2e7d32; border-radius: 6px; padding: 6px 10px; margin: 4px 0 10px 11px; display: inline-block; color: #69f0ae; font-size: 12px; }
 #selection-mode-badge { text-align: center; margin-bottom: 10px; font-size: 14px; padding: 6px 16px; border-radius: 20px; display: inline-block; margin-left: auto; margin-right: auto; }
 #selection-mode-badge.pve { background: #1b3a2e; color: #69f0ae; border: 1px solid #2e7d32; }
 #selection-mode-badge.pvp { background: #1a237e; color: #82b1ff; border: 1px solid #1565c0; }
@@ -226,6 +246,63 @@ body { font-family: 'Microsoft YaHei', sans-serif; background: #0a0a1a; color: #
 /* 选人界面返回上一级 */
 #back-btn { position: absolute; left: 14px; top: 14px; z-index: 10; padding: 8px 14px; font-size: 14px; color: #4fc3f7; background: transparent; border: none; cursor: pointer; text-shadow: 0 0 8px rgba(79,195,247,.45); -webkit-tap-highlight-color: transparent; }
 #back-btn:hover { color: #fff; }
+/* ==================== BP 模式 ==================== */
+/* 「BP模式」入口：选人界面右上角，仅双人对战可见 */
+#bp-mode-btn { position: absolute; right: 14px; top: 12px; z-index: 10; padding: 8px 16px; font-size: 14px; background: linear-gradient(135deg, #6a1b9a, #8e24aa); color: #fff; border: 1px solid #ab47bc; border-radius: 18px; cursor: pointer; transition: all .3s; -webkit-tap-highlight-color: transparent; }
+#bp-mode-btn:hover { transform: scale(1.05); box-shadow: 0 0 18px rgba(171,71,188,.55); }
+#bp-screen { position: relative; width: 100%; height: 100%; padding: 16px; background: linear-gradient(135deg, #14082e 0%, #251243 50%, #14082e 100%); overflow-y: auto; display: none; }
+#bp-screen h1 { text-align: center; color: #ffd700; margin: 4px 0 12px; font-size: 22px; }
+#bp-back-btn { position: absolute; left: 14px; top: 14px; z-index: 10; padding: 8px 14px; font-size: 14px; color: #4fc3f7; background: transparent; border: none; cursor: pointer; text-shadow: 0 0 8px rgba(79,195,247,.45); }
+#bp-back-btn:hover { color: #fff; }
+#bp-topbar { display: flex; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
+.bp-team { flex: 1; background: rgba(0,0,0,.28); border: 1px solid #333; border-radius: 10px; padding: 8px; }
+.bp-team-p1 { border-color: #66bb6a66; } .bp-team-p2 { border-color: #42a5f566; }
+.bp-team-title { font-size: 13px; color: #cfd8dc; margin-bottom: 6px; text-align: center; }
+.bp-slots { display: flex; gap: 5px; flex-wrap: wrap; justify-content: center; }
+.bp-slot { width: 38px; height: 38px; border-radius: 50%; border: 1px dashed #555; background: #0d0d22; display: flex; align-items: center; justify-content: center; font-size: 10px; color: #888; text-align: center; line-height: 1.05; overflow: hidden; }
+.bp-slot.filled { border-style: solid; color: #fff; font-weight: bold; }
+.bp-slot.protagonist { border-color: #ffd700; }
+#bp-stage-bar { text-align: center; margin-bottom: 8px; }
+#bp-stage-text { display: inline-block; padding: 6px 18px; border-radius: 18px; font-size: 15px; font-weight: bold; background: linear-gradient(135deg, #ff6f00, #ff8f00); color: #fff; }
+#bp-stage-text.ban { background: linear-gradient(135deg, #c62828, #e53935); }
+#bp-stage-text.p1 { background: linear-gradient(135deg, #2e7d32, #43a047); }
+#bp-stage-text.p2 { background: linear-gradient(135deg, #1565c0, #1976d2); }
+#bp-stage-text.done { background: linear-gradient(135deg, #6a1b9a, #8e24aa); }
+#bp-stage-sub { display: block; margin-top: 4px; font-size: 12px; color: #9e9e9e; }
+#bp-flow { display: flex; gap: 3px; flex-wrap: wrap; justify-content: center; margin-bottom: 8px; }
+.bp-flow-step { font-size: 11px; padding: 2px 7px; border-radius: 4px; background: #16213e; color: #616161; border: 1px solid #2a2a44; }
+.bp-flow-step.active { background: #ff8f00; color: #fff; border-color: #ffd700; }
+.bp-flow-step.done { background: #1b5e20; color: #a5d6a7; border-color: #2e7d32; }
+#bp-ban-row { display: flex; align-items: center; gap: 8px; margin: 6px 0; flex-wrap: wrap; }
+.bp-ban-label { font-size: 12px; color: #ef5350; }
+#bp-ban-slots { display: flex; gap: 5px; flex-wrap: wrap; }
+.bp-ban-slot { width: 34px; height: 34px; border-radius: 50%; border: 1px solid #c62828; background: #2a0d0d; color: #ef9a9a; font-size: 10px; display: flex; align-items: center; justify-content: center; text-align: center; line-height: 1.05; overflow: hidden; }
+.hero-card.bp-banned { opacity: .35; filter: grayscale(100%); pointer-events: none; }
+.hero-card.bp-banned::after { content: '禁用'; position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%) rotate(-14deg); color: #ff5252; font-weight: bold; font-size: 15px; text-shadow: 0 0 6px #000; }
+.hero-card.bp-picked { opacity: .5; pointer-events: none; }
+.hero-card.bp-picked .bp-pick-mark { position: absolute; top: 4px; right: 4px; font-size: 11px; padding: 1px 5px; border-radius: 4px; color: #fff; }
+.hero-card.bp-picked .bp-pick-mark.p1 { background: #2e7d32; } .hero-card.bp-picked .bp-pick-mark.p2 { background: #1565c0; }
+/* 确认条：先点卡片高亮，再点「确认」才生效 —— 防止误触直接禁/选 */
+#bp-confirm-bar { display: none; align-items: center; justify-content: center; gap: 10px; margin: 12px 0; padding: 10px; background: rgba(0,0,0,.35); border: 1px solid #444; border-radius: 10px; flex-wrap: wrap; }
+#bp-confirm-bar.show { display: flex; }
+#bp-confirm-text { font-size: 14px; color: #ffd700; }
+#bp-confirm-btn { padding: 8px 26px; font-size: 15px; background: linear-gradient(135deg, #2e7d32, #43a047); color: #fff; border: none; border-radius: 18px; cursor: pointer; transition: all .3s; }
+#bp-confirm-btn:hover:not(:disabled) { transform: scale(1.05); box-shadow: 0 0 16px rgba(67,160,71,.55); }
+#bp-confirm-btn:disabled { opacity: .4; cursor: not-allowed; }
+#bp-confirm-bar.banning #bp-confirm-btn { background: linear-gradient(135deg, #c62828, #e53935); }
+#bp-confirm-cancel { padding: 8px 20px; font-size: 15px; background: transparent; color: #9e9e9e; border: 1px solid #555; border-radius: 18px; cursor: pointer; }
+#bp-confirm-cancel:hover { color: #fff; border-color: #888; }
+/* 待确认的卡片：金色描边高亮 */
+.hero-card.bp-pending { border-color: #ffd700; box-shadow: 0 0 14px rgba(255,215,0,.55); transform: scale(1.03); }
+#bp-start-btn { display: block; margin: 18px auto; padding: 12px 40px; font-size: 18px; background: linear-gradient(135deg, #ff6f00, #ff8f00); color: #fff; border: none; border-radius: 25px; cursor: pointer; transition: all .3s; }
+#bp-start-btn:hover:not(:disabled) { transform: scale(1.05); box-shadow: 0 0 20px rgba(255,111,0,.5); }
+#bp-start-btn:disabled { opacity: .4; cursor: not-allowed; }
+@media (max-width: 820px) {
+#bp-mode-btn { padding: 6px 12px; font-size: 13px; top: 10px; right: 10px; }
+.bp-slot { width: 32px; height: 32px; font-size: 9px; }
+.bp-ban-slot { width: 30px; height: 30px; font-size: 9px; }
+#bp-screen { padding: 12px; }
+}
 #btn-normal, #btn-skill, #btn-skill2 { display: inline-block; }
 #btn-skill2 { background: linear-gradient(135deg, #6a1b9a, #ab47bc); color: #fff; }
 #btn-skill2:disabled { background: #555; color: #888; cursor: not-allowed; }
@@ -394,10 +471,24 @@ word-break: break-word; }
 </div>
 </div>
 <button id="mode-confirm-btn" disabled>确认选择</button>
-<p class="mode-intro">v1.4.5-patch-2  ——Qianrise</p>
+<div id="version-theme-line">
+<button id="changelog-btn" type="button">更新日志</button>
+<p class="mode-intro" id="version-theme-text"></p>
+</div>
+</div>
+<!-- 更新日志弹窗 -->
+<div id="changelog-overlay">
+<div id="changelog-card">
+<div id="changelog-header">
+<span id="changelog-title">更新日志</span>
+<span id="changelog-close">&times;</span>
+</div>
+<div id="changelog-body"></div>
+</div>
 </div>
 <div id="selection-screen">
 <button id="back-btn" type="button">← 返回</button>
+<button id="bp-mode-btn" type="button">BP模式</button>
 <h1>⚔️ 狂想：跨界之战</h1>
 <div id="selection-topbar">
 <div id="selection-mode-badge"></div>
@@ -431,6 +522,37 @@ word-break: break-word; }
 <button class="tut-btn tut-primary" id="tut-next" type="button">下一步</button>
 </div>
 </div>
+</div>
+<div id="bp-screen">
+<button id="bp-back-btn" type="button">← 返回</button>
+<h1>🛡️ BP 选人</h1>
+<div id="bp-topbar">
+<div class="bp-team bp-team-p1">
+<div class="bp-team-title">🟢 玩家1</div>
+<div class="bp-slots" id="bp-p1-slots"></div>
+</div>
+<div class="bp-team bp-team-p2">
+<div class="bp-team-title">🔵 玩家2</div>
+<div class="bp-slots" id="bp-p2-slots"></div>
+</div>
+</div>
+<div id="bp-stage-bar">
+<span id="bp-stage-text">准备中</span>
+<span id="bp-stage-sub"></span>
+</div>
+<div id="bp-flow"></div>
+<div id="bp-ban-row">
+<span class="bp-ban-label">已禁用</span>
+<div id="bp-ban-slots"></div>
+</div>
+<input type="text" class="search-box" id="bp-search" placeholder="搜索角色名...">
+<div class="hero-grid" id="bp-hero-grid"></div>
+<div id="bp-confirm-bar">
+<span id="bp-confirm-text">请选择一个英雄</span>
+<button id="bp-confirm-btn" type="button" disabled>确认</button>
+<button id="bp-confirm-cancel" type="button">取消</button>
+</div>
+<button id="bp-start-btn" disabled>点击开始游戏</button>
 </div>
 <div id="hero-detail-overlay">
 <div id="hero-detail-card">
@@ -530,7 +652,8 @@ const HERO_IMG_FILE = {
 '主角':'Protagonist', '捷克罗姆':'Zekrom', '东丈':'JoeHigashi', '白藏主':'Hakuzosu',
 '宇智波带土':'ObitoUchiha', '镰鼬':'Kamaitachi', '鬼王酒吞童子':'DemoniacShutenDoji',
 '雪拉比':'Celebi', '纲手':'Tsunade', '裂空座':'Rayquaza', '维迦':'Veigar', '流光追月神':'LuminaryOitsuki',
-'心友犬神':'BosombuddyInugami', '鬼金羊':'Guijinyang', '禅心云外镜':'ZenshinUngaikyo', '两面宿傩':'RyomenSukuna'
+'心友犬神':'BosombuddyInugami', '鬼金羊':'Guijinyang', '禅心云外镜':'ZenshinUngaikyo', '两面宿傩':'RyomenSukuna',
+'五条悟':'GojoSatoru'
 };
 function heroImgSrc(name) {
 const file = HERO_IMG_FILE[name];
@@ -549,24 +672,26 @@ normal: { name:"斩击", type:"single", dmgRate:1.0, target:"enemy" },
 skill: { name:"剑爆", cost:4, type:"aoe", dmgRate:1.4, target:"enemy", selfEffect:"rageAll1" },
 descNormal: "对敌方目标造成 <span class='dmg'>100%</span> 伤害。", descSkill: "对敌方全体造成 <span class='dmg'>140%</span> 伤害，恢复我方全体 <span class='buff'>1点怒气</span>。",
 mechanics: [] },
-"捷克罗姆": { atk:1050, def:335, hp:3800, spd:156, critRate:0.2, critDmg:1.8, color:'#7c4dff', tag:'攻击',
-normal: { name:"电击", type:"single", dmgRate:0.8, trueRate:0.2, target:"enemy" },
+"捷克罗姆": { atk:1100, def:335, hp:3800, spd:156, critRate:0.24, critDmg:1.8, color:'#1565c0', tag:'攻击',   // 深蓝
+normal: { name:"电击", type:"single", dmgRate:0.9, trueRate:0.3, target:"enemy" },
 skill: { name:"交错闪电", cost:4, type:"single_then_aoe", dmgRate:1.8, trueRate:0.9, aoeDmgRate:1.0, aoeTrueRate:0.5, target:"enemy", selfEffect:"thunderPress" },
-descNormal: "对敌方目标造成 <span class='dmg'>80%</span> 伤害和 <span class='true-dmg'>20%真实伤害</span>。",
-descSkill: "对敌方目标造成 <span class='dmg'>180%</span> 伤害和 <span class='true-dmg'>90%真实伤害</span>，然后对敌方全体造成 <span class='dmg'>100%</span> 伤害和 <span class='true-dmg'>50%真实伤害</span>。自身获得<span class='m-mark'>雷压</span>（持续3回合）与 <span class='buff'>最大生命值30%的护盾</span>。",
+descNormal: "对敌方目标造成 <span class='dmg'>90%</span> 伤害和 <span class='true-dmg'>30%真实伤害</span>。",
+descSkill: "对敌方目标造成 <span class='dmg'>180%</span> 伤害和 <span class='true-dmg'>90%真实伤害</span>，然后对敌方全体造成 <span class='dmg'>100%</span> 伤害和 <span class='true-dmg'>50%真实伤害</span>。自身获得<span class='m-mark'>雷压</span>（持续3回合）与 <span class='buff'>最大生命值35%的护盾</span>。",
 mechanics: [
 { type:'mark', name:'雷压', desc:'增益印记：提升自身30%速度、20%最终伤害、30%暴击率，不可叠加。' },
 { type:'note', name:'护盾', desc:'优先于生命值承受伤害。' }] },
-"东丈": { atk:900, def:250, hp:3415, spd:161, critRate:0.12, critDmg:1.6, color:'#00e5ff', tag:'攻击',
+"东丈": { atk:900, def:250, hp:3415, spd:161, critRate:0.15, critDmg:1.6, color:'#ffd700', tag:'攻击',   // 黄（与主角同色）
 normal: { name:"风拳", type:"single", dmgRate:1.2, target:"enemy", selfEffect:"windWalk" },
-skill: { name:"龙卷风", cost:4, type:"single", dmgRate:3.2, target:"enemy", effect:"stun", selfEffect:"galeWind" },
+skill: { name:"龙卷风", cost:4, type:"single", dmgRate:3.4, target:"enemy", effect:"stun", selfEffect:"galeWind" },
+/* 「不屈」每局游戏限触发一次：次数记在单位上（buquUsed），startBattle 时随单位重建归零。 */
+passive: { name:"不屈", desc:"受到致命伤害时，移除自身所有减益状态、印记，保留 <span class='buff'>1点</span>生命值，对伤害来源施放「龙卷风」；若伤害来源因此阵亡，则<span class='restore'>恢复</span>自身 <span class='heal'>100%</span>最大生命值的生命值。每局游戏限触发一次。" },
 descNormal: "对敌方目标造成 <span class='dmg'>120%</span> 伤害，自身获得 <span class='m-mark'>1层风行</span>。",
-descSkill: "对敌方目标造成 <span class='dmg'>320%</span> 伤害，并使其陷入 <span class='m-state'>眩晕</span>（持续1回合），自身获得 <span class='m-mark'>1层狂风</span> 与 <span class='m-mark'>2层风行</span>。",
+descSkill: "对敌方目标造成 <span class='dmg'>340%</span> 伤害，并使其陷入 <span class='m-state'>眩晕</span>（持续1回合），自身获得 <span class='m-mark'>1层狂风</span> 与 <span class='m-mark'>2层风行</span>。",
 mechanics: [
 { type:'mark', name:'风行', desc:'增益印记：提升自身速度25点，最多叠加5层。' },
 { type:'mark', name:'狂风', desc:'增益印记：提升自身攻击150点、防御100点，最多叠加3层。' },
 { type:'state', name:'眩晕', desc:'减益状态：控制效果，目标无法行动，持续1回合。' } ] },
-"白藏主": { atk:450, def:600, hp:7000, spd:300, critRate:0.05, critDmg:1.5, color:'#ff7043', tag:'防御',
+"白藏主": { atk:450, def:600, hp:7000, spd:300, critRate:0.05, critDmg:1.5, color:'#26c6da', tag:'防御',   // 浅蓝（与鬼金羊同色）
 normal: { name:"炎影", type:"single", dmgRate:1.0, target:"enemy", effect:"rageDown" },
 skill: { name:"梦山狐影", cost:4, type:"buff", target:"ally", selfEffect:"foxGuard" },
 descNormal: "对敌方目标造成 <span class='dmg'>100%</span> 伤害，有 <span class='buff'>50%概率</span> 使目标减 <span class='buff'>1点怒气</span>。",
@@ -575,18 +700,20 @@ mechanics: [
 { type:'mark', name:'狐守', desc:'增益印记：提升20%最终免伤率；拥有印记的友方所受伤害由白藏主代为承受，不可叠加。' },
 { type:'mark', name:'狐佑', desc:'增益印记：提升自身25%最终免伤率，不可叠加。' }
 ] },
-"宇智波带土": { atk:1000, def:220, hp:3400, spd:182, critRate:0.12, critDmg:1.6, color:'#d32f2f', tag:'攻击',
+"宇智波带土": { atk:1000, def:220, hp:3400, spd:182, critRate:0.15, critDmg:1.6, color:'#d32f2f', tag:'攻击',
 normal: { name:"突袭", type:"single", dmgRate:0.63, hitCount:2, target:"enemy", effect:"kamuiMark" },
 skill: { name:"神威·虚化", cost:4, type:"banish", target:"enemy", selfEffect:"intangibility" },
 descNormal: "对敌方目标造成两段 <span class='dmg'>63%</span> 伤害，并使目标附加 <span class='m-mark'>1层神威</span>。",
 descSkill: "将敌方目标放逐至神威空间（<span class='m-rule'>放逐</span>），同时自身进入 <span class='m-rule'>虚化</span>，均持续至施放者带土下回合结束。放逐结束后，施放者带土立即对该目标分别造成 <span class='dmg'>50%</span>伤害、<span class='dmg'>70%</span>伤害、<span class='true-dmg'>90%真实伤害</span>，敌方全体附加 <span class='m-mark'>1层神威</span>，然后对敌方全体造成 <span class='true-dmg'>36%真实伤害</span>。敌方放逐存在时，无法施放此技能。",
 mechanics: [
 { type:'mark', name:'神威', desc:'减益印记：受到攻击时，每层额外附加施加者12%真实伤害（该伤害不可转移），同时施加者+12%行动条，最多叠加3层。' },
-{ type:'rule', name:'放逐', desc:'规则：视为离开战局。期间无法行动、无法选中、无法被治疗恢复；行动条锁定在放逐前的位置，且锁定优先级高于一切行动条改变效果，目标相关所有状态与印记失效。' },
+{ type:'rule', name:'放逐', desc:'规则：视为离开战局。期间无法行动，无法选中，无法被治疗、恢复，行动条锁定；目标相关的所有状态、印记失效，免疫伤害，取消效果buff的变化。' },
 { type:'rule', name:'虚化', desc:'规则：免疫伤害与减益效果。进入时移除自身所有减益状态与减益印记，持续期间免疫减益状态与减益印记。' } ] },
 "镰鼬": { atk:600, def:400, hp:4600, spd:272, critRate:0.08, critDmg:1.5, color:'#aed581', tag:'辅助',
 normal: { name:"胖揍", type:"single", dmgRate:1.0, target:"enemy", effect:"stunChance" },
 skill: { name:"兄弟之绊", cost:4, type:"buff", target:"ally", selfEffect:"bond" },
+passive: { name:"人多势众", turnEnd:'renDuoShiZhong',
+desc:"回合结束后，有 <span class='buff'>30%</span> 概率使自身<span class='buff'>+100%行动条</span>。" },
 descNormal: "对敌方目标造成 <span class='dmg'>100%</span> 伤害，<span class='buff'>30%概率</span> 附加<span class='m-state'>眩晕</span>。",
 descSkill: "全体行动条+<span class='buff'>30%</span>，同时全体获得 <span class='m-state'>牵绊</span>（持续2回合）。",
 mechanics: [
@@ -602,19 +729,19 @@ mechanics: [
 { type:'mark', name:'鬼王之力', desc:'增益印记：免疫控制效果。' },
 { type:'mark', name:'大妖之力', desc:'增益印记：每损失1%最大生命值，提升1%最终伤害率与0.5%最终免伤率。' },
 { type:'note', name:'先机', desc:'战斗开始时，触发一次相应效果。' } ] },
-"雪拉比": { atk:375, def:450, hp:4500, spd:220, critRate:0.08, critDmg:1.5, color:'#69f0ae', tag:'辅助',
+"雪拉比": { atk:390, def:450, hp:4500, spd:220, critRate:0.08, critDmg:1.5, color:'#69f0ae', tag:'辅助',
 normal: { name:"治愈", type:"single", healRate:1.8, target:"ally", healEffect:"targetRageUp1" },
-skill: { name:"预知未来", cost:4, type:"damageLog", target:"ally" },
+skill: { name:"预知未来", cost:4, type:"damageLog", target:"ally", cooldown: 2 },
 descNormal: "<span class='heal'>治疗</span>单个友方 <span class='heal'>180%</span> 生命，并使目标获得 <span class='buff'>1点怒气</span>。",
-descSkill: "施放后记录所有友方受到的总伤害值至雪拉比下回合开始，下回合开始时，将记录值的 <span class='heal'>80%</span> 平均分配<span class='restore'>恢复</span>至所有存活友方，并使所有存活友方<span class='restore'>恢复</span>雪拉比最大生命值 <span class='heal'>9%</span> 的生命值。",
+descSkill: "施放后记录所有友方受到的总伤害值至雪拉比下回合开始，雪拉比下回合开始时，将记录值的 <span class='heal'>80%</span> 平均分配<span class='restore'>恢复</span>至所有存活友方，并使所有存活友方<span class='restore'>恢复</span>雪拉比最大生命值 <span class='heal'>9%</span> 的生命值。若记录期间友方阵亡，则雪拉比的恢复结算后额外复活记录期间阵亡友方至 <span class='buff'>1点</span>生命。技能冷却：2回合。",
 mechanics: [] },
 "纲手": { atk:700, def:600, hp:5000, spd:142, critRate:0.2, critDmg:1.8, color:'#f48fb1', tag:'辅助',
-normal: { name:"怪力", type:"single", dmgRate:1.5, target:"enemy" },
+normal: { name:"怪力", type:"single", dmgRate:1.5, target:"enemy", effect:"guaiLi" },
 skill: { name:"百豪之术", cost:4, type:"buff", target:"ally", selfEffect:"hundredHeal" },
-descNormal: "对敌方目标造成 <span class='dmg'>150%</span> 伤害。",
+descNormal: "对敌方单个目标造成 <span class='dmg'>150%</span> 伤害，<span class='buff'>30%</span>概率使目标附加 <span class='m-state'>眩晕</span>，并使当前生命值最低的友方<span class='buff'>+15%</span>行动条。",
 descSkill: "<span class='heal'>治疗所有友方200%生命</span>，使所有友方获得 <span class='m-state'>百豪</span>（持续3回合）。",
 mechanics: [{ type:'state', name:'百豪', desc:'增益状态：提升10%攻击、20%治疗加成，持续3回合。' }] },
-"裂空座": { atk:1000, def:240, hp:4100, spd:154, critRate:0.2, critDmg:1.8, color:'#00c853', tag:'攻击',
+"裂空座": { atk:1050, def:240, hp:4100, spd:154, critRate:0.24, critDmg:1.8, color:'#00c853', tag:'攻击',
 normal: { name:"龙爪", type:"single", dmgRate:1.2, target:"enemy", selfEffect:"dragonDance" },
 skill: { name:"画龙点睛", cost:4, type:"aoe", dmgRate:2.6, target:"enemy", selfEffect:"defDownPerm" },
 descNormal: "对敌方目标造成 <span class='dmg'>120%</span> 伤害，获得 <span class='m-mark'>1层龙之舞</span>。",
@@ -634,11 +761,16 @@ mechanics: [
 { type:'note', name:'先机', desc:'战斗开始时，触发一次相应效果。' } ] },
 "维迦": { atk:1000, def:250, hp:3300, spd:155, critRate:0.5, critDmg:2.0, color:'#6a1b9a', tag:'攻击',
 normal: { name:"黑暗祭祀", type:"single", dmgRate:1.0, target:"enemy", selfEffect:"darkEssence" },
-skill: { name:"能量爆裂", cost:4, type:"single", dmgRate:3.0, target:"enemy", selfEffect:"darkEssence" },
+/* 技能1「扭曲空间」cost 2：击杀只给 1 层超凡邪力（无全套收益）。
+   技能2「能量爆裂」cost 4：击杀给全套（超凡邪力 + 4怒气 + 行动条60% + 恢复30%）。
+   两者用 vayneFullKill 标记区分，killUnit 里读该标记决定给多少。 */
+skill:  { name:"扭曲空间", cost:2, type:"single", dmgRate:1.0, target:"enemy", effect:"stun", selfEffect:"darkEssence", vayneFullKill:false },
+skill2: { name:"能量爆裂", cost:4, type:"single", dmgRate:3.0, target:"enemy", selfEffect:"darkEssence", vayneFullKill:true },
 descNormal: "对敌方目标造成 <span class='dmg'>100%</span> 伤害，若造成击杀则获得 <span class='m-mark'>1层超凡邪力</span>。",
-descSkill: "对敌方目标造成 <span class='dmg'>300%</span> 伤害，若造成击杀则获得 <span class='m-mark'>1层超凡邪力</span>，且回合结束后自身 <span class='buff'>+60%行动条</span>，获得 <span class='buff'>4点怒气</span>，<span class='restore'>恢复</span>自身最大生命值 <span class='heal'>30%</span> 的生命值。",
+descSkill: "对敌方目标造成 <span class='dmg'>100%</span> 伤害，并附加<span class='m-state'>眩晕</span>（持续1回合），若造成击杀则获得 <span class='m-mark'>1层超凡邪力</span>。",
+descSkill2: "对敌方目标造成 <span class='dmg'>300%</span> 伤害，若造成击杀则获得 <span class='m-mark'>1层超凡邪力</span>，且回合结束后自身 <span class='buff'>+60%行动条</span>，获得 <span class='buff'>4点怒气</span>，<span class='restore'>恢复</span>自身最大生命值 <span class='heal'>30%</span> 的生命值。",
 mechanics: [{ type:'mark', name:'超凡邪力', desc:'增益印记：永久提升攻击20%、暴击率10%、暴击伤害20%、最终伤害率10%，最多叠加5层。' }] },
-"心友犬神": { atk:900, def:270, hp:3600, spd:154, critRate:0.12, critDmg:1.6, color:'#8d6e63', tag:'均衡',
+"心友犬神": { atk:900, def:270, hp:3600, spd:154, critRate:0.12, critDmg:1.6, color:'#26c6da', tag:'均衡',   // 浅蓝（与鬼金羊同色）
 normal: { name:"天心斩", type:"single", dmgRate:1.2, target:"enemy", effect:"queZhiYin" },
 skill: { name:"浪客归刃", cost:4, type:"buff", target:"ally", selfEffect:"langKeGuiRen" },
 opening: 'langKeOpening',
@@ -650,7 +782,7 @@ descExtra: "对敌方全体造成 <span class='dmg'>80%</span> 伤害（每个�
 descNormal: "对敌方目标造成 <span class='dmg'>120%</span> 伤害，并对目标附加 <span class='m-mark'>1层雀之印</span>。",
 descSkill: "使自身、主角以及生命比例最低的友方单位（不包括自身和主角）获得心友犬神攻击 <span class='buff'>80%</span> 的护盾。自身获得 <span class='m-mark'>守势</span>（持续2回合）。先机：施放「浪客归刃」。",
 mechanics: [
-{ type:'mark', name:'雀之印', desc:'减益印记：上限2层。达到上限时，移除所有层数，受到施加者造成的三段50%伤害。' },
+{ type:'mark', name:'雀之印', desc:'减益印记：上限2层。达到上限时，受到施加者造成的三段50%伤害，移除所有层数。' },
 { type:'mark', name:'守势', desc:'增益印记：获得270点防御。拥有护盾的友方单位受到攻击时，施放「一誓归心」。不可叠加。' },
 { type:'note', name:'先机', desc:'战斗开始时，触发一次相应效果。' },
 { type:'note', name:'护盾', desc:'优先于生命值承受伤害。' } ] },
@@ -666,7 +798,9 @@ opening: 'suyingOpening',
 extraSkills: {
 miYe: { name:"鬼宿奇惊·谜夜", type:"skip", target:"enemy" }
 },
-passive: { name:"宿影暗渡",
+/* boundSkill：标明这条【被动】是主动技能「宿影暗渡」的一部分。
+   因此它随技能走 —— 只受【无法行动】约束，不受【被动失效】影响。 */
+passive: { name:"宿影暗渡", boundSkill:'宿影暗渡',
 desc:"敌方每减少 <span class='buff'>2点怒气</span>（包括技能消耗），自身获得 <span class='m-mark'>1层宿影阵</span>。自身免疫 <span class='m-mark'>长星锁</span>。先机：获得 <span class='m-mark'>3层宿影阵</span>与 <span class='buff'>2点怒气</span>。" },
 descNormal: "对敌方目标造成 <span class='dmg'>100%</span> 伤害。",
 descSkill: "消耗 <span class='buff'>0点怒气</span>，减少敌方随机有怒气的 <span class='buff'>2个单位1点怒气</span>，我方随机 <span class='buff'>2个单位恢复1点怒气</span>。",
@@ -674,35 +808,58 @@ castDesc: "消耗 <span class='buff'>0点怒气</span>，减少敌方随机有�
 descSkill2: "对敌方目标附加 <span class='m-mark'>长星锁</span>，并使下个友方单位获得 <span class='buff'>2点怒气</span>。",
 descExtra: "跳过目标回合。",
 mechanics: [
-{ type:'mark', name:'宿影阵', desc:'增益印记：上限5层。达到上限时，移除所有层数，施放「宿影暗渡」。' },
-{ type:'mark', name:'长星锁', desc:'减益印记：携带者行动条达到100%时，移除此印记，鬼金羊对其施放「鬼宿奇惊·谜夜」。不可叠加。' },
+{ type:'mark', name:'宿影阵', desc:'增益印记：上限5层。达到上限时，施放「宿影暗渡」，移除所有层数（先施放，成功后再移除）。' },
+{ type:'mark', name:'长星锁', desc:'减益印记：携带者行动条达到100%时，鬼金羊对其施放「鬼宿奇惊·谜夜」，然后移除此印记。不可叠加。' },
 { type:'note', name:'先机', desc:'战斗开始时，触发一次相应效果。' } ] },
-"禅心云外镜": { atk:450, def:380, hp:5300, spd:240, critRate:0.05, critDmg:1.5, color:'#4dd0e1', tag:'防御',
+"禅心云外镜": { atk:450, def:380, hp:5300, spd:240, critRate:0.05, critDmg:1.5, color:'#8d6e63', tag:'防御',   // 棕（心友犬神改前用色）
 normal: { name:"水无垠", type:"single", dmgRate:1.0, target:"enemy", selfEffect:"shuiWuYin" },
-skill: { name:"万法皆空", cost:4, type:"buff", target:"ally", selfEffect:"wanFaJieKong", cooldown: 3 },   // cooldown 字面量 = WANFA_DURATION（常量定义在 HERO_DATA 之后，此处不能用变量）
-passive: { name:"心净明",
+/* 技能1「心净明」：与鬼金羊「宿影暗渡」同一模式 ——
+   被动部分（行动阶段重新分配友方生命）写在 passive.desc 且用 boundSkill 绑定，
+   主动部分写在 castDesc，详情页自动拼成「被动…【施放】…」。 */
+/* pickTarget:true —— 「buff」型默认作用于自身/全体、不选目标；
+   心净明只作用于【单个友方】，故显式声明需要玩家/AI 指定目标。 */
+skill:  { name:"心净明", cost:4, type:"buff", target:"ally", selfEffect:"xinJingMingCast", pickTarget: true },
+skill2: { name:"万法皆空", cost:4, type:"buff", target:"ally", selfEffect:"wanFaJieKong", cooldown: 3 },   // cooldown 字面量 = WANFA_DURATION
+passive: { name:"心净明", boundSkill:'心净明',
 desc:"行动阶段时，重新分配友方总生命，使得友方生命百分比相同。" },
-descNormal: "对敌方目标造成 <span class='dmg'>100%</span> 伤害，并移除自身携带的所有减益状态、印记。",
-descSkill: "扣除全体友方 <span class='dmg'>50%当前生命值</span>，使全体友方获得各自 <span class='buff'>50%最大生命值</span> 的护盾。使全体友方获得 <span class='m-mark'>万法</span>，持续三回合。三个回合后，<span class='m-note'>翻转</span>全体友方的生命值，并清除全体友方的护盾。技能冷却时间：三回合。",
+castDesc: "消耗 <span class='buff'>4点怒气</span>，移除友方目标的所有减益状态和印记，使其<span class='buff'>+30%行动条</span>。若未能移除，则改为使其<span class='buff'>+100%行动条</span>。",
+descNormal: "对敌方目标造成 <span class='dmg'>100%</span> 伤害，并移除自身所有减益状态和印记。",
+descSkill: "行动阶段时，重新分配友方总生命，使得友方生命百分比相同。",
+descSkill2: "扣除全体友方 <span class='dmg'>50%当前生命值</span>，使全体友方获得各自 <span class='buff'>50%最大生命值</span> 的护盾。使全体友方获得 <span class='m-mark'>万法</span>，持续三回合。三个回合后，<span class='m-note'>翻转</span>全体友方的生命值，并清除全体友方的护盾。技能冷却时间：三回合。",
 mechanics: [
 { type:'mark', name:'万法', desc:'增益印记：提升10%速度，不可叠加。' },
 { type:'note', name:'翻转', desc:'当前生命值与已损失生命值互换。' },
 { type:'note', name:'护盾', desc:'优先于生命值承受伤害。' } ] },
-"两面宿傩": { atk:1020, def:310, hp:3900, spd:180, critRate:0.15, critDmg:1.7, color:'#d50000', tag:'攻击',
+"两面宿傩": { atk:1020, def:310, hp:3900, spd:180, critRate:0.15, critDmg:1.8, color:'#d50000', tag:'攻击',
 normal: { name:"解·捌", type:"single", dmgRate:1.0, target:"enemy", sukunaForm:"jie" },
-skill: { name:"伏魔神龛", cost:4, type:"aoe", trueRate:0.8, fixedMaxHpRate: 0.1, target:"enemy", selfEffect:"fuMo" },   // 0.1 = SUKUNA_FIXED_MAXHP_RATE
-passive: { name:"两面宿傩",
-desc:"两面宿傩的普攻在<span class='k'>「解」</span>与<span class='k'>「捌」</span>之间切换，施放普攻后切换一次，初始为<span class='k'>解</span>。" },
+skill: { name:"灶", cost:2, type:"single", dmgRate:1.2, trueRate:0.6, fixedMaxHpRate: 0.08, target:"enemy" },
+skill2: { name:"伏魔神龛", cost:4, type:"aoe", trueRate:0.8, fixedMaxHpRate: 0.1, target:"enemy", selfEffect:"fuMo" },   // 0.1 = SUKUNA_FIXED_MAXHP_RATE
+passive: { name:"斩击反转", onDamaged:'sukunaRestore',
+desc:"两面宿傩的普攻在<span class='k'>「解」</span>与<span class='k'>「捌」</span>之间切换，施放普攻后切换一次，初始为<span class='k'>解</span>。受到伤害后，<span class='restore'>恢复</span>自身 <span class='heal'>5%</span>最大生命值的生命值。" },
 descNormal: "<span class='k'>解</span>：对敌方目标造成两段 <span class='dmg'>63%</span> 的伤害（强化：额外造成 <span class='true-dmg'>63%真实伤害</span>）。<br><span class='k'>捌</span>：对敌方目标造成攻击 <span class='true-dmg'>120%的真实伤害</span>与 <span class='fixed-dmg'>10%目标最大生命值的固定伤害</span>（强化：若造成伤害后目标生命值低于 <span class='dmg'>30%</span>，则直接<span class='m-note'>斩杀</span>目标）。",
-descSkill: "分别对敌方全体造成 <span class='true-dmg'>80%真实伤害</span>与 <span class='fixed-dmg'>10%目标最大生命值的固定伤害</span>，然后使自身获得 <span class='m-mark'>伏魔</span>（持续2回合）。",
+descSkill: "对敌方目标造成 <span class='dmg'>120%</span>伤害、<span class='true-dmg'>60%真实伤害</span>与 <span class='fixed-dmg'>8%目标最大生命值的固定伤害</span>。",
+descSkill2: "分别对敌方全体造成 <span class='true-dmg'>80%真实伤害</span>与 <span class='fixed-dmg'>10%目标最大生命值的固定伤害</span>，然后使自身获得 <span class='m-mark'>伏魔</span>（持续2回合）。",
 mechanics: [
 { type:'mark', name:'伏魔', desc:'增益印记：强化两面宿傩的普攻，不可叠加。' },
 { type:'note', name:'斩杀', desc:'达成斩杀条件时，目标立即死亡。' },
-{ type:'note', name:'固定伤害', desc:'造成固定数值的伤害，不受任何影响，无视护盾。' } ] }
+{ type:'note', name:'固定伤害', desc:'造成固定数值的伤害，不受任何影响，无视护盾。' } ] },
+"五条悟": { atk:1010, def:300, hp:3800, spd:181, critRate:0.15, critDmg:1.8, color:'#40c4ff', tag:'攻击',
+normal: { name:"苍·赫", type:"single", dmgRate:1.2, target:"enemy", gojoForm:"ao" },
+skill: { name:"茈", cost:2, type:"aoe", trueRate:0.4, fixedMaxHpRate:0.05, target:"enemy" },
+skill2: { name:"无量空处", cost:4, type:"aoe", trueRate:0.6, fixedMaxHpRate:0.08, target:"enemy", effect:"hunLuan" },
+passive: { name:"无下限",
+desc:"五条悟的普攻在<span class='k'>「苍」</span>与<span class='k'>「赫」</span>之间切换，施放普攻后切换一次，初始为<span class='k'>苍</span>。受到攻击前，自身获得 <span class='buff'>8%最大生命值</span>的护盾（每个单位回合限一次）。" },
+descNormal: "<span class='k'>苍</span>：对敌方目标造成 <span class='dmg'>120%</span>伤害，并使其附加 <span class='m-state'>苍</span>（持续2回合）。<br><span class='k'>赫</span>：对敌方目标造成 <span class='dmg'>200%</span>伤害。",
+descSkill: "对敌方全体造成 <span class='true-dmg'>40%真实伤害</span>与 <span class='fixed-dmg'>5%目标最大生命值的固定伤害</span>。",
+descSkill2: "对敌方全体造成 <span class='true-dmg'>60%真实伤害</span>与 <span class='fixed-dmg'>8%目标最大生命值的固定伤害</span>，每个目标有 <span class='buff'>40%</span>概率被附加 <span class='m-state'>混乱</span>（持续1回合）。",
+mechanics: [
+{ type:'state', name:'苍', desc:'减益状态：携带者-10%速度，若受到施加者五条悟的攻击，则移除该状态，额外受到五条悟40%伤害。不可叠加。' },
+{ type:'state', name:'混乱', desc:'减益状态：携带者行动时，改为对场上随机目标普攻。不可叠加。' },
+{ type:'note', name:'护盾', desc:'优先于生命值承受伤害。' } ] }
 };
 let gameMode = 'pve'; // 'pve' 人机对战 | 'pvp' 双人对战
 // 注：已移除 actingUnit / battleLog / selectedTarget 三个从未被读取的僵尸字段
-let gameState = { phase:'modeSelect', units:[], playerTeam:[], enemyTeam:[], actionBarMax:0, paused:false, autoMode:false, animating:false, waitingForTarget:false, targetType:null, pendingSkill:null, currentActor:null, lastTimestamp:0, rafId:null, snowballSnapshot:null, vayneKillThisTurn:false, damageLogTotal:0, damageLogSide:null, shouShiFiring:false, suyingFiring:false, shouShiTurnCount:0, pendingCasts:[] };
+let gameState = { phase:'modeSelect', units:[], playerTeam:[], enemyTeam:[], actionBarMax:0, paused:false, autoMode:false, animating:false, waitingForTarget:false, targetType:null, pendingSkill:null, currentActor:null, lastTimestamp:0, rafId:null, snowballSnapshot:null, vayneKillThisTurn:false, damageLogTotal:0, damageLogSide:null, shouShiFiring:false, suyingFiring:false, shouShiTurnCount:0, wuXianXiaTurnCount:0, pendingCasts:[], needFlushAfterActionable:false, damageLogFallen:[] };
 let playerSelection = ['主角']; let enemySelection = ['主角'];
 /* ===== 自定义确认弹窗 =====
    showConfirmDialog(text, onConfirm)：点击「确定」才执行 onConfirm。
@@ -743,6 +900,108 @@ function toggleSpeed() {
 SPEED_MULTIPLIER = SPEED_MULTIPLIER === 1 ? 2 : 1;
 applySpeedBtn();
 }
+/* ==================== 更新日志 ====================
+   数据结构：{ ver, theme?, items:[] }，ver 与主题一一对应。
+   新增版本时往 CHANGELOG 数组**开头**加一条即可（渲染按数组顺序，最新的在最上面）。
+   CURRENT_VERSION / CURRENT_THEME 同时驱动模式选择页底部那行文字。 */
+const CURRENT_VERSION = 'v1.4.7';
+const CURRENT_THEME   = '咒术·最强之战';   // 1.4.x 大主题：小版本沿用，不随每次调整变更
+const CHANGELOG = [
+{ ver:'v1.4.7', theme:'咒术·最强之战', items:[
+'新增 BP 模式（双人对战专用）：选人界面右上角「BP模式」入口，独立全屏界面。',
+'BP 流程：P1禁1 → P2禁1 → P1选1 → P2选2 → P1选2 → P1禁1 → P2禁1 → P2选2 → P1选2 → P2选1。',
+'BP 英雄独占：任一方已选的英雄双方均不可再选；主角自动锁定、不参与 BP。',
+'BP 禁用与选择均需二次确认（确认 / 取消），防止误触。',
+'禅心云外镜：普攻「水无垠」改为只移除自身减益；新增技能1「心净明」（消耗4点怒气，移除友方目标减益并+30%行动条，若未能移除则改为+100%），原「万法皆空」调整为技能2。',
+'镰鼬：被动描述改为「回合结束后，有30%概率使自身+100%行动条」。',
+'维迦：新增技能1「扭曲空间」（消耗2点怒气，100%伤害 + 眩晕1回合，击杀获得1层超凡邪力）；原「能量爆裂」调整为技能2（消耗4点怒气，保留击杀全套收益）。',
+'镰鼬：新增被动「人多势众」——回合结束后 30% 概率使自身 +100% 行动条。',
+'捷克罗姆：攻击 1050 → 1100，暴击率 20% → 24%，普攻 80%+20%真实 → 90%+30%真实。',
+'裂空座：攻击 1000 → 1050，暴击率 20% → 24%。',
+'东丈：暴击率 12% → 15%。',
+'宇智波带土：暴击率 12% → 15%。',
+'纲手：普攻「怪力」拉条 10% → 15%。',
+'雪拉比：攻击 375 → 390。',
+'两面宿傩：暴击伤害 170% → 180%。',
+'五条悟：暴击伤害 170% → 180%。',
+'修复：五条悟被动「无下限」的护盾未计入结算面板统计。',
+'修复：雪拉比复活后头像仍为置灰状态（阵亡样式未随复活清除）。',
+'修复：两面宿傩受超量伤害后仍会被恢复救回 —— 引入溢出伤害（overkill）判定，恢复量须大于溢出伤害才能救回。',
+'修复：伤害被护盾完全吸收时仍触发「受到伤害」类被动 —— 现区分「受到伤害后」（须真正掉血）与「受到攻击时」（被打即算）。',
+'修复：固定伤害此前不触发受击后被动，现已纳入（无视护盾必然掉血）。',
+'规则澄清：东丈「不屈」每局游戏限触发一次；两面宿傩形态切换改为施放普攻后。',
+'规则澄清：长星锁改为施放技能后才移除；苍、混乱改为不可叠加；放逐新增「目标被动失效」「免疫伤害」「取消效果buff的变化」。'
+] },
+{ ver:'v1.4.6', theme:'咒术·最强之战', items:[
+'新增角色：五条悟（普攻「苍·赫」切换、被动「无下限」、技能「茈」「无量空处」）。',
+'新增机制：混乱（行动时随机普攻，不分敌我）、复活（预知未来复活阵亡友方）、不屈（致命伤害免死反击）。',
+'新增「更新日志」入口与当前版本主题展示，位于模式选择页底部。',
+'新增机制：技能冷却统一入口、单体技能固定伤害、状态类增删查统一 API。',
+'东丈：新增被动「不屈」；技能「龙卷风」伤害系数 320% → 340%。',
+'禅心云外镜：普攻「水无垠」额外移除随机一名携带减益友方的全部减益。',
+'两面宿傩：被动定名「斩击」；新增技能「灶」（消耗2点怒气），原「伏魔神龛」调整为技能2。',
+'雪拉比：技能「预知未来」新增复活效果，并加入 2 回合冷却。',
+'纲手：普攻「怪力」新增 30% 概率眩晕，并使当前生命值最低的友方 +10% 行动条。',
+'优化：多技能与额外技能体系、额外技能标题配色统一。'
+] },
+{ ver:'v1.4.5-patch-2', items:[
+'修复人机模式概率不能开始游戏的问题（选人区标题计数元素被误写为纯文本导致渲染中断）。'
+] },
+{ ver:'v1.4.5-patch-1', items:[
+'修复带土放逐 buff 不显示的问题。'
+] },
+{ ver:'v1.4.5', items:[
+'新增技能动画、重新开始、返回、取消等 UI。',
+'新增机制：双主动技能、额外技能。',
+'鬼金羊技能调整，心友犬神技能调整。'
+] },
+{ ver:'v1.4.4-beta', items:[
+'中间过渡版本。'
+] },
+{ ver:'v1.4.3', items:[
+'修复带土无限虚化的 bug，优化代码逻辑。'
+] },
+{ ver:'v1.4.2', items:[
+'修正教程描述问题。'
+] },
+{ ver:'v1.4.1', items:[
+'新增教程，优化文字描述。'
+] },
+{ ver:'v1.4.0', theme:'咒术·最强之战', items:[
+'新增角色：两面宿傩。',
+'新增机制：普攻转换、强化普攻、固定伤害、斩杀机制。'
+] },
+{ ver:'v1.3.x-rc', theme:'阴阳之门', items:[
+'新增角色：流光追月神、鬼金羊、禅心云外镜、心友犬神。',
+'新增机制：被动、技能冷却、翻转机制。'
+] },
+{ ver:'v1.2-beta', theme:'神威', items:[
+'新增角色：宇智波带土。',
+'新增机制：放逐、虚化。规则类效果 buff。'
+] },
+{ ver:'v1.1-beta', items:[
+'玩法框架与基础战斗流程完善。'
+] },
+{ ver:'v1.0-alpha', items:[
+'首个可运行版本：选人、行动条、伤害与治疗公式。'
+] }
+];
+function renderVersionTheme() {
+const el = document.getElementById('version-theme-text');
+if (!el) return;
+el.innerHTML = `${CURRENT_VERSION} · 主题<span class="theme-name">「${CURRENT_THEME}」</span> ——Qianrise`;
+}
+function renderChangelog() {
+const body = document.getElementById('changelog-body');
+if (!body) return;
+body.innerHTML = CHANGELOG.map(e => {
+const theme = e.theme ? `<div class="cl-theme">主题：<span class="tn">${e.theme}</span></div>` : '';
+const cur = e.ver === CURRENT_VERSION ? `<div class="cl-cur">当前版本</div>` : '';
+return `<div class="cl-ver">${e.ver}</div>${theme}${cur}<ul>${e.items.map(i => `<li>${i}</li>`).join('')}</ul>`;
+}).join('');
+}
+function openChangelog() { renderChangelog(); document.getElementById('changelog-overlay').classList.add('show'); }
+function closeChangelog() { document.getElementById('changelog-overlay').classList.remove('show'); }
 /* 按钮初始化：必须等到脚本末尾再执行 —— SPEED_MULTIPLIER 以 let 声明在下方，
    过早访问会触发 TDZ（暂时性死区）报错。函数声明会提升，位置无关。 */
 function initBattleUiButtons() {
@@ -766,6 +1025,13 @@ return;
 }
 resetGame();
 };
+/* BP 模式：入口 / 返回 / 搜索 / 开始（onclick 赋值，避免重复叠加监听） */
+document.getElementById('bp-mode-btn').onclick = openBpScreen;
+document.getElementById('bp-back-btn').onclick = closeBpScreen;
+document.getElementById('bp-start-btn').onclick = startBpBattle;
+document.getElementById('bp-confirm-btn').onclick = bpConfirmPending;
+document.getElementById('bp-confirm-cancel').onclick = bpCancelPending;
+document.getElementById('bp-search').addEventListener('input', renderBp);
 document.getElementById('speed-btn').onclick = toggleSpeed;
 document.getElementById('btn-cancel').onclick = cancelTargetSelection;
 document.getElementById('restart-btn').onclick = () => {
@@ -812,6 +1078,8 @@ badge.textContent = '🤖 人机对战模式';
 badge.className = 'pve';
 }
 // 双人对战模式下隐藏敌方选人区（双方各自选人）
+/* 「BP模式」入口仅双人对战下有意义（人机没有第二玩家） */
+document.getElementById('bp-mode-btn').style.display = (gameMode === 'pvp') ? 'block' : 'none';
 if (gameMode === 'pvp') {
 document.getElementById('enemy-selection-section').style.display = 'none';
 enemySelection = ['主角']; // 双人模式下敌方阵容由第二玩家选择，先初始化含主角
@@ -825,6 +1093,178 @@ renderHeroGrid('enemy');
 });
 }
 function getHeroList() { return Object.keys(HERO_DATA); }
+/* ==================== BP 模式 ====================
+   完整流程（10 步）：
+     P1禁1 → P2禁1 → P1选1 → P2选2 → P1选2 → P1禁1 → P2禁1 → P2选2 → P1选2 → P2选1
+   双方各选 5 人 + 必选主角 = 6 人；共禁用 4 人。
+   英雄独占：任一方已选的英雄另一方不可再选（主角由双方自动锁定，不参与 BP）。 */
+const BP_STEPS = [
+{ side:'p1', action:'ban',  count:1 },
+{ side:'p2', action:'ban',  count:1 },
+{ side:'p1', action:'pick', count:1 },
+{ side:'p2', action:'pick', count:2 },
+{ side:'p1', action:'pick', count:2 },
+{ side:'p1', action:'ban',  count:1 },
+{ side:'p2', action:'ban',  count:1 },
+{ side:'p2', action:'pick', count:2 },
+{ side:'p1', action:'pick', count:2 },
+{ side:'p2', action:'pick', count:1 },
+];
+const BP_PICK_TARGET = 5;                     // 每方需选人数（+主角 = 6）
+let bpState = { active:false, step:0, progress:0, p1:[], p2:[], bans:[] };
+function resetBp() { bpState = { active:false, step:0, progress:0, p1:[], p2:[], bans:[] }; }
+/* 当前步：全部走完则返回 null */
+function bpCurrentStep() { return bpState.step < BP_STEPS.length ? BP_STEPS[bpState.step] : null; }
+function bpSideName(side) { return side === 'p1' ? '玩家1' : '玩家2'; }
+function openBpScreen() {
+resetBp(); bpState.active = true;
+document.getElementById('selection-screen').style.display = 'none';
+document.getElementById('bp-screen').style.display = 'block';
+document.getElementById('bp-search').value = '';
+renderBp();
+}
+function closeBpScreen() {
+bpState.active = false;
+document.getElementById('bp-screen').style.display = 'none';
+document.getElementById('selection-screen').style.display = 'block';
+}
+/* 某英雄当前状态：'ban' | 'p1' | 'p2' | null */
+function bpHeroState(name) {
+if (bpState.bans.includes(name)) return 'ban';
+if (bpState.p1.includes(name)) return 'p1';
+if (bpState.p2.includes(name)) return 'p2';
+return null;
+}
+function renderBp() {
+const step = bpCurrentStep();
+/* 顶部双方头像槽：主角固定占位 + 5 个待选位 */
+const renderSlots = (sideKey, list) => {
+const box = document.getElementById(`bp-${sideKey}-slots`);
+box.innerHTML = '';
+const add = (text, cls, tip) => {
+const d = document.createElement('div');
+d.className = `bp-slot ${cls}`; d.textContent = text; if (tip) d.title = tip;
+box.appendChild(d);
+};
+add('主角', 'filled protagonist', '主角（自动锁定）');
+for (let i = 0; i < BP_PICK_TARGET; i++) {
+add(list[i] || '', list[i] ? 'filled' : '', list[i] || '待选');
+}
+};
+renderSlots('p1', bpState.p1);
+renderSlots('p2', bpState.p2);
+/* 阶段提示 */
+const st = document.getElementById('bp-stage-text');
+const sub = document.getElementById('bp-stage-sub');
+if (step) {
+const isBan = step.action === 'ban';
+st.className = isBan ? 'ban' : step.side;
+st.textContent = `${bpSideName(step.side)} ${isBan ? '禁用' : '选择'} ${step.count} 人`;
+const remain = step.count - bpState.progress;
+sub.textContent = `本阶段还需 ${remain} 个（第 ${bpState.step + 1}/${BP_STEPS.length} 步）`;
+} else {
+st.className = 'done'; st.textContent = 'BP 完成';
+sub.textContent = '双方阵容已确定，可开始游戏';
+}
+/* 流程进度条 */
+const flow = document.getElementById('bp-flow');
+flow.innerHTML = '';
+BP_STEPS.forEach((sp, i) => {
+const d = document.createElement('span');
+const cls = i < bpState.step ? 'done' : (i === bpState.step ? 'active' : '');
+d.className = `bp-flow-step ${cls}`;
+d.textContent = `${bpSideName(sp.side)}${sp.action === 'ban' ? '禁' : '选'}${sp.count}`;
+flow.appendChild(d);
+});
+/* 禁用池 */
+const banBox = document.getElementById('bp-ban-slots');
+banBox.innerHTML = '';
+bpState.bans.forEach(n => { const d = document.createElement('div'); d.className = 'bp-ban-slot'; d.textContent = n; banBox.appendChild(d); });
+if (bpState.bans.length === 0) banBox.innerHTML = '<span style="font-size:12px;color:#616161">暂无</span>';
+/* 英雄网格 */
+const grid = document.getElementById('bp-hero-grid');
+const search = document.getElementById('bp-search').value.toLowerCase();
+grid.innerHTML = '';
+getHeroList().forEach(name => {
+if (name === '主角') return;             // 主角自动锁定，不参与 BP
+if (search && !name.toLowerCase().includes(search)) return;
+const data = HERO_DATA[name];
+const stt = bpHeroState(name);
+const card = document.createElement('div');
+let cls = 'hero-card';
+if (stt === 'ban') cls += ' bp-banned';
+else if (stt) cls += ' bp-picked';
+if (bpState.pending === name) cls += ' bp-pending';   // 待确认：金色高亮
+card.className = cls;
+const mark = stt === 'p1' ? '<span class="bp-pick-mark p1">P1</span>' : (stt === 'p2' ? '<span class="bp-pick-mark p2">P2</span>' : '');
+card.innerHTML = `<div class="hero-avatar" style="background:linear-gradient(135deg,${data.color}66,${data.color}33);border-color:${data.color}88;">${heroAvatarInner(name)}</div><div class="hero-name">${name}</div><div class="hero-tags"><span class="tag tag-${data.tag==='攻击'?'atk':data.tag==='防御'?'def':data.tag==='辅助'?'sup':'spd'}">${data.tag}</span></div><button class="detail-btn" type="button">查看详情</button>${mark}`;
+card.querySelector('.detail-btn').addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); showHeroDetail(name); });
+card.querySelector('.detail-btn').addEventListener('touchstart', (e) => { e.stopPropagation(); }, { passive: true });
+/* 点卡片只是「选中待确认」，不立即生效 —— 需再点确认按钮 */
+if (!stt && step) card.addEventListener('click', () => bpSelectPending(name));
+grid.appendChild(card);
+});
+/* 确认条：仅在有待确认英雄时显示 */
+const bar = document.getElementById('bp-confirm-bar');
+const cbtn = document.getElementById('bp-confirm-btn');
+const ctext = document.getElementById('bp-confirm-text');
+if (bpState.pending && step) {
+bar.classList.add('show');
+bar.classList.toggle('banning', step.action === 'ban');
+ctext.textContent = `${step.action === 'ban' ? '禁用' : '选择'}「${bpState.pending}」？`;
+cbtn.disabled = false;
+cbtn.textContent = step.action === 'ban' ? '确认禁用' : '确认选择';
+} else {
+bar.classList.remove('show');
+bar.classList.remove('banning');
+cbtn.disabled = true;
+}
+/* 开始按钮 */
+const btn = document.getElementById('bp-start-btn');
+btn.disabled = !!step;
+btn.textContent = step ? 'BP 进行中…' : '点击开始游戏';
+}
+/* 第一步：点卡片 → 进入待确认（高亮 + 显示确认条） */
+function bpSelectPending(name) {
+if (!bpCurrentStep() || bpHeroState(name)) return;
+bpState.pending = name;
+renderBp();
+}
+/* 第二步：点「确认」→ 真正写入；点「取消」→ 清空待确认 */
+function bpConfirmPending() {
+const step = bpCurrentStep();
+const name = bpState.pending;
+if (!step || !name || bpHeroState(name)) { bpState.pending = null; renderBp(); return; }
+if (step.action === 'ban') bpState.bans.push(name);
+else if (step.side === 'p1') bpState.p1.push(name);
+else bpState.p2.push(name);
+bpState.pending = null;
+bpState.progress++;
+if (bpState.progress >= step.count) { bpState.step++; bpState.progress = 0; }
+renderBp();
+}
+function bpCancelPending() { bpState.pending = null; renderBp(); }
+function bpHeroClick(name) {
+const step = bpCurrentStep();
+if (!step || bpHeroState(name)) return;
+if (step.action === 'ban') bpState.bans.push(name);
+else if (step.side === 'p1') bpState.p1.push(name);
+else bpState.p2.push(name);
+bpState.progress++;
+if (bpState.progress >= step.count) { bpState.step++; bpState.progress = 0; }
+renderBp();
+}
+/* BP 完成 → 写入双方阵容并开局（双人对战） */
+function startBpBattle() {
+if (bpCurrentStep()) return;            // 未走完流程不允许开始
+if (bpState.p1.length !== BP_PICK_TARGET || bpState.p2.length !== BP_PICK_TARGET) return;
+playerSelection = ['主角', ...bpState.p1];
+enemySelection  = ['主角', ...bpState.p2];
+gameMode = 'pvp';
+bpState.active = false;
+document.getElementById('bp-screen').style.display = 'none';
+startBattle();
+}
 function initDetailOverlay() {
 const overlay = document.getElementById('hero-detail-overlay');
 document.getElementById('hero-detail-close').addEventListener('click', (e) => { e.stopPropagation(); overlay.classList.remove('show'); });
@@ -1197,7 +1637,11 @@ function onEnemyRageLost(unit, amount) {
 if (!unit || !amount) return;
 if (gameState.suyingFiring) return;   // 宿影阵自身爆发造成的怒气变化不再回喂
 (gameState.units || []).forEach(g => {
-if (g.name !== '鬼金羊' || !g.alive || g.banished) return;
+/* 「宿影暗渡」的【被动效果】部分（攒宿影阵）：不需要角色本体施放，
+   因此不受【无法行动】约束（被眩晕仍会攒层）；
+   但【放逐】规定「取消效果buff的变化」，故被放逐期间宿影阵层数不变。
+   它的【主动施放】部分走 executeAction / triggerSkill，才受 cannotAct 约束。 */
+if (g.name !== '鬼金羊' || !isPassiveEffective(g)) return;
 if (g.side === unit.side) return;          // 只统计「敌方」减少的怒气
 g.suyingCounter = (Number(g.suyingCounter) || 0) + amount;
 while (g.suyingCounter >= SUYINGZHEN_RAGE_PER_STACK) {
@@ -1208,19 +1652,22 @@ addSuyingZhen(g);
 }
 /* 获得 1 层宿影阵；达到上限则移除全部层数并结算效果 */
 function addSuyingZhen(g) {
-const m = addMark(g, '宿影阵', { stacks:1, maxStacks:SUYINGZHEN_MAX_STACKS, duration:999, effect:'suYingZhen' });
+const m = addMark(g, '宿影阵', { stacks:1, maxStacks:SUYINGZHEN_MAX_STACKS, duration:999, effect:'suYingZhen', ignoreBanish:true });   // 技能内被动效果：不受无法行动约束
 if (!m) return;
 log(`${getSideLabel(g)}${g.name} 获得1层宿影阵！（当前${m.stacks}层）`, 'log-buff');
 refreshUnit(g);
 if ((m.stacks || 1) >= SUYINGZHEN_MAX_STACKS) {
-removeMark(g, '宿影阵');
-refreshUnit(g);
+/* ★ 顺序：先【施放】「宿影暗渡」，成功后再移除所有层数。
+   若此刻鬼金羊无法行动（放逐 / 眩晕），施放排入队列等待，
+   层数保持 5 不变；一旦无法行动消失，最近的下一个安全点立刻补放并清层。 */
 log(`宿影阵达到上限！${getSideLabel(g)}${g.name} 施放「宿影暗渡」！`, 'log-skill');
 /* 排队施放（见 queueSkillCast）：此处位于 loseRage 的同步调用链里，无法 await。
-   推入队列，由最近的 flushPendingCasts 安全点串行演出。
    守卫 suyingFiring 保证本次施放造成的怒气变化不再回喂被动，避免自我连锁。 */
 gameState.suyingFiring = true;
-queueSkillCast(g, g.activeSkill);
+queueSkillCast(g, g.activeSkill, null, {
+dedupeKey: `宿影暗渡:${idxOf(g)}`,
+onSuccess: () => { removeMark(g, '宿影阵'); refreshUnit(g); log(`${getSideLabel(g)}${g.name} 的宿影阵层数已移除！`, 'log-buff'); }
+});
 gameState.suyingFiring = false;
 }
 }
@@ -1302,12 +1749,25 @@ setActionValue(unit, (Number(unit.banishedActionValue) || 0) + bonus);
 
 /* ---- 印记 / 状态 / 规则 ---- */
 function hasMark(unit, type) { return !!(unit && (unit.marks || []).some(m => m.type === type)); }
+/* 状态的增删查：与 marks 侧对齐（此前只有 hasMark/getMark/removeMark，状态侧缺同类入口，
+   导致代码里到处写 unit.states.some(s => s.type === 'xx') 这种散装判断。 */
+function hasState(unit, type) { return !!(unit && (unit.states || []).some(s => s.type === type)); }
+function getState(unit, type) { return unit ? (unit.states || []).find(s => s.type === type) || null : null; }
+function removeState(unit, type) { if (unit) unit.states = (unit.states || []).filter(s => s.type !== type); }
 function getMark(unit, type) { return unit ? (unit.marks || []).find(m => m.type === type) : null; }
 // 已存在则叠层（受 maxStacks 限制），否则新增
 // 不可叠加的印记：已存在时只刷新持续时间，不叠层（没有"层数"语义）
 const NO_STACK_MARKS = new Set(['流光', '守势', '长星锁', '万法', '伏魔']);   // 不可叠加：重复获得只刷新时长，且 buff 标签不显示层数
+/* 不可叠加的【状态】：状态本身没有层数语义（addState 不叠层，只刷新时长），
+   这里登记是为了与印记侧口径一致，且在显示层做兜底 —— 万一某处给状态塞了 stacks 也不会显示 ×N。 */
+const NO_STACK_STATES = new Set(['苍', '混乱']);
 function addMark(unit, type, opts = {}) {
-if (!unit || !unit.alive || unit.banished) return null;   // 阵亡 / 被放逐：不再接受新印记
+/* ignoreBanish：仅用于【技能内被动效果】的自动结算（如鬼金羊攒宿影阵）。
+   这类效果不需要角色本体施放，因此不受【无法行动】约束 —— 即便被放逐也照常结算。
+   外部施加的 buff 不传此参数，仍遵守「被放逐者不再接受新印记」。 */
+const { ignoreBanish = false } = opts;
+if (!unit || !unit.alive) return null;
+if (unit.banished && !ignoreBanish) return null;   // 阵亡 / 被放逐：不再接受新印记
 const { stacks = 1, maxStacks = 999, duration = 999, effect = null, extra = null } = opts;
 const exist = getMark(unit, type);
 if (exist) {
@@ -1325,7 +1785,13 @@ function addState(unit, type, opts = {}) {
 if (!unit || !unit.alive || unit.banished) return null;   // 阵亡 / 被放逐：不再接受新状态
 const { duration = 2, effect = null } = opts;
 const exist = (unit.states || []).find(s => s.type === type);
-if (exist) { exist.duration = Math.max(exist.duration || 0, duration); return exist; }
+/* 状态一律不可叠加：已存在时只刷新持续时间，不累积层数。
+   （NO_STACK_STATES 里登记的是「明确注明不可叠加」的那些，语义上与此一致） */
+if (exist) {
+exist.duration = Math.max(exist.duration || 0, duration);
+if (NO_STACK_STATES.has(type)) delete exist.stacks;   // 兜底：清掉可能混入的层数
+return exist;
+}
 const st = { type, duration, effect };
 unit.states.push(st); return st;
 }
@@ -1353,7 +1819,8 @@ function getRule(unit, type) { return unit ? (unit.rules || []).find(r => r.type
    规则(rules) ：特定条件或方法清除，不区分增益/减益
    新增任何状态/印记都必须在这里登记极性，否则驱散、移除、虚化免疫会漏判。
    ================================================ */
-const STATE_POLARITY = { '眩晕':'debuff', '牵绊':'buff', '百豪':'buff' };
+const STATE_POLARITY = { '眩晕':'debuff', '牵绊':'buff', '百豪':'buff',
+'苍':'debuff', '混乱':'debuff' };       // 五条悟的两个减益状态
 const MARK_POLARITY  = {
 '神威':'debuff',                                  // 减益印记（唯一）
 '风行':'buff', '狂风':'buff', '龙之舞':'buff', '雷压':'buff',
@@ -1366,6 +1833,11 @@ const MARK_POLARITY  = {
 function getPolarity(type) { return STATE_POLARITY[type] || MARK_POLARITY[type] || null; }
 function isDebuff(type) { return getPolarity(type) === 'debuff'; }
 function isBuff(type)   { return getPolarity(type) === 'buff'; }
+// 单位是否持有任一减益效果（状态或印记）—— 用于「随机一名携带减益的友方」这类选人
+function hasDebuffEffect(unit) {
+if (!unit) return false;
+return (unit.states || []).some(x => isDebuff(x.type)) || (unit.marks || []).some(x => isDebuff(x.type));
+}
 /* ==================== 驱散 / 移除：统一入口 ====================
    【重要】驱散与移除本身是**中性操作**，不自带增益/减益倾向。
    清除哪一种（增益 or 减益）完全由**技能描述中指定的类型**决定，由调用方传入 polarity。
@@ -1388,6 +1860,8 @@ const rs = (unit.states || []).filter(x => matchPolarity(x, polarity));
 const rm = (unit.marks  || []).filter(x => matchPolarity(x, polarity));
 unit.states = (unit.states || []).filter(x => !matchPolarity(x, polarity));
 unit.marks  = (unit.marks  || []).filter(x => !matchPolarity(x, polarity));
+/* 移除可能解除了「眩晕」等无法行动状态 → 标记补放排队中的施放 */
+if (rs.length + rm.length > 0) requestFlushAfterActionable();
 return { states: rs.map(x => x.type), marks: rm.map(x => x.type) };
 }
 /* 驱散：仅作用于「状态」（印记不可驱散）。极性由参数指定。 */
@@ -1402,6 +1876,8 @@ const idx = unit.states.indexOf(pick);
 if (idx >= 0) unit.states.splice(idx, 1);
 removed.push(pick.type);
 }
+/* 驱散可能解除了「眩晕」等无法行动状态 → 标记补放排队中的施放 */
+if (removed.length > 0) requestFlushAfterActionable();
 return removed;
 }
 
@@ -1413,11 +1889,19 @@ unit[key] = (Number(unit[key]) || 0) + amount;
 }
 
 /* ---- 速度：唯一取值入口，先加算后乘算 ---- */
-/* 两面宿傩普攻形态：在「解」与「捌」之间切换（自身回合开始切换一次，初始为解）。
+/* 两面宿傩普攻形态：在「解」与「捌」之间切换（**施放普攻后**切换一次，初始为解）。
    普攻对象本身是静态配置，这里按当前形态 + 是否强化 动态生成实际招式。 */
 function getEffectiveNormalSkill(unit) {
 const base = unit && unit.normalSkill;
-if (!base || unit.name !== '两面宿傩') return base;
+if (!base) return base;
+/* 五条悟普攻「苍·赫」：苍 = 120% 伤害并附加「苍」；赫 = 200% 伤害。
+   与宿傩同走动态普攻，由 unit.gojoForm 决定当前形态。 */
+if (unit.name === '五条悟') {
+const isAo = unit.gojoForm !== 'ha';   // 初始/缺省为苍
+return { ...base, name: isAo ? '苍' : '赫', dmgRate: isAo ? GOJO_AO_RATE : GOJO_HA_RATE,
+gojoForm: isAo ? 'ao' : 'ha', effect: isAo ? 'cang' : null };
+}
+if (unit.name !== '两面宿傩') return base;
 const boosted = hasMark(unit, '伏魔');
 if (unit.sukunaForm === 'ba') {
 return { ...base, name: boosted ? '捌（强化）' : '捌', dmgRate: 0, hitCount: 1,
@@ -1508,6 +1992,7 @@ const zhaojun = getMark(unit, '照君');
 if (zhaojun) spd += 5 * (zhaojun.stacks || 1);             // 照君：+5 速度/层（最多5层）
 if (hasMark(unit, '雷压')) spd = Math.floor(spd * 1.3);    // 雷压：+30% 速度，不可叠加
 if (hasMark(unit, '万法')) spd = Math.floor(spd * (1 + WANFA_SPD_RATE));  // 万法：+10% 速度，不可叠加
+if (hasState(unit, '苍')) spd = Math.floor(spd * (1 - GOJO_CANG_SPD_RATE));  // 苍：-10% 速度（减益状态）
 return spd;
 }
 
@@ -1531,8 +2016,9 @@ if (d.skill2) markSkill(d.skill2, 'active');
 // 注：已移除 windWalkStacks / galeWindStacks / dragonDanceStacks / thunderPressActive /
 //     protectTargets / snapshotHp / darkStacks 等从未被读取的僵尸字段，叠层一律以 marks 为准
 return { name, side, pos, atk:d.atk, def:d.def, maxHp:d.hp, hp:d.hp, spd:d.spd, critRate:d.critRate, critDmg:d.critDmg, finalDmgRate:1.0, finalDmgReduction:0, healBonus:1.0, healReduction:0, rage:2, actionValue:0, alive:true, states:[], marks:[], rules:[], color:d.color, normalSkill:d.normal, activeSkill:d.skill, activeSkill2:d.skill2 || null,
-extraSkills:d.extraSkills || null, passiveSkill:d.passive || null, shield:0, banishedBy:null, pendingSnapshot:false, intangible:false, banished:false, banishedActionValue:0, pendingActionBonus:0, sukunaForm:'jie', skillCooldown:0, wanfaTurnsLeft:0,
-statsDamageDealt:0, statsDamageTaken:0, statsHealDone:0, statsRestoreDone:0, statsShieldDone:0 };
+extraSkills:d.extraSkills || null, passiveSkill:d.passive || null, shield:0, banishedBy:null, pendingSnapshot:false, intangible:false, banished:false, banishedActionValue:0, pendingActionBonus:0, sukunaForm:'jie', gojoForm:'ao', skillCooldown:0, wanfaTurnsLeft:0,
+statsDamageDealt:0, statsDamageTaken:0, statsHealDone:0, statsRestoreDone:0, statsShieldDone:0,
+buquUsed:false };
 }
 function renderUnits() {
 const enemyArea = document.getElementById('enemy-area'); const playerArea = document.getElementById('player-area');
@@ -1576,6 +2062,12 @@ const deadText = el.querySelector('.unit-hp-text'); if (deadText) deadText.textC
 const deadShield = el.querySelector('.unit-shield-text'); if (deadShield) { deadShield.style.display = 'none'; }
 return;
 }
+/* ★ 复活 / 任何从阵亡回到存活的路径，都必须清掉 dead 样式并恢复被阵亡态改过的元素。
+   此前只在 !alive 分支 add('dead') 却从未 remove —— 雪拉比「预知未来」复活后
+   头像仍是灰的（filter: grayscale），buff 容器与护盾文本也仍被隐藏。 */
+el.classList.remove('dead');
+const liveBuffs = document.getElementById(`buffs-${idx}`);
+if (liveBuffs && liveBuffs.style.display === 'none') liveBuffs.style.display = '';
 const hpPercent = Math.max(0, Math.min(100, (u.hp / u.maxHp) * 100));
 const hpFill = el.querySelector('.unit-hp-fill');
 if (hpFill) hpFill.style.width = hpPercent + '%';
@@ -1619,8 +2111,11 @@ return;
 u.states.forEach(s => {
 const t = document.createElement('span');
 t.className = 'buff-tag buff-state';
+/* 层数显示规则与印记侧一致：只有「可叠加且已叠到 2 层以上」才显示 ×N。
+   不可叠加的状态（NO_STACK_STATES）一律不显示，避免出现「苍×1」「混乱×1」。 */
 const stacks = Number(s.stacks) || 0;
-t.textContent = s.type + (stacks > 1 ? `×${stacks}` : '');   // 状态同理：1 层不显示 ×1
+const showStacks = stacks > 1 && !NO_STACK_STATES.has(s.type);
+t.textContent = s.type + (showStacks ? `×${stacks}` : '');
 container.appendChild(t);
 });
 u.marks.forEach(m => {
@@ -1679,6 +2174,15 @@ if (gameState.phase !== 'fighting') return;
 const rawDt = timestamp - gameState.lastTimestamp; gameState.lastTimestamp = timestamp;
 const dt = Math.min(Math.max(rawDt, 0), MAX_FRAME_DT);
 if (!gameState.paused && !gameState.animating) updateActionValues(dt);
+/* 驱散 / 移除解除了「无法行动」→ 下一帧立刻补放排队的施放（如满层的宿影阵）。
+   放在这里是因为 dispelStates / removeEffects 是同步函数，无法就地 await。 */
+if (gameState.needFlushAfterActionable && !gameState.paused && !gameState.animating) {
+gameState.needFlushAfterActionable = false;
+gameState.paused = true;
+flushAfterActionable().then(() => { gameState.paused = false; });
+gameState.rafId = requestAnimationFrame(gameLoop);
+return;
+}
 if (!gameState.paused && !gameState.animating) {
 const readyUnits = gameState.units.filter(u => isTargetable(u) && u.actionValue >= ACTION_MAX);
 if (readyUnits.length > 0) {
@@ -1751,19 +2255,44 @@ return;
 /* 「守势」每单位回合限 1 次：每个单位的回合开始时重置计数。
    （多段攻击、群体攻击会在同一回合内造成多次受击，这里保证只反击一次） */
 gameState.shouShiTurnCount = 0;
+/* 「无下限」护盾每单位回合限 1 次：与守势同口径，在每个单位的回合开始时重置。
+   （多段攻击、群体攻击会在同一回合内造成多次受击，这里保证只给一次盾） */
+gameState.wuXianXiaTurnCount = 0;
 /* 心友犬神「守势」本轮计数：进入犬神自己的回合即清零。
    放在此处（长星锁早退之前）是为了保证无论如何都会执行——
    即便犬神本回合被长星锁跳过，也应视为新一轮开始。 */
 if (unit.name === '心友犬神') unit.shouShiRoundCount = 0;
-/* 「长星锁」优先于一切回合内容：携带者行动条达到 100% 时移除此印记并跳过【完整回合】，
+/* 「长星锁」优先于一切回合内容：携带者行动条达到 100% 时跳过【完整回合】，
    即回合开始与回合结束一并跳过（与眩晕只跳过行动阶段不同），等同于把行动条清空重来。 */
 if (hasMark(unit, '长星锁')) {
-removeMark(unit, '长星锁');
-refreshUnit(unit);
 /* 长星锁到期 → 由施加者（鬼金羊）对其施放「鬼宿奇惊·谜夜」（额外技能，有演出）。
    谜夜会给目标打上 pendingSkip，下面的统一处理再据此跳过完整回合。 */
-const lockCaster = gameState.units.find(u => u.alive && u.name === '鬼金羊' && u.side !== unit.side);
-if (lockCaster) await castExtraSkill(lockCaster, 'miYe', unit);
+const anyCaster = gameState.units.find(u => u.alive && u.name === '鬼金羊' && u.side !== unit.side);
+const lockCaster = anyCaster && !cannotAct(anyCaster) ? anyCaster : null;
+let casted = false;
+if (lockCaster) { casted = await castExtraSkill(lockCaster, 'miYe', unit); }
+else if (anyCaster) logCannotAct(anyCaster, '鬼宿奇惊·谜夜');
+/* 关键改动：只在谜夜【成功施放后】才移除长星锁。
+   若鬼金羊被放逐 / 眩晕而没能施放，印记保留 —— 携带者下次行动条满时再次尝试（且本次不跳过回合）。 */
+if (casted) { removeMark(unit, '长星锁'); refreshUnit(unit); }
+else {
+log(`${getSideLabel(unit)}${unit.name} 的「长星锁」未能触发（施法者无法行动），印记保留！`, 'log-buff');
+refreshUnit(unit);
+/* 未施放成功 → 不跳过回合，本回合正常行动 */
+const idx0 = idxOf(unit);
+gameState.currentActor = unit;
+document.getElementById(`unit-${idx0}`)?.classList.add('acting');
+if (hasState(unit, '混乱')) {
+const acted = await performChaosAction(unit);
+document.getElementById(`unit-${idx0}`)?.classList.remove('acting');
+if (acted) { await endTurn(unit); return; }
+}
+const needIn = !gameState.autoMode && (unit.side === 'player' || (unit.side === 'enemy' && gameMode === 'pvp'));
+await flushPendingCasts();
+if (needIn) { showControlPanel(unit); gameState.currentActor = unit; }
+else { if (unit.side === 'enemy') await sleep(1000); await executeAutoAction(unit); }
+return;
+}
 if (!unit.pendingSkip) {
 log(`${getSideLabel(unit)}${unit.name} 受到长星锁影响，跳过本回合！`, 'log-buff');
 unit.pendingSkip = true;
@@ -1799,6 +2328,9 @@ if (shareRestore > 0) await performRestoreAll(aliveAllies, shareRestore, unit);
 if (maxHpRestore > 0) await performRestoreAll(aliveAllies, maxHpRestore, unit);
 }
 unit.pendingSnapshot = false; gameState.damageLogTotal = 0; gameState.damageLogSide = null;
+/* 记录期间阵亡的友方：恢复结算后复活至 1 点生命，行动条设在阵亡时的位置。
+   复活放在恢复之后，避免刚站起来就被下一次结算覆盖。 */
+await reviveRecordedFallen(unit);
 }
 setActionValue(unit, ACTION_MAX); updateActionBarDots();   // 站到终点，表示其正在行动
 /* 无论手动 / 自动都登记当前行动者。
@@ -1807,14 +2339,24 @@ setActionValue(unit, ACTION_MAX); updateActionBarDots();   // 站到终点，表
 gameState.currentActor = unit;
 const idx = idxOf(unit); document.getElementById(`unit-${idx}`)?.classList.add('acting');
 // ── ② 行动阶段 ──────────────────────────────────────────
-// 眩晕：只跳过本阶段，回合开始已结算、回合结束与行动条更新照常走 endTurn()
-if (unit.states.some(s => s.type === '眩晕')) {
-log(`${getSideLabel(unit)}${unit.name} 眩晕中，无法行动！`, 'log-buff');
+/* 无法行动：跳过【行动阶段】（不能施放技能，也不能普攻）。
+   统一走 cannotAct —— 覆盖放逐与眩晕两种来源。
+   回合开始已结算、回合结束与行动条更新照常走 endTurn()。 */
+if (cannotAct(unit)) {
+log(`${getSideLabel(unit)}${unit.name} ${unit.banished ? '被放逐中' : '眩晕中'}，无法行动！`, 'log-buff');
 await sleep(500); document.getElementById(`unit-${idx}`)?.classList.remove('acting');
 await endTurn(unit);   // ③ 回合结束 + ④ 行动条更新
 return;
 }
 log(`📌 ${getSideLabel(unit)}${unit.name} 的行动回合！`, 'log-normal');
+/* 「混乱」：携带者行动时，改为对场上随机目标普攻（不分敌我）。
+   放在无法行动判定之后、正常行动之前 —— 无法行动者已跳过行动阶段，
+   不会因混乱而额外出手（混乱触发的普攻同样受 cannotAct 约束）。 */
+if (hasState(unit, '混乱')) {
+const acted = await performChaosAction(unit);
+document.getElementById(`unit-${idxOf(unit)}`)?.classList.remove('acting');
+if (acted) { await endTurn(unit); return; }
+}
 /* 禅心云外镜被动「心净明」：行动阶段重新分配友方总生命，使友方生命百分比相同。
    放在眩晕判定之后（眩晕跳过的是行动阶段，被动自然不触发），且在施放技能之前结算，
    这样本回合的技能（如万法皆空的扣血/护盾）是基于重新分配后的血量。 */
@@ -1871,6 +2413,11 @@ else if (!gameState.autoMode && gameState.currentActor) { showControlPanel(gameS
 }
 // 无需选目标的技能类型：群体 / 增益 / 快照 / 记录恢复
 const NO_TARGET_SKILL_TYPES = new Set(['aoe', 'buff', 'snapshot', 'damageLog']);
+/* 「虽属无目标类型、但需要指定单个友方」的技能：在技能配置上标 pickTarget:true 即可。
+   这样不必为每个特例改判定分支 —— 心净明是首个用例（万法皆空等同类型技能不受影响）。 */
+function needsTargetSelection(skill) { return !!skill && skill.pickTarget === true; }
+/* 统一的「是否跳过选目标」判定 */
+function isNoTargetSkill(skill) { return NO_TARGET_SKILL_TYPES.has(skill.type) && !needsTargetSelection(skill); }
 async function onActionBtn(type) {
 const unit = gameState.currentActor; if (!unit) return;
 // 可用技能列表：普攻 + 技能1 + 技能2（若有）
@@ -1878,7 +2425,7 @@ const skill = type === 'normal' ? unit.normalSkill : (type === 'skill2' ? unit.a
 if (!skill) return;
 if (type !== 'normal' && (Number(unit.rage) || 0) < (Number(skill.cost) || 0)) return;
 hideControlPanel();
-if (NO_TARGET_SKILL_TYPES.has(skill.type)) { await executeAction(unit, skill); return; }
+if (isNoTargetSkill(skill)) { await executeAction(unit, skill); return; }
 gameState.waitingForTarget = true; gameState.targetType = skill.target; gameState.pendingSkill = skill;
 highlightValidTargets(skill.target, unit); log(`请选择${skill.target==='enemy'?sideLabelPlain(gameState.units.find(u=>u.side!==unit.side)):'友方'}目标`, 'log-normal');
 // 目标选择态：只留自动与取消
@@ -1920,7 +2467,7 @@ const candidates = [unit.activeSkill, unit.activeSkill2].filter(Boolean)
 .sort((a, b) => (Number(b.cost) || 0) - (Number(a.cost) || 0));
 const skill = candidates[0] || unit.normalSkill;
 if (!skill) return;
-if (NO_TARGET_SKILL_TYPES.has(skill.type)) { await executeAction(unit, skill); return; }
+if (isNoTargetSkill(skill)) { await executeAction(unit, skill); return; }
 // 目标取向：技能自带 target 字段优先，否则按是否治疗判断
 const targetType = skill.target || (skill.healRate ? 'ally' : 'enemy');
 await executeAction(unit, skill, findLowestHpTarget(targetType, unit));
@@ -1970,13 +2517,51 @@ refreshUnit(target);
 }
 }
 // buff 型技能无需单独分支：其效果全部由 selfEffect 承载，走下面这行统一结算
-if (skill.selfEffect) await applySelfEffect(unit, skill.selfEffect);
+/* 目标透传：心净明这类「指向友方目标」的 buff 技能需要知道选中的是谁。
+   buff 型默认无目标（作用于自身 / 全体），故默认为 null；
+   若技能声明了 target:'ally'，则取「当前生命比例最低的友方」作为默认目标
+   （AI 自动施放时），玩家手动施放则由选目标流程传入 forcedTarget。 */
+if (skill.selfEffect) {
+let buffTarget = forcedTarget || null;
+if (!buffTarget && skill.target === 'ally') buffTarget = findLowestHpTarget('ally', unit);
+/* 显式要求选目标的技能：没拿到目标就跳过结算 —— 静默作用于默认目标会让玩家困惑
+   （以为点了技能却打到了别人身上）。 */
+if (needsTargetSelection(skill) && !buffTarget) { log(`${getSideLabel(unit)}${unit.name} 的「${skill.name}」没有有效目标，未生效。`, 'log-buff'); return; }
+await applySelfEffect(unit, skill.selfEffect, buffTarget);
+}
 }
 /* 触发一次技能：播演出 + 执行效果，**不结束回合、不处理怒气**。
    供【额外技能】与【印记 / 被动触发的施放】使用（如守势→一誓归心、宿影阵→宿影暗渡）。
    会保存 / 恢复 currentCastSkill，避免打乱外层正在结算的击杀收益判定。 */
+/* ===== 无法行动：统一判定 =====
+   【完整定义】
+     · 不能施放任何技能（含额外技能）
+     · 不能普攻
+     · 跳过【行动阶段】（回合开始与回合结束照常结算）
+
+   达成条件（来源）：① 被【放逐】（视为离开战局）② 【眩晕】（控制效果）
+
+   ⭐ 关键边界：只有「需要角色本体去施放技能 / 普攻」的动作才受约束。
+     · ✅ 受影响：主动施放、额外技能、普攻、印记触发的施放（宿影阵→宿影暗渡、守势→一誓归心）
+     · ❌ 不受影响：被动效果的自动结算（攒层、免疫等）—— 那不需要本体出手
+   新增施放点请统一走这里。 */
+function cannotAct(unit) {
+if (!unit || !unit.alive) return true;
+if (unit.banished) return true;              // 放逐：视为离开战局
+if (hasState(unit, '眩晕')) return true;      // 眩晕：控制效果
+return false;
+}
+/* 无法行动时的统一提示（避免各处重复写日志） */
+function logCannotAct(unit, skillName) {
+if (!unit) return;
+const reason = unit.banished ? '被放逐中' : (hasState(unit, '眩晕') ? '眩晕中' : '无法行动');
+log(`${getSideLabel(unit)}${unit.name} ${reason}，无法施放「${skillName || '技能'}」！`, 'log-buff');
+}
 async function triggerSkill(unit, skill, target = null) {
 if (!unit || !skill) return;
+/* 回合外施放的总闸门：被放逐 / 眩晕者一律不能施放技能。
+   例如被放逐的鬼金羊不会再对长星锁目标施放「鬼宿奇惊·谜夜」。 */
+if (cannotAct(unit)) { logCannotAct(unit, skill.name); return; }
 const savedSkill = gameState.currentCastSkill, savedCaster = gameState.currentCaster;
 const savedAnimating = gameState.animating;
 gameState.animating = true;
@@ -1991,27 +2576,65 @@ gameState.animating = savedAnimating;
    有些施放发生在**同步**调用链里（如 loseRage → 宿影阵满层），无法就地 await。
    统一推入队列，由最近的 flushPendingCasts 安全点**串行**演出，
    既保证「施放的是技能就有演出」，又不会多条演出互相打断。 */
-function queueSkillCast(unit, skill, target = null) {
+/* queueSkillCast(unit, skill, target, opts)
+   opts.onSuccess  → 施放成功后的回调（如「宿影阵」要在施放后才移除层数）
+   opts.dedupeKey  → 去重键：已存在相同键时不再重复入队
+     （满层印记在无法行动期间会反复触发，必须去重，否则解除后连放多次） */
+function queueSkillCast(unit, skill, target = null, opts = {}) {
 if (!unit || !skill) return;
 gameState.pendingCasts = gameState.pendingCasts || [];
-gameState.pendingCasts.push({ unit, skill, target });
+if (opts.dedupeKey && gameState.pendingCasts.some(c => c.dedupeKey === opts.dedupeKey)) return;
+gameState.pendingCasts.push({ unit, skill, target, onSuccess: opts.onSuccess || null, dedupeKey: opts.dedupeKey || null });
 }
+/* ===== 无法行动解除后的补放入口 =====
+   「无法行动」消失的时机通常是：持续时间结束（tick 到期）、驱散、移除。
+   这些地方统一调用本函数，让排队中的施放【立刻】结算 ——
+   否则满层印记（如宿影阵）的层数要等到下个回合才会被清掉。 */
+async function flushAfterActionable() {
+const q = gameState.pendingCasts || [];
+if (q.length === 0) return false;
+if (!q.some(c => c.unit && c.unit.alive && !cannotAct(c.unit))) return false;
+await flushPendingCasts();
+return true;
+}
+/* 同步标记版：驱散 / 移除这类【同步】操作无法就地 await，只打标记，
+   由 gameLoop 下一帧检测到后立刻补放（不必等到下个回合的安全点）。 */
+function requestFlushAfterActionable() {
+if (!gameState.pendingCasts || gameState.pendingCasts.length === 0) return;
+gameState.needFlushAfterActionable = true;
+}
+/* 消费队列。
+   ★ 无法行动时**留队等待**而不是丢弃 —— 这样一旦无法行动消失（眩晕结束 / 放逐解除），
+     最近的下一个安全点就会立刻补上这次施放。
+     （满层印记「施放后才移除层数」，若中途丢弃会导致层数永远清不掉） */
 async function flushPendingCasts() {
-while (gameState.pendingCasts && gameState.pendingCasts.length > 0) {
-const { unit, skill, target } = gameState.pendingCasts.shift();
+if (!gameState.pendingCasts || gameState.pendingCasts.length === 0) return;
+const queue = gameState.pendingCasts;
+gameState.pendingCasts = [];
+const deferred = [];
+for (const item of queue) {
+const { unit, skill, target, onSuccess } = item;
 if (!unit || !unit.alive) continue;
+if (cannotAct(unit)) { deferred.push(item); continue; }   // 无法行动 → 留队，下个安全点再试
 await triggerSkill(unit, skill, target);
+if (onSuccess) await onSuccess();
 }
+gameState.pendingCasts = deferred.concat(gameState.pendingCasts);
 }
 // 按 key 施放额外技能（额外技能挂在 HERO_DATA[name].extraSkills 上）
 async function castExtraSkill(unit, extraKey, target = null) {
 const d = HERO_DATA[unit.name];
 const skill = d && d.extraSkills ? d.extraSkills[extraKey] : null;
 if (!skill) return false;
+if (cannotAct(unit)) { logCannotAct(unit, skill.name); return false; }
 await triggerSkill(unit, skill, target);
 return true;
 }
 async function executeAction(unit, skill, forcedTarget = null) {
+/* 无法行动的总闸门【防御性】：不能施放任何技能（含额外技能），也不能普攻。
+   正常流程在 processUnitTurn 的行动阶段就已被挡下；这里再兜一层，
+   保证将来任何新增的调用路径都不会绕过（如混乱、反击、AI 直调等）。 */
+if (cannotAct(unit)) { logCannotAct(unit, skill && skill.name); gameState.animating = false; return; }
 const blockReason = getSkillBlockReason(unit, skill);
 if (blockReason) { log(`${getSideLabel(unit)}${blockReason}`, 'log-buff'); gameState.animating = false; return; }
 gameState.animating = true;
@@ -2032,12 +2655,23 @@ else if (!isExtra && cost > 0) spendRage(unit, cost);
 await playSkillCutin(unit, skill.name, isNormal);
 log(`${getSideLabel(unit)}${unit.name} 使用了 ${skill.name}！`, isNormal ? 'log-normal' : 'log-skill');
 await runSkillBranch(unit, skill, forcedTarget);
+/* 技能冷却统一入口：任何带 cooldown 的技能施放后都会进入冷却，
+   不必各自在 selfEffect 里重复设置（万法皆空里的那处保留也无害，两者一致）。 */
+if (skill.cooldown) unit.skillCooldown = Number(skill.cooldown) || 0;
 /* 两面宿傩被动：普攻在「解」与「捌」之间切换，**施放普攻之后**切换一次（初始为「解」）。
    放在普攻结算后、endTurn 之前 —— 第一回合打出「解」，本回合结束后才变成「捌」，
    下回合打出「捌」，再切回「解」。施放主动技（伏魔神龛）不切换。 */
 if (unit.name === '两面宿傩' && isNormal) {
 unit.sukunaForm = unit.sukunaForm === 'jie' ? 'ba' : 'jie';
 log(`🔄 ${getSideLabel(unit)}${unit.name} 切换普攻形态 → ${unit.sukunaForm === 'jie' ? '解' : '捌'}`, 'log-buff');
+}
+/* 五条悟被动「无下限」：普攻在「苍」与「赫」之间切换，**施放普攻之后**切换一次（初始为「苍」）。
+   与两面宿傩同一时机 —— 第一回合打出「苍」，打完才变「赫」，下回合打出「赫」再切回「苍」。
+   施放主动技（茈 / 无量空处）不切换。 */
+if (unit.name === '五条悟' && isNormal) {
+unit.gojoForm = unit.gojoForm === 'ao' ? 'ha' : 'ao';
+log(`🔄 ${getSideLabel(unit)}${unit.name} 切换普攻形态 → ${unit.gojoForm === 'ao' ? '苍' : '赫'}`, 'log-buff');
+refreshUnit(unit);
 }
 el?.classList.remove('attack-anim'); el?.classList.remove('acting');
 if (!isExtra) await endTurn(unit);   // 额外技能在他人回合触发，不能结束回合
@@ -2077,6 +2711,12 @@ if (!r.isTrue && !r.isSplash) actualDirect += Math.max(0, hpBefore - target.hp);
 }
 }
 if (hitCount > 1) log(`${getSideLabel(attacker)}${attacker.name} 的${skill.name} 命中 ${hitCount} 段！`, 'log-damage');
+/* 单体技能的固定伤害：目标最大生命值 × 比例（如两面宿傩「灶」的 8%）。
+   此前只有 AOE 与宿傩普攻处理了 fixedMaxHpRate，单体技能会静默漏掉这一段。 */
+if (skill.fixedMaxHpRate && target.alive) {
+const fixed = Math.floor((Number(target.maxHp) || 0) * skill.fixedMaxHpRate);
+if (fixed > 0) await applyFixedDamage(attacker, target, fixed, `${skill.name}·固定伤害`);
+}
 // 附加效果只在整次技能结束后结算一次（带土普攻两段只加 1 层神威，与段数无关）
 if (skill.effect) await applySkillEffect(attacker, target, skill.effect);
 // 溅射伤害：由「主目标实际受到的直接伤害」按系数派生，不再重复走伤害公式。
@@ -2184,6 +2824,11 @@ return results;
 // 死亡判定唯一入口：置死、播日志、刷新，并结算击杀者收益（维迦的超凡邪力等）
 async function killUnit(unit, killer) {
 if (!unit || !unit.alive) return false;
+/* 雪拉比「预知未来」记录期：记下阵亡者与其「阵亡时的行动条位置」，供复活时还原。 */
+if (gameState.damageLogSide && unit.side === gameState.damageLogSide) {
+gameState.damageLogFallen = gameState.damageLogFallen || [];
+gameState.damageLogFallen.push({ idx: idxOf(unit), actionValue: Number(unit.actionValue) || 0 });
+}
 unit.alive = false; unit.hp = 0;
 // 阵亡即清空全部 buff / 效果（状态 / 印记 / 规则 / 护盾 / 虚化 / 放逐）
 clearAllEffects(unit);
@@ -2212,9 +2857,12 @@ const castSkill = gameState.currentCastSkill;
 /* 施放者 + 「主动技」双重确认。用 __kind 而非逐个比对技能名：
    英雄可能有多个技能，逐个比对会漏；__kind 是唯一权威来源。 */
 const byActiveSkill = gameState.currentCaster === killer && !!castSkill && castSkill.__kind === 'active';
+/* 全套收益只给「能量爆裂」（skill2）：两技能都用 vayneFullKill 标记区分，
+   新增技能时只需在配置里标 true/false，不必改这里的判定。 */
+const fullKill = byActiveSkill && castSkill.vayneFullKill === true;
 const dm = addMark(killer, '超凡邪力', { stacks:1, maxStacks:5, duration:999, effect:'darkEssence' });
 const dmStacks = dm ? dm.stacks : 0;
-if (byActiveSkill) {
+if (fullKill) {
 const rageGained = gainRage(killer, VAYNE_KILL_RAGE);
 // 行动条走统一入口：此时仍在自己回合内，加成会登记到 pendingActionBonus，回合结束后才落地
 grantActionValueBonus(killer, VAYNE_KILL_BONUS, '击杀');
@@ -2275,16 +2923,23 @@ async function applyFixedDamage(attacker, target, amount, label = '固定伤害'
 if (!target || !target.alive) return 0;
 const dmg = Math.max(0, Math.floor(Number(amount) || 0));
 if (dmg <= 0) return 0;
+/* 放逐：免疫伤害（含固定伤害） */
+if (target.banished) { showFloatingText(target, '免疫', 'floating-miss'); log(`${getSideLabel(target)}${target.name} 被放逐中，免疫${label}！`, 'log-buff'); return 0; }
 if (target.intangible) { showFloatingText(target, '免疫', 'floating-miss'); log(`${getSideLabel(target)}${target.name} 处于虚化，免疫${label}！`, 'log-buff'); return 0; }
 const hadShieldWhenHit = (Number(target.shield) || 0) > 0;
 const before = target.hp;
 target.hp = Math.max(0, target.hp - dmg);
 const dealt = before - target.hp;
+const overkill = Math.max(0, dmg - before);   // 固定伤害同样要算溢出，供恢复被动做救回判定
 showFloatingText(target, `${label} -${dealt}`, 'floating-fixed');
 if (dealt > 0) recordDamage(attacker, target, dealt);
 log(`${getSideLabel(target)}${target.name} 受到 ${dealt} 点${label}！（无视护盾、无法被转移）`, 'log-damage');
 refreshUnit(target);
 await tryShoushiCounter(attacker, target, hadShieldWhenHit);
+/* 受击后被动（如两面宿傩「斩击反转」）：固定伤害属于【伤害】，
+   且无视护盾必然造成实际生命损失，因此照样触发（门槛 hpLoss > 0 天然满足）。
+   位置与 applyDamage 一致 —— 放在死亡判定【之前】，溢出救回判定同样适用。 */
+if (target.alive && dealt > 0) await applyPassiveOnDamaged(target, attacker, overkill);
 if (target.hp <= 0) await killUnit(target, attacker);
 return dealt;
 }
@@ -2307,6 +2962,23 @@ return true;
 
 async function applyDamage(attacker, result, target) {
 if (!target || !target.alive) return;
+/* ===== 溢出伤害累计器 =====
+   生命值下限为 0，超量伤害会被 clamp 掉、信息随之丢失。
+   若不记录溢出，「斩击反转」这类恢复被动就会失真（血被 clamp 到 0 后，
+   无论受了多少伤害看起来都只是 0，恢复一点就"死不了"）。
+   这里在每次扣血时累加「超出当前生命的那部分」，供恢复被动做救回判定。 */
+let overkillAcc = 0;   // 溢出伤害累计（超出当前生命的部分）
+let hpLossAcc   = 0;   // 实际生命损失累计（不含被护盾吸收的部分）
+const loseHp = (u, dmg) => {
+const before = Number(u.hp) || 0;
+u.hp = Math.max(0, before - dmg);
+overkillAcc += Math.max(0, dmg - before);
+hpLossAcc += before - u.hp;
+return before - u.hp;
+};
+/* 放逐：免疫伤害（与虚化同级的规则级免疫）。
+   被放逐者视为离开战局 —— 即便 AOE 等路径波及，也不会掉血。 */
+if (target.banished) { showFloatingText(target, '免疫', 'floating-miss'); log(`${getSideLabel(target)}${target.name} 被放逐中，免疫伤害！`, 'log-buff'); return; }
 if (target.intangible) { showFloatingText(target, '免疫', 'floating-miss'); return; }
 // 白藏主「狐守」：为友方代伤
 let finalTarget = target;
@@ -2314,13 +2986,34 @@ if (hasMark(target, '狐守') && attacker.side !== target.side) {
 const baizang = getAliveAllies(target).find(u => u.name === '白藏主');
 if (baizang && target !== baizang) { log(`${getSideLabel(baizang)}${baizang.name} 代为承受了伤害！`, 'log-buff'); finalTarget = baizang; }
 }
+/* 五条悟被动「无下限」：受到攻击前，自身获得 8% 最大生命值的护盾。
+   放在扣血之前、且在「是否持有护盾」快照之前 —— 这样盾先到位再判定，
+   也让守势这类「受击时是否带盾」的判定拿到的是无下限生效后的状态。 */
+if (finalTarget.name === '五条悟' && isPassiveActive(finalTarget) && attacker && attacker.side !== finalTarget.side) {
+/* 每个单位回合限 1 次：gameState.wuXianXiaTurnCount，processUnitTurn 开头重置。
+   否则多段攻击 / 群体攻击会在同一回合内反复叠盾。 */
+const used = Number(gameState.wuXianXiaTurnCount) || 0;
+if (used < WUXIANXIA_MAX_PER_TURN) {
+gameState.wuXianXiaTurnCount = used + 1;
+const shieldGain = Math.floor((Number(finalTarget.maxHp) || 0) * GOJO_SHIELD_RATE);
+if (shieldGain > 0) {
+finalTarget.shield = (Number(finalTarget.shield) || 0) + shieldGain;
+/* 计入结算面板的「护盾」统计：被动获得的护盾同样要算，
+   此前漏了这行导致五条悟的盾在结算面板里显示为 0。 */
+addStat(finalTarget, 'statsShieldDone', shieldGain);
+log(`${getSideLabel(finalTarget)}五条悟 的「无下限」生效，获得 ${shieldGain} 点护盾！${WUXIANXIA_MAX_PER_TURN > 1 ? `（本回合第${gameState.wuXianXiaTurnCount}/${WUXIANXIA_MAX_PER_TURN}次）` : ''}`, 'log-buff');
+showFloatingText(finalTarget, '护盾 +' + shieldGain, 'floating-heal');
+refreshUnit(finalTarget);
+}
+}
+}
 const oldHp = finalTarget.hp;
 /* 先记录「受击瞬间是否持有护盾」。按描述「拥有护盾的友方单位受到攻击时」触发，
    应取受击前状态 —— 若扣完盾再判，正好把盾打破的那一下就会漏掉反击。 */
 const hadShieldWhenHit = (Number(finalTarget.shield) || 0) > 0;
 const { damageToHp, absorbed } = await applyDamageWithShield(attacker, result, finalTarget);
 await tryShoushiCounter(attacker, finalTarget, hadShieldWhenHit);
-finalTarget.hp = Math.max(0, finalTarget.hp - damageToHp);
+loseHp(finalTarget, damageToHp);
 const actualDamage = oldHp - finalTarget.hp;
 if (actualDamage + absorbed > 0) recordDamage(attacker, finalTarget, actualDamage + absorbed);
 if (damageToHp > 0) showFloatingText(finalTarget, (result.isCrit?'暴击 ':'') + (result.isSplash?'溅射 ':'') + '-' + damageToHp, result.isTrue?'floating-true':(result.isSplash?'floating-splash':(result.isCrit?'floating-crit':'floating-damage')));
@@ -2335,7 +3028,7 @@ if (applier) {
 const applierStats = getEffectiveCombatStats(applier);
 const extraDmg = Math.floor(applierStats.atk * KAMUI_TRUE_RATE * (km.stacks || 1) * applierStats.finalDmgRate);
 const { damageToHp: extraToHp, absorbed: extraAbsorbed } = await applyDamageWithShield(attacker, { damage: extraDmg }, target);
-target.hp = Math.max(0, target.hp - extraToHp);
+loseHp(target, extraToHp);
 showFloatingText(target, '神威 -' + extraToHp, 'floating-true');
 log(`${getSideLabel(applier)}${applier.name} 的神威（${km.stacks}层）造成额外真实伤害！`, 'log-buff');
 if (extraToHp + extraAbsorbed > 0) recordDamage(applier, target, extraToHp + extraAbsorbed);
@@ -2345,13 +3038,64 @@ grantActionValueBonus(applier, KAMUI_ACTION_BONUS, '神威');
 if (target.hp <= 0) await killUnit(target, applier);
 }
 }
-if (finalTarget.hp <= 0) await killUnit(finalTarget, attacker);
+/* 东丈「不屈」：受到致命伤害时保留 1 点生命，并对伤害来源施放「龙卷风」。
+   走 applyDamage 才会触发 —— 【斩杀】是即死效果、不经过这里，因此无法触发，符合设计。 */
+// 「苍」追加伤害：五条悟命中携带「苍」的目标时触发（普攻与技能均可）
+if (attacker && target.alive) hpLossAcc += await procCang(attacker, target) || 0;
+/* 受击后被动统一入口（放逐期间失效）。
+   放在死亡判定【之前】：「斩击反转」有机会把濒死的宿傩拉回来。
+   ★ 触发门槛：hpLossAcc > 0 —— 只有【真正掉血】才算「受到伤害」。
+     伤害被护盾完全吸收时只算「受到攻击」，不算「受到伤害」，
+     因此不触发宿傩「斩击反转」（描述为"受到伤害后"）。
+     注意与心友犬神「守势」区分：后者是"受到攻击时"，打在盾上也触发。
+   ★ 传入 overkillAcc（本次受击的溢出伤害）：由被动自行判断是否救得回 ——
+     恢复量必须【大于】溢出伤害才能救回，救回后生命值 = 恢复量 - 溢出伤害。
+     这样既不会让超量伤害被 clamp 吞掉，也不会出现"恢复一点就死不了"。 */
+if (finalTarget.alive && hpLossAcc > 0) await applyPassiveOnDamaged(finalTarget, attacker, overkillAcc);
+/* 每局游戏限触发一次：buquUsed 标记随单位创建而重置（startBattle 会重建全部单位）。 */
+if (finalTarget.hp <= 0 && finalTarget.name === '东丈' && isPassiveActive(finalTarget) && !finalTarget.buquUsed && attacker && attacker.side !== finalTarget.side) {
+finalTarget.buquUsed = true;
+/* 触发时先移除自身所有减益状态与减益印记 —— 因此即便东丈正被【眩晕】，
+   随后的「龙卷风」反击依然能正常打出（眩晕在这里已被清掉）。 */
+const removed = removeEffects(finalTarget, CLEAR_POLARITY.DEBUFF);
+const removedNames = [...removed.states, ...removed.marks];
+if (removedNames.length > 0) log(`💪 ${getSideLabel(finalTarget)}东丈 的「不屈」移除了减益：${removedNames.join('、')}！`, 'log-buff');
+finalTarget.hp = 1;
+log(`💪 ${getSideLabel(finalTarget)}东丈 的「不屈」触发！保留1点生命值，对 ${getSideLabel(attacker)}${attacker.name} 施放「龙卷风」！`, 'log-skill');
+showFloatingText(finalTarget, '不屈', 'floating-heal');
+refreshUnit(finalTarget);
+const tornado = HERO_DATA['东丈'] ? HERO_DATA['东丈'].skill : null;
+if (tornado && attacker.alive) await triggerSkill(finalTarget, tornado, attacker);
+if (!attacker.alive) {
+const healed = await performRestore(finalTarget, finalTarget.maxHp, null);
+log(`💪 ${getSideLabel(finalTarget)}东丈 击倒了伤害来源，恢复 ${healed} HP（100%最大生命值）！`, 'log-heal');
+refreshUnit(finalTarget);
+}
+} else if (finalTarget.hp <= 0 && finalTarget.name === '东丈' && finalTarget.buquUsed) {
+log(`💪 ${getSideLabel(finalTarget)}东丈 的「不屈」本局已触发过，无法再次免死！`, 'log-buff');
+await killUnit(finalTarget, attacker);
+} else if (finalTarget.hp <= 0) await killUnit(finalTarget, attacker);
 if (target !== finalTarget && target.alive) refreshUnit(target);
 }
 const STUN_CHANCE = 0.3;     // 镰鼬「胖揍」眩晕概率
+const XINJINGMING_PUSH = 30;         // 禅心云外镜「心净明」：移除到减益时的行动条加成
+const XINJINGMING_PUSH_EMPTY = 100;  // 未移除到任何减益时改为 +100%
+const RENDUO_CHANCE = 0.3;   // 镰鼬「人多势众」：回合结束使自身 +100% 行动条的概率
 const RAGE_DOWN_CHANCE = 0.5;// 白藏主「炎影」减怒气概率
 const PUSH_AMOUNT = 40;      // 鬼王酒吞童子「天火怒焱」行动条击退百分比
 const WINDWALK_SPD_PER_STACK = 25;  // 东丈「风行」每层提升的速度点数（最多5层）
+const TSUNADE_STUN_CHANCE = 0.3;    // 纲手「怪力」的眩晕概率
+const TSUNADE_ALLY_PUSH = 15;       // 纲手「怪力」给最低血友方的行动条加成
+const GOJO_AO_RATE = 1.2;           // 五条悟「苍」普攻伤害倍率
+const GOJO_HA_RATE = 2.0;           // 五条悟「赫」普攻伤害倍率
+const GOJO_CANG_EXTRA_RATE = 0.4;   // 「苍」被五条悟攻击时追加的伤害倍率
+const GOJO_CANG_SPD_RATE = 0.1;     // 「苍」降低的速度比例
+const GOJO_CANG_DURATION = 2;       // 「苍」持续回合
+const GOJO_SHIELD_RATE = 0.08;      // 无下限：受到攻击前获得的护盾 = 最大生命 × 该比例
+const WUXIANXIA_MAX_PER_TURN = 1;   // 无下限：每个单位回合内最多生效 1 次
+const SUKUNA_RESTORE_RATE = 0.05;   // 「斩击反转」：受到伤害后恢复的生命值 = 最大生命 × 该比例
+const GOJO_HUNLUAN_CHANCE = 0.4;    // 「无量空处」附加混乱的概率
+const GOJO_HUNLUAN_DURATION = 1;    // 「混乱」持续回合
 const QUEZHIYIN_MAX_STACKS = 2;     // 心友犬神「雀之印」层数上限，达上限后移除并触发三段伤害
 const QUEZHIYIN_SEG_RATE = 0.5;     // 「雀之印」达上限时每段伤害的技能倍率（共三段）
 const SHOUSHI_DEF_BONUS = 270;      // 心友犬神「守势」提供的固定防御加成
@@ -2364,6 +3108,7 @@ const SUYINGZHEN_RAGE_PER_STACK = 2;// 「宿影阵」每累计敌方减少 2 �
 const SUYINGZHEN_TRIGGER_UNITS = 2; // 「宿影阵」达上限时，敌我各随机 2 个单位增减怒气（敌方须持有怒气）
 const WANFA_HP_COST_RATE = 0.5;      // 禅心云外镜「万法皆空」：扣除全体友方当前生命的比例
 const WANFA_SHIELD_RATE = 0.5;       // 「万法皆空」：全体友方获得的护盾 = 各自最大生命 × 该比例
+const THUNDERPRESS_SHIELD_RATE = 0.35; // 「交错闪电」：自身获得的护盾 = 最大生命 × 该比例
 const WANFA_SPD_RATE = 0.1;          // 「万法皆空」：全体友方提升的速度比例
 const WANFA_DURATION = 3;            // 「万法皆空」：万法持续回合 / 翻转延迟回合 / 技能冷却回合（三处同为 3）
 const FUMO_DURATION = 2;             // 「伏魔」印记持续回合（与 WANFA_DURATION 无关，勿混用）
@@ -2380,6 +3125,90 @@ addState(target, type, { duration, effect });
 log(`${getSideLabel(target)}${target.name} 进入${type}！`, 'log-buff'); refreshUnit(target);
 return true;
 }
+/* ==================== 五条悟 ==================== */
+/* 「苍」：减益状态，携带者 -10% 速度；若受到施加者五条悟的攻击，则移除该状态并额外受到 40% 伤害。 */
+async function applyCangState(attacker, target) {
+if (!target || !target.alive) return;
+if (target.intangible) { log(`${getSideLabel(target)}${target.name} 处于虚化，免疫苍！`, 'log-buff'); return; }
+addState(target, '苍', { duration: GOJO_CANG_DURATION, effect: 'cang',
+extra: { applierName: attacker.name, applierSide: attacker.side } });
+log(`${getSideLabel(target)}${target.name} 附加了「苍」（持续${GOJO_CANG_DURATION}回合）！`, 'log-buff');
+refreshUnit(target);
+}
+/* 「苍」的追加伤害：五条悟攻击携带「苍」的目标时，移除该状态并额外造成 40% 伤害。
+   直接走 applyDamageWithShield（不经过 applyDamage），避免再次触发苍判定形成递归。 */
+async function procCang(attacker, target) {
+if (!target || !target.alive || attacker.name !== '五条悟') return 0;
+if (!hasState(target, '苍')) return 0;
+removeState(target, '苍');
+refreshUnit(target);
+const stats = getEffectiveCombatStats(attacker);
+const dmg = Math.floor(stats.atk * GOJO_CANG_EXTRA_RATE * stats.finalDmgRate);
+const { damageToHp, absorbed } = await applyDamageWithShield(attacker, { damage: dmg }, target);
+const cangBefore = Number(target.hp) || 0;
+target.hp = Math.max(0, cangBefore - damageToHp);
+const cangLoss = cangBefore - target.hp;
+showFloatingText(target, '苍 -' + damageToHp, 'floating-damage');
+log(`${getSideLabel(attacker)}${attacker.name} 的「苍」触发！额外造成 ${damageToHp} 点伤害并移除该状态！`, 'log-buff');
+if (damageToHp + absorbed > 0) recordDamage(attacker, target, damageToHp + absorbed);
+refreshUnit(target);
+return cangLoss;
+}
+/* 「混乱」：减益状态，携带者行动时改为对场上随机目标普攻。
+   · 伤害型普攻：目标可以是除「放逐」与自身外的所有角色（含队友）
+   · 治疗型普攻：目标可以是除「放逐」外的所有角色（含敌方与自身） */
+async function applyHunLuan(attacker, targets) {
+const list = (targets || []).filter(u => u && u.alive && !u.banished);
+for (const t of list) {
+if (Math.random() >= GOJO_HUNLUAN_CHANCE) continue;
+if (t.intangible) { log(`${getSideLabel(t)}${t.name} 处于虚化，免疫混乱！`, 'log-buff'); continue; }
+addState(t, '混乱', { duration: GOJO_HUNLUAN_DURATION, effect: 'hunLuan' });
+log(`${getSideLabel(t)}${t.name} 陷入「混乱」（持续${GOJO_HUNLUAN_DURATION}回合）！`, 'log-buff');
+refreshUnit(t);
+}
+}
+/* 混乱下的行动：随机挑一个目标普攻（不分敌我）。返回 true 表示本回合行动已消费。 */
+async function performChaosAction(unit) {
+const skill = getEffectiveNormalSkill(unit) || unit.normalSkill;
+const isHeal = !!(skill.healRate || skill.healFlat);
+/* 伤害型：排除放逐与自身；治疗型：只排除放逐（可指向敌方与自己） */
+const pool = gameState.units.filter(u => u.alive && !u.banished && (isHeal ? true : u !== unit));
+if (pool.length === 0) return false;
+const target = pool[Math.floor(Math.random() * pool.length)];
+log(`🌀 ${getSideLabel(unit)}${unit.name} 处于混乱，随机对 ${getSideLabel(target)}${target.name} 发动普攻！`, 'log-skill');
+if (isHeal) await performHealSkill(unit, skill, target);
+else await performSingleAttack(unit, skill, target);
+return true;
+}
+/* 雪拉比「预知未来」的复活：记录期间阵亡的友方，在恢复结算后复活至 1 点生命，
+   行动条设在阵亡时的位置（记录于 killUnit，见 gameState.damageLogFallen）。 */
+async function reviveRecordedFallen(unit) {
+const fallen = gameState.damageLogFallen || [];
+if (fallen.length === 0) return;
+gameState.damageLogFallen = [];
+for (const rec of fallen) {
+const u = gameState.units[rec.idx];
+if (!u || u.alive || u.side !== unit.side) continue;
+u.alive = true; u.hp = 1; u.shield = 0;
+setActionValue(u, Number(rec.actionValue) || 0);
+log(`✨ ${getSideLabel(u)}${u.name} 被预知未来复活至1点生命！行动条恢复至 ${getActionDisplayPct(u).toFixed(1)}%`, 'log-heal');
+showFloatingText(u, '复活', 'floating-heal');
+refreshUnit(u);
+renderActionBarDots();
+}
+}
+/* 纲手普攻「怪力」的附加效果：30% 概率眩晕 + 当前生命值最低的友方 +10% 行动条。
+   单独成函数而非塞进 switch，是因为它同时做两件事（控制 + 推条）。 */
+async function applyGuaiLi(attacker, target) {
+if (Math.random() < TSUNADE_STUN_CHANCE && target.alive) tryApplyControl(target, '眩晕', 1, 'stun');
+const allies = getAliveAllies(attacker);
+if (allies.length === 0) return;
+const lowest = findLowestHpAmong(allies);
+if (!lowest) return;
+grantActionValueBonus(lowest, TSUNADE_ALLY_PUSH, '怪力');
+log(`${getSideLabel(attacker)}${attacker.name} 的怪力：${getSideLabel(lowest)}${lowest.name} 行动条+${TSUNADE_ALLY_PUSH}%！`, 'log-buff');
+refreshUnit(lowest);
+}
 async function applySkillEffect(attacker, target, effect, aoeTargets) {
 if (!effect) return;
 // 单体效果：目标若已在伤害结算中阵亡则不再施加（阵亡者不该获得任何新 buff）
@@ -2387,6 +3216,9 @@ if (target && !target.alive && !aoeTargets) return;
 switch (effect) {
 case 'stun': tryApplyControl(target, '眩晕', 1, 'stun'); break;
 case 'stunChance': if (Math.random() < STUN_CHANCE) tryApplyControl(target, '眩晕', 1, 'stun'); break;
+case 'guaiLi': await applyGuaiLi(attacker, target); break;      // 纲手普攻「怪力」
+case 'cang': await applyCangState(attacker, target); break;     // 五条悟普攻「苍」
+case 'hunLuan': await applyHunLuan(attacker, aoeTargets || [target]); break;  // 五条悟「无量空处」
 case 'rageDown': {
 const lost = Math.random() < RAGE_DOWN_CHANCE ? loseRage(target, 1) : 0;
 if (lost > 0) { log(`${getSideLabel(target)}${target.name} 失去${lost}点怒气！`, 'log-buff'); refreshUnit(target); }
@@ -2402,13 +3234,15 @@ if (!qy) break;
 log(`${getSideLabel(target)}${target.name} 附加了1层雀之印！（当前${qy.stacks}层）`, 'log-buff');
 refreshUnit(target);
 if ((qy.stacks || 1) >= QUEZHIYIN_MAX_STACKS) {
-removeMark(target, '雀之印');
-refreshUnit(target);
+/* 与宿影阵同一口径：先【结算效果】，成功后再移除所有层数。
+   三段伤害不是「施放技能」，因此不受无法行动约束，可就地结算。 */
 log(`雀之印达到上限！${getSideLabel(target)}${target.name} 受到 ${getSideLabel(attacker)}${attacker.name} 的三段 ${Math.round(QUEZHIYIN_SEG_RATE*100)}% 伤害！`, 'log-skill');
 for (let i = 0; i < 3; i++) {
 if (!target.alive) break;
 for (const r of calculateDamage(attacker, { dmgRate: QUEZHIYIN_SEG_RATE }, target)) await applyDamage(attacker, r, target);
 }
+removeMark(target, '雀之印');
+refreshUnit(target);
 }
 break;
 }
@@ -2416,6 +3250,8 @@ break;
    携带者行动条达到 100% 时移除此印记并跳过完整回合（见 processUnitTurn）。 */
 case 'changXingSuo': {
 if (target.intangible) { log(`${getSideLabel(target)}${target.name} 处于虚化，免疫长星锁！`, 'log-buff'); break; }
+/* 免疫长星锁属「宿影暗渡」的【被动效果】部分：不需要角色本体施放，
+   因此不受【无法行动】约束，只要存活即免疫（与攒宿影阵同一口径）。 */
 if (target.name === '鬼金羊') { log(`${getSideLabel(target)}${target.name} 免疫长星锁！`, 'log-buff'); break; }
 const cx = addMark(target, '长星锁', { stacks:1, maxStacks:1, duration:999, effect:'changXingSuo' });
 if (!cx) break;
@@ -2461,7 +3297,7 @@ break;
 }
 const BOND_ACTION_BONUS = 30;   // 牵绊推进的行动条
 const DEF_DOWN_AMOUNT = 80;     // 画龙点睛自身永久降防
-async function applySelfEffect(unit, effect) {
+async function applySelfEffect(unit, effect, target = null) {
 switch (effect) {
 case 'windWalk': {
 const ww = addMark(unit, '风行', { stacks:1, maxStacks:5, duration:999, effect:'windWalk' });
@@ -2508,23 +3344,45 @@ log(`${getSideLabel(unit)}${unit.name} 获得1层龙之舞！（当前${dd ? dd.
 /* 禅心云外镜普攻「水无垠」：移除自身携带的所有减益状态与减益印记。
    走统一入口 removeEffects(unit, 'debuff')：只清减益，增益保留。 */
 case 'shuiWuYin': {
+/* 「水无垠」：只移除【自身】的所有减益状态与减益印记（不再波及友方）。 */
 const removed = removeEffects(unit, CLEAR_POLARITY.DEBUFF);   // 返回 { states:[...], marks:[...] }
 const names = [...removed.states, ...removed.marks];
 log(names.length > 0
 ? `${getSideLabel(unit)}${unit.name} 的「水无垠」移除了减益：${names.join('、')}！`
 : `${getSideLabel(unit)}${unit.name} 身上没有可移除的减益效果。`, 'log-buff');
-refreshUnit(unit); break;
+refreshUnit(unit);
+break;
 }
 /* 禅心云外镜技能「万法皆空」：
    ① 扣除全体友方 50% 当前生命 ② 全体友方获得各自 50% 最大生命的护盾
    ③ 全体友方 +10% 速度，持续 2 回合 ④ 2 回合后翻转生命并清盾 ⑤ 进入 2 回合冷却 */
+/* 禅心云外镜技能1「心净明」【施放】：移除友方目标的所有减益状态与减益印记，
+   然后 +30% 行动条；若一个都没移除（目标身上本无减益），则改为 +100% 行动条。
+   注意：行动条加成走统一入口 —— 若目标正是当前行动者，会登记到回合结束后落地。 */
+case 'xinJingMingCast': {
+const tgt = target || unit;
+if (!tgt.alive) break;
+const rm = removeEffects(tgt, CLEAR_POLARITY.DEBUFF);
+const removed = [...rm.states, ...rm.marks];
+const bonus = removed.length > 0 ? XINJINGMING_PUSH : XINJINGMING_PUSH_EMPTY;
+grantActionValueBonus(tgt, bonus, '心净明');
+log(removed.length > 0
+? `🪞 ${getSideLabel(unit)}${unit.name} 施放「心净明」！移除 ${getSideLabel(tgt)}${tgt.name} 的减益：${removed.join('、')}，行动条+${bonus}%！`
+: `🪞 ${getSideLabel(unit)}${unit.name} 施放「心净明」！${getSideLabel(tgt)}${tgt.name} 身上没有可移除的减益，改为使其行动条+${bonus}%！`, 'log-skill');
+refreshUnit(tgt);
+updateActionBarDots();
+break;
+}
 case 'wanFaJieKong': {
 const allies = getAliveAllies(unit);
 if (allies.length > 0) {
 const detail = allies.map(u => {
 const maxHp = Number(u.maxHp) || 0;
 const before = Number(u.hp) || 0;
-// ① 扣除 50% 当前生命（保底 1 点：技能不该把队友扣死）
+/* ① 扣除 50% 当前生命（保底 1 点：技能不该把队友扣死）
+   ★ 这是【代价 / 自伤】，不是伤害 —— 直接改生命值，不走 applyDamage /
+     applyFixedDamage，因此不触发任何「受到伤害」类被动（如两面宿傩「斩击反转」）。
+     同理也不触发「受到攻击」类效果（如心友犬神「守势」）。 */
 const after = Math.max(1, Math.min(maxHp, Math.floor(before * (1 - WANFA_HP_COST_RATE))));
 u.hp = after;
 // ② 护盾 = 各自最大生命 × 50%
@@ -2556,7 +3414,7 @@ break;
 }
 case 'thunderPress': {
 addMark(unit, '雷压', { duration:3, effect:'thunderPress' });
-const sv = Math.floor(unit.maxHp * 0.3);
+const sv = Math.floor(unit.maxHp * THUNDERPRESS_SHIELD_RATE);
 unit.shield = (Number(unit.shield) || 0) + sv;
 addStat(unit, 'statsShieldDone', sv);
 log(`${getSideLabel(unit)}${unit.name} 获得雷压和${sv}点护盾！`, 'log-buff');
@@ -2656,7 +3514,7 @@ refreshUnit(unit);
 // 公式④：治疗量 = 攻击 × 技能治疗率 × 目标治疗加成 × (1-目标治疗减免)，可暴击（暴击额外 × 暴击伤害率）
 // 治疗加成/减免取「被治疗目标」，暴击属性取「施法者」
 async function performHeal(healer, skill, target) {
-if (!target || !target.alive) return 0;
+if (!isRecoverable(target)) return 0;   // 0 血视为已阵亡，治疗不生效（见 isRecoverable）
 if (target.banished) { log(`${getSideLabel(target)}${target.name} 被放逐中，无法接受治疗！`, 'log-buff'); return 0; }
 let healBonus = Number(target.healBonus) || 1.0;
 if ((target.states || []).some(s => s.type === '百豪')) healBonus += 0.2;   // 百豪（增益状态）：+20% 治疗加成
@@ -2676,14 +3534,24 @@ return realHeal;
 }
 // 单体治疗技能入口：先治疗，再结算附加在治疗目标上的效果（如雪拉比「治愈」的1点怒气）
 async function performHealSkill(healer, skill, target) {
-if (!target || !target.alive) return;
+if (!isRecoverable(target)) return;
 if (target.banished) { log(`${getSideLabel(target)}${target.name} 被放逐中，无法成为治疗目标！`, 'log-buff'); return; }
 await performHeal(healer, skill, target);
 if (skill.healEffect) { await sleep(120); await applySkillEffect(healer, target, skill.healEffect); }
 }
+/* ===== 可被治疗 / 恢复的判定 =====
+   ★ 关键：必须 hp > 0。
+   伤害结算里 hp 被钳到 0 后，alive 仍是 true（真正的阵亡由紧随其后的 killUnit 处理）。
+   这段「0 血但尚未阵亡」的窗口里若允许回血，就会把本该致死的目标救回来 ——
+   例如两面宿傩受超量伤害 → hp=0 → 「斩击反转」恢复 195 → 死不了。
+   故统一加 hp > 0 门槛：0 血即为已阵亡，任何治疗 / 恢复都不生效。
+   （雪拉比「预知未来」的复活是先置 alive=true 且 hp=1，之后照常可被恢复） */
+function isRecoverable(target) {
+return !!(target && target.alive && (Number(target.hp) || 0) > 0);
+}
 /* ----------【恢复】独立机制：固定数值，不走公式、不受加成/减免/暴击影响 ---------- */
 async function performRestore(target, amount, source) {
-if (!target || !target.alive) return 0;
+if (!isRecoverable(target)) return 0;
 if (target.banished) { log(`${getSideLabel(target)}${target.name} 被放逐中，无法接受恢复！`, 'log-buff'); return 0; }
 const val = Math.max(0, Math.floor(Number(amount) || 0));
 if (val <= 0) return 0;
@@ -2722,7 +3590,8 @@ caster.pendingSnapshot = true;
 log(`${getSideLabel(caster)}${caster.name} 记录了友方生命值，下回合开始时恢复低于记录值的友方！`, 'log-buff');
 }
 async function performDamageLog(caster, skill) {
-gameState.damageLogTotal = 0; gameState.damageLogSide = caster.side; caster.pendingSnapshot = true;
+gameState.damageLogTotal = 0; gameState.damageLogSide = caster.side; gameState.damageLogFallen = [];
+caster.pendingSnapshot = true;
 log(`${getSideLabel(caster)}${caster.name} 开始记录友方受到的伤害，下回合开始时将记录总伤害的80%分配给所有存活友方！`, 'log-buff');
 }
 const BANISH_DURATION = 2;       // 放逐 / 虚化的持续回合（统一走 rules 的 duration，施放者回合结束时递减）
@@ -2816,6 +3685,15 @@ log(`${getSideLabel(unit)}流光先机！速度最高的3名友方（${top3.map(
 }
 };
 const PASSIVE_TURN_END = {
+/* 镰鼬「人多势众」：回合结束后 30% 概率使自身 +100% 行动条。
+   实现：给自己 +100% 行动条（走 pendingActionBonus，回合结束后落地），
+   于是本回合结束后立刻再次满条、连续行动 —— 即「新的回合」。
+   比递归调用更安全：不会栈溢出，也不打断其它单位的行动条推进。 */
+'renDuoShiZhong': async (unit) => {
+if (Math.random() >= RENDUO_CHANCE) return;
+grantActionValueBonus(unit, 100, '人多势众');
+log(`🎲 ${getSideLabel(unit)}镰鼬 的「人多势众」触发！自身行动条+100%！`, 'log-skill');
+},
 // 绮罗舞：恢复全体友方 1 点怒气 → 怒气≥4 的友方获得 1 层照君
 'qiluoDance': async (unit) => {
 const allies = getAliveAllies(unit);
@@ -2837,9 +3715,100 @@ const key = (HERO_DATA[u.name] || {}).opening;   // 先机：独立字段，与�
 if (key && OPENING_EFFECTS[key]) OPENING_EFFECTS[key](u);
 });
 }
+/* ===== 被动：受到伤害后 =====
+   注册表与 OPENING_EFFECTS / PASSIVE_TURN_END 同构，由 passive.onDamaged 指定键。
+   统一入口保证两件事：① 放逐期间被动失效；② 以后新增「受击后被动」不用再改 applyDamage。 */
+const PASSIVE_ON_DAMAGED = {
+/* 两面宿傩「斩击反转」：受到伤害后恢复自身 5% 最大生命值。
+   走【恢复】而非【治疗】：固定数值，不吃治疗加成/减免/暴击。
+
+   overkill = 本次受击「超出当前生命」的伤害（生命被 clamp 到 0 而丢失的那部分）。
+   判定规则：
+     · 未致死（overkill = 0）→ 正常恢复，生命值 = 当前生命 + 恢复量（不超过上限）
+     · 已致死（overkill > 0）→ 只有【恢复量 > 溢出伤害】才救得回；
+       救回后生命值 = 恢复量 - 溢出伤害（生命已归零，溢出部分要先被吃掉）
+       例：满伤 500 / 生命 400 → 溢出 100；恢复 195 > 100 → 存活，剩余 195 - 100 = 95
+       若恢复量 <= 溢出伤害 → 救不回，交由后续死亡判定正常阵亡 */
+'sukunaRestore': async (unit, attacker, overkill = 0) => {
+const amount = Math.floor((Number(unit.maxHp) || 0) * SUKUNA_RESTORE_RATE);
+if (amount <= 0) return;
+const ovk = Math.max(0, Number(overkill) || 0);
+/* 判定分支看【当前生命是否已被清空】，而非单看 overkill：
+   伤害正好打空时 overkill = 0，但生命同样是 0，也应走救回判定（结果 = 恢复量 - 0）。 */
+if ((Number(unit.hp) || 0) <= 0) {
+if (amount <= ovk) {
+log(`🔁 ${getSideLabel(unit)}两面宿傩 的「斩击反转」恢复 ${amount} 点，不足以抵消 ${ovk} 点溢出伤害！`, 'log-buff');
+return;   // 救不回 → 交由后续的死亡判定处理
+}
+unit.hp = Math.min(Number(unit.maxHp) || 0, amount - ovk);
+addStat(unit, 'statsRestoreDone', amount - ovk);
+log(`🔁 ${getSideLabel(unit)}两面宿傩 的「斩击反转」！恢复 ${amount} 点，抵消 ${ovk} 点溢出伤害后剩余 ${unit.hp} 点生命值！`, 'log-heal');
+showFloatingText(unit, '+' + unit.hp, 'floating-heal');
+refreshUnit(unit);
+return;
+}
+const healed = await performRestore(unit, amount, null);
+if (healed <= 0) return;
+addStat(unit, 'statsRestoreDone', healed);
+log(`🔁 ${getSideLabel(unit)}两面宿傩 的「斩击反转」！受到伤害后恢复 ${healed} 点生命值（5%最大生命值）！`, 'log-heal');
+showFloatingText(unit, '+' + healed, 'floating-heal');
+refreshUnit(unit);
+}
+};
+async function applyPassiveOnDamaged(unit, attacker, overkill = 0) {
+if (!isPassiveActive(unit)) return;                  // 放逐：目标被动失效
+const key = (HERO_DATA[unit.name] || {}).passive && HERO_DATA[unit.name].passive.onDamaged;
+if (key && PASSIVE_ON_DAMAGED[key]) await PASSIVE_ON_DAMAGED[key](unit, attacker, overkill);
+}
+/* ===== 被动的两种归属 =====
+   ① 独立被动：仅写在 HERO_DATA[name].passive，受【被动失效】约束（isPassiveActive）。
+   ② 技能内被动：被动效果是某个【主动技能】的一部分，用 passive.boundSkill 指明归属。
+      它随技能走 —— 只受【无法行动】约束（cannotAct），**不受【被动失效】影响**。
+
+   理由：技能既然能放出来，它自带的被动效果就该生效；若无法行动，技能本身就放不出来。
+   这样即便将来出现「被动失效但不影响行动」的新机制，鬼金羊「宿影暗渡」的
+   被动攒层与主动施放都照常工作 —— 这正是两个闸门分工的意义。
+
+   新增「技能内被动」时：在 passive 上写明 boundSkill 即可，无需再改判定代码。
+
+   【无法行动】的完整定义（务必对齐）：
+     · 不能施放任何技能（含额外技能），也不能普攻；跳过行动阶段。
+     · 只影响「需要角色本体去施放」的部分 —— 即【主动施放】与【普攻】。
+     · 不影响【被动效果】的自动结算（攒层、免疫等），因为那不需要角色本体出手。 */
+function getPassiveBoundSkill(unit) {
+const p = unit && (HERO_DATA[unit.name] || {}).passive;
+return (p && p.boundSkill) || null;
+}
+/* 被动效果是否结算：按归属分流。
+   ★ 技能内被动的【被动效果】部分不需要角色本体去施放，因此不受【无法行动】约束 ——
+     被【眩晕】照样结算（眩晕只挡"本体出手"，不挡自动结算）。
+     但【放逐】额外规定「取消效果buff的变化」，故被放逐时 buff 冻结、不结算。
+     真正被无法行动挡下的是它的【主动施放】部分（走 cannotAct）。 */
+function isPassiveEffective(unit) {
+if (!unit || !unit.alive) return false;
+if (getPassiveBoundSkill(unit)) return !unit.banished;   // 技能内被动：眩晕照常，放逐冻结（buff 变化被取消）
+return isPassiveActive(unit);                  // 独立被动：过被动失效闸门
+}
+/* ===== 被动生效判定 =====
+   规则补充：【放逐】期间，目标被动失效。
+   当前尚无被动与放逐冲突（被放逐者不行动、不可选中，多数被动自然不会触发），
+   但为后续扩展预留统一闸门 —— 以后新增被动一律先过 isPassiveActive()。
+
+   ⚠️ 与 cannotAct 的分工（务必分清）：
+     · isPassiveActive → 管【被动效果】是否结算（攒层、受击恢复、回合结束效果…）
+     · cannotAct       → 管【能否施放技能】（行动阶段 + 回合外的一切施放）
+   两者互不替代。一个技能可以同时承载被动与施放（如鬼金羊「宿影暗渡」）：
+     · 被动效果（攒宿影阵、免疫长星锁）→ 存活即生效，两个闸门都管不着；
+     · 主动施放（减怒气）→ 只受 cannotAct 约束。
+   判定请统一走 isPassiveEffective()。 */
+function isPassiveActive(unit) {
+if (!unit || !unit.alive) return false;
+if (unit.banished) return false;      // 放逐：目标被动失效
+return true;
+}
 // 自身回合结束：结算被动
 async function applyPassiveTurnEnd(unit) {
-if (!unit || !unit.alive) return;
+if (!isPassiveActive(unit)) return;
 const key = (HERO_DATA[unit.name] || {}).passive?.turnEnd;
 if (key && PASSIVE_TURN_END[key]) await PASSIVE_TURN_END[key](unit);
 }
@@ -2889,6 +3858,9 @@ const expiredRules = [];
 const collectRule = (it, u) => expiredRules.push({ unit: u, item: it });
 tickDuration(unit, 'states', '状态');
 tickDuration(unit, 'marks', '印记', onMarkExpire);
+/* 安全点③：状态 / 印记 tick 之后。眩晕等控制到期就在这里解除 ——
+   立刻补放排队中的施放（如满层的宿影阵）。 */
+await flushAfterActionable();
 /* 放逐由**施放者**维持：被放逐者不行动（不会走 processTurnEnd），
    因此它的倒计时在施放者回合结束时代为推进 —— 放在 tick 自身规则之前。 */
 const banishedVictim = gameState.units.find(u => u.banished && u.banishedBy === unit);
@@ -2898,6 +3870,8 @@ for (const { unit: owner, item } of expiredRules) {
 const fn = item && item.effect ? RULE_EXPIRE[item.effect] : null;
 if (fn) await fn(owner, item);
 }
+/* 安全点④：规则到期之后（放逐解除等）→ 立刻补放排队的施放。 */
+await flushAfterActionable();
 await applyPassiveTurnEnd(unit);   // 被动：自身回合结束时结算
 refreshUnit(unit);
 }
@@ -3354,7 +4328,7 @@ function resetGame() {
 stopSkillCutin();
 closeConfirmDialog(false);
 speedBtnDisplay(false);
-if (gameState.rafId) cancelAnimationFrame(gameState.rafId); gameState = { phase:'modeSelect', units:[], playerTeam:[], enemyTeam:[], actionBarMax:0, paused:false, autoMode:false, animating:false, waitingForTarget:false, targetType:null, pendingSkill:null, currentActor:null, lastTimestamp:0, rafId:null, snowballSnapshot:null, vayneKillThisTurn:false, damageLogTotal:0, damageLogSide:null, currentCastSkill:null, currentCaster:null, shouShiFiring:false, suyingFiring:false, shouShiTurnCount:0, pendingCasts:[] }; playerSelection = ['主角']; enemySelection = ['主角']; document.getElementById('battle-screen').style.display = 'none'; document.getElementById('result-screen').classList.remove('show'); document.getElementById('selection-screen').style.display = 'none'; document.getElementById('mode-select-screen').style.display = 'flex'; document.getElementById('battle-log').innerHTML = ''; document.getElementById('floating-container').innerHTML = '';
+if (gameState.rafId) cancelAnimationFrame(gameState.rafId); resetBp(); document.getElementById('bp-screen').style.display = 'none'; gameState = { phase:'modeSelect', units:[], playerTeam:[], enemyTeam:[], actionBarMax:0, paused:false, autoMode:false, animating:false, waitingForTarget:false, targetType:null, pendingSkill:null, currentActor:null, lastTimestamp:0, rafId:null, snowballSnapshot:null, vayneKillThisTurn:false, damageLogTotal:0, damageLogSide:null, currentCastSkill:null, currentCaster:null, shouShiFiring:false, suyingFiring:false, shouShiTurnCount:0, wuXianXiaTurnCount:0, pendingCasts:[], needFlushAfterActionable:false, damageLogFallen:[] }; playerSelection = ['主角']; enemySelection = ['主角']; document.getElementById('battle-screen').style.display = 'none'; document.getElementById('result-screen').classList.remove('show'); document.getElementById('selection-screen').style.display = 'none'; document.getElementById('mode-select-screen').style.display = 'flex'; document.getElementById('battle-log').innerHTML = ''; document.getElementById('floating-container').innerHTML = '';
 // 重置选人界面状态
 document.getElementById('player-selection-section').style.display = 'block';
 document.querySelector('#selection-screen h1').textContent = '⚔️ 狂想：跨界之战';
@@ -3370,6 +4344,10 @@ gameMode = 'pve';
 checkStartButton(); }
 initSelection();
 initBattleUiButtons();
+renderVersionTheme();
+document.getElementById('changelog-btn').onclick = openChangelog;
+document.getElementById('changelog-close').onclick = closeChangelog;
+document.getElementById('changelog-overlay').addEventListener('click', (e) => { if (e.target === document.getElementById('changelog-overlay')) closeChangelog(); });
 </script>
 <div id="result-screen">
 <div class="result-header">
