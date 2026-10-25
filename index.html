@@ -930,7 +930,7 @@ const CHANGELOG = [
 '五条悟：暴击伤害 170% → 180%。',
 '修复：五条悟被动「无下限」的护盾未计入结算面板统计。',
 '修复：雪拉比复活后头像仍为置灰状态（阵亡样式未随复活清除）。',
-'修复：两面宿傩受超量伤害后仍会被恢复救回 —— 引入溢出伤害（overkill）判定，恢复量须大于溢出伤害才能救回。',
+'修复：两面宿傩受超量伤害后仍会被恢复救回 —— 受击后被动改为在死亡判定之后结算，并统一走 performRestore。',
 '修复：伤害被护盾完全吸收时仍触发「受到伤害」类被动 —— 现区分「受到伤害后」（须真正掉血）与「受到攻击时」（被打即算）。',
 '修复：固定伤害此前不触发受击后被动，现已纳入（无视护盾必然掉血）。',
 '规则澄清：东丈「不屈」每局游戏限触发一次；两面宿傩形态切换改为施放普攻后。',
@@ -2934,17 +2934,16 @@ const hadShieldWhenHit = (Number(target.shield) || 0) > 0;
 const before = target.hp;
 target.hp = Math.max(0, target.hp - dmg);
 const dealt = before - target.hp;
-const overkill = Math.max(0, dmg - before);   // 固定伤害同样要算溢出，供恢复被动做救回判定
 showFloatingText(target, `${label} -${dealt}`, 'floating-fixed');
 if (dealt > 0) recordDamage(attacker, target, dealt);
 log(`${getSideLabel(target)}${target.name} 受到 ${dealt} 点${label}！（无视护盾、无法被转移）`, 'log-damage');
 refreshUnit(target);
 await tryShoushiCounter(attacker, target, hadShieldWhenHit);
+if (target.hp <= 0) await killUnit(target, attacker);
 /* 受击后被动（如两面宿傩「斩击反转」）：固定伤害属于【伤害】，
    且无视护盾必然造成实际生命损失，因此照样触发（门槛 hpLoss > 0 天然满足）。
-   位置与 applyDamage 一致 —— 放在死亡判定【之前】，溢出救回判定同样适用。 */
-if (target.alive && dealt > 0) await applyPassiveOnDamaged(target, attacker, overkill);
-if (target.hp <= 0) await killUnit(target, attacker);
+   位置与 applyDamage 一致 —— 放在死亡判定【之后】：已阵亡者不再触发。 */
+if (target.alive && dealt > 0) await applyPassiveOnDamaged(target, attacker);
 return dealt;
 }
 
@@ -2966,17 +2965,14 @@ return true;
 
 async function applyDamage(attacker, result, target) {
 if (!target || !target.alive) return;
-/* ===== 溢出伤害累计器 =====
-   生命值下限为 0，超量伤害会被 clamp 掉、信息随之丢失。
-   若不记录溢出，「斩击反转」这类恢复被动就会失真（血被 clamp 到 0 后，
-   无论受了多少伤害看起来都只是 0，恢复一点就"死不了"）。
-   这里在每次扣血时累加「超出当前生命的那部分」，供恢复被动做救回判定。 */
-let overkillAcc = 0;   // 溢出伤害累计（超出当前生命的部分）
-let hpLossAcc   = 0;   // 实际生命损失累计（不含被护盾吸收的部分）
+/* ===== 实际生命损失累计器 =====
+   只统计【真正扣掉的生命值】，被护盾吸收的部分不计入 ——
+   这是「受到伤害」与「受到攻击」的分界：宿傩「斩击反转」要求真的掉血才触发，
+   而心友犬神「守势」只要求被打（打在盾上也算）。 */
+let hpLossAcc = 0;
 const loseHp = (u, dmg) => {
 const before = Number(u.hp) || 0;
 u.hp = Math.max(0, before - dmg);
-overkillAcc += Math.max(0, dmg - before);
 hpLossAcc += before - u.hp;
 return before - u.hp;
 };
@@ -3046,16 +3042,11 @@ if (target.hp <= 0) await killUnit(target, applier);
    走 applyDamage 才会触发 —— 【斩杀】是即死效果、不经过这里，因此无法触发，符合设计。 */
 // 「苍」追加伤害：五条悟命中携带「苍」的目标时触发（普攻与技能均可）
 if (attacker && target.alive) hpLossAcc += await procCang(attacker, target) || 0;
-/* 受击后被动统一入口（放逐期间失效）。
-   放在死亡判定【之前】：「斩击反转」有机会把濒死的宿傩拉回来。
-   ★ 触发门槛：hpLossAcc > 0 —— 只有【真正掉血】才算「受到伤害」。
-     伤害被护盾完全吸收时只算「受到攻击」，不算「受到伤害」，
-     因此不触发宿傩「斩击反转」（描述为"受到伤害后"）。
-     注意与心友犬神「守势」区分：后者是"受到攻击时"，打在盾上也触发。
-   ★ 传入 overkillAcc（本次受击的溢出伤害）：由被动自行判断是否救得回 ——
-     恢复量必须【大于】溢出伤害才能救回，救回后生命值 = 恢复量 - 溢出伤害。
-     这样既不会让超量伤害被 clamp 吞掉，也不会出现"恢复一点就死不了"。 */
-if (finalTarget.alive && hpLossAcc > 0) await applyPassiveOnDamaged(finalTarget, attacker, overkillAcc);
+/* ★ 受击后被动统一入口的位置：死亡判定【之后】（见下方 killUnit 之后）。
+   触发门槛：hpLossAcc > 0 —— 只有【真正掉血】才算「受到伤害」。
+   伤害被护盾完全吸收时只算「受到攻击」，不算「受到伤害」，
+   因此不触发宿傩「斩击反转」（描述为"受到伤害后"）。
+   注意与心友犬神「守势」区分：后者是"受到攻击时"，打在盾上也触发。 */
 /* 每局游戏限触发一次：buquUsed 标记随单位创建而重置（startBattle 会重建全部单位）。 */
 if (finalTarget.hp <= 0 && finalTarget.name === '东丈' && isPassiveActive(finalTarget) && !finalTarget.buquUsed && attacker && attacker.side !== finalTarget.side) {
 finalTarget.buquUsed = true;
@@ -3079,6 +3070,9 @@ refreshUnit(finalTarget);
 log(`💪 ${getSideLabel(finalTarget)}东丈 的「不屈」本局已触发过，无法再次免死！`, 'log-buff');
 await killUnit(finalTarget, attacker);
 } else if (finalTarget.hp <= 0) await killUnit(finalTarget, attacker);
+/* 受击后被动统一入口（放逐期间失效）。
+   放在死亡判定【之后】：已阵亡的单位不再结算恢复，超量伤害能正常击杀。 */
+if (finalTarget.alive && hpLossAcc > 0) await applyPassiveOnDamaged(finalTarget, attacker);
 if (target !== finalTarget && target.alive) refreshUnit(target);
 }
 const STUN_CHANCE = 0.3;     // 镰鼬「胖揍」眩晕概率
@@ -3550,8 +3544,7 @@ if (skill.healEffect) { await sleep(120); await applySkillEffect(healer, target,
 /* ===== 可被治疗 / 恢复的判定 =====
    ★ 关键：必须 hp > 0。
    伤害结算里 hp 被钳到 0 后，alive 仍是 true（真正的阵亡由紧随其后的 killUnit 处理）。
-   这段「0 血但尚未阵亡」的窗口里若允许回血，就会把本该致死的目标救回来 ——
-   例如两面宿傩受超量伤害 → hp=0 → 「斩击反转」恢复 195 → 死不了。
+   这段「0 血但尚未阵亡」的窗口里若允许回血，就会把本该致死的目标救回来。
    故统一加 hp > 0 门槛：0 血即为已阵亡，任何治疗 / 恢复都不生效。
    （雪拉比「预知未来」的复活是先置 alive=true 且 hp=1，之后照常可被恢复） */
 function isRecoverable(target) {
@@ -3730,43 +3723,26 @@ const PASSIVE_ON_DAMAGED = {
 /* 两面宿傩「斩击反转」：受到伤害后恢复自身 5% 最大生命值。
    走【恢复】而非【治疗】：固定数值，不吃治疗加成/减免/暴击。
 
-   overkill = 本次受击「超出当前生命」的伤害（生命被 clamp 到 0 而丢失的那部分）。
-   判定规则：
-     · 未致死（overkill = 0）→ 正常恢复，生命值 = 当前生命 + 恢复量（不超过上限）
-     · 已致死（overkill > 0）→ 只有【恢复量 > 溢出伤害】才救得回；
-       救回后生命值 = 恢复量 - 溢出伤害（生命已归零，溢出部分要先被吃掉）
-       例：满伤 500 / 生命 400 → 溢出 100；恢复 195 > 100 → 存活，剩余 195 - 100 = 95
-       若恢复量 <= 溢出伤害 → 救不回，交由后续死亡判定正常阵亡 */
-'sukunaRestore': async (unit, attacker, overkill = 0) => {
+   本入口位于死亡判定【之后】：能走到这里说明单位仍存活（hp > 0）。
+   超量伤害会先触发 killUnit，宿傩照常阵亡，不存在「被打死又被恢复救回」。
+   恢复统一走 performRestore：飘字样式与统计口径与其它恢复来源完全一致。 */
+'sukunaRestore': async (unit) => {
 const amount = Math.floor((Number(unit.maxHp) || 0) * SUKUNA_RESTORE_RATE);
 if (amount <= 0) return;
-const ovk = Math.max(0, Number(overkill) || 0);
-/* 判定分支看【当前生命是否已被清空】，而非单看 overkill：
-   伤害正好打空时 overkill = 0，但生命同样是 0，也应走救回判定（结果 = 恢复量 - 0）。 */
-if ((Number(unit.hp) || 0) <= 0) {
-if (amount <= ovk) {
-log(`🔁 ${getSideLabel(unit)}两面宿傩 的「斩击反转」恢复 ${amount} 点，不足以抵消 ${ovk} 点溢出伤害！`, 'log-buff');
-return;   // 救不回 → 交由后续的死亡判定处理
-}
-unit.hp = Math.min(Number(unit.maxHp) || 0, amount - ovk);
-addStat(unit, 'statsRestoreDone', amount - ovk);
-log(`🔁 ${getSideLabel(unit)}两面宿傩 的「斩击反转」！恢复 ${amount} 点，抵消 ${ovk} 点溢出伤害后剩余 ${unit.hp} 点生命值！`, 'log-heal');
-showFloatingText(unit, '+' + unit.hp, 'floating-heal');
-refreshUnit(unit);
-return;
-}
 const healed = await performRestore(unit, amount, null);
 if (healed <= 0) return;
-addStat(unit, 'statsRestoreDone', healed);
+/* 不再自己 addStat：performRestore 内部已计入 statsRestoreDone，
+   这里再加一次会导致结算面板上的「治疗+恢复」翻倍（此前正是重复统计）。 */
 log(`🔁 ${getSideLabel(unit)}两面宿傩 的「斩击反转」！受到伤害后恢复 ${healed} 点生命值（5%最大生命值）！`, 'log-heal');
-showFloatingText(unit, '+' + healed, 'floating-heal');
+/* 不再自己出飘字：performRestore 内部已统一显示「恢复 +X」，
+   这里再出一次就会与它重复（界面上出现「恢复+195」和「+195」两条）。 */
 refreshUnit(unit);
 }
 };
-async function applyPassiveOnDamaged(unit, attacker, overkill = 0) {
+async function applyPassiveOnDamaged(unit, attacker) {
 if (!isPassiveActive(unit)) return;                  // 放逐：目标被动失效
 const key = (HERO_DATA[unit.name] || {}).passive && HERO_DATA[unit.name].passive.onDamaged;
-if (key && PASSIVE_ON_DAMAGED[key]) await PASSIVE_ON_DAMAGED[key](unit, attacker, overkill);
+if (key && PASSIVE_ON_DAMAGED[key]) await PASSIVE_ON_DAMAGED[key](unit, attacker);
 }
 /* ===== 被动的两种归属 =====
    ① 独立被动：仅写在 HERO_DATA[name].passive，受【被动失效】约束（isPassiveActive）。
