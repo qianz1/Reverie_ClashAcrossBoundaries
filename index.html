@@ -709,7 +709,7 @@ mechanics: [
 { type:'mark', name:'神威', desc:'减益印记：受到攻击时，每层额外附加施加者12%真实伤害（该伤害不可转移），同时施加者+12%行动条，最多叠加3层。' },
 { type:'rule', name:'放逐', desc:'规则：视为离开战局。期间无法行动，无法选中，无法被治疗、恢复，行动条锁定；目标相关的所有状态、印记失效，免疫伤害，取消效果buff的变化。' },
 { type:'rule', name:'虚化', desc:'规则：免疫伤害与减益效果。进入时移除自身所有减益状态与减益印记，持续期间免疫减益状态与减益印记。' } ] },
-"镰鼬": { atk:600, def:400, hp:4600, spd:272, critRate:0.08, critDmg:1.5, color:'#aed581', tag:'辅助',
+"镰鼬": { atk:500, def:400, hp:4600, spd:272, critRate:0.08, critDmg:1.5, color:'#aed581', tag:'辅助',
 normal: { name:"胖揍", type:"single", dmgRate:1.0, target:"enemy", effect:"stunChance" },
 skill: { name:"兄弟之绊", cost:4, type:"buff", target:"ally", selfEffect:"bond" },
 passive: { name:"人多势众", turnEnd:'renDuoShiZhong',
@@ -848,18 +848,18 @@ normal: { name:"苍·赫", type:"single", dmgRate:1.2, target:"enemy", gojoForm:
 skill: { name:"茈", cost:2, type:"aoe", trueRate:0.4, fixedMaxHpRate:0.05, target:"enemy" },
 skill2: { name:"无量空处", cost:4, type:"aoe", trueRate:0.6, fixedMaxHpRate:0.08, target:"enemy", effect:"hunLuan" },
 passive: { name:"无下限",
-desc:"五条悟的普攻在<span class='k'>「苍」</span>与<span class='k'>「赫」</span>之间切换，施放普攻后切换一次，初始为<span class='k'>苍</span>。受到攻击前，自身获得 <span class='buff'>8%最大生命值</span>的护盾（每个单位回合限一次）。" },
+desc:"五条悟的普攻在<span class='k'>「苍」</span>与<span class='k'>「赫」</span>之间切换，施放普攻后切换一次，初始为<span class='k'>苍</span>。受到攻击时，自身获得 <span class='buff'>8%最大生命值</span>的护盾（每个单位回合限一次）。" },
 descNormal: "<span class='k'>苍</span>：对敌方目标造成 <span class='dmg'>120%</span>伤害，并使其附加 <span class='m-state'>苍</span>（持续2回合）。<br><span class='k'>赫</span>：对敌方目标造成 <span class='dmg'>200%</span>伤害。",
 descSkill: "对敌方全体造成 <span class='true-dmg'>40%真实伤害</span>与 <span class='fixed-dmg'>5%目标最大生命值的固定伤害</span>。",
 descSkill2: "对敌方全体造成 <span class='true-dmg'>60%真实伤害</span>与 <span class='fixed-dmg'>8%目标最大生命值的固定伤害</span>，每个目标有 <span class='buff'>40%</span>概率被附加 <span class='m-state'>混乱</span>（持续1回合）。",
 mechanics: [
 { type:'state', name:'苍', desc:'减益状态：携带者-10%速度，若受到施加者五条悟的攻击，则移除该状态，额外受到五条悟40%伤害。不可叠加。' },
-{ type:'state', name:'混乱', desc:'减益状态：携带者行动时，改为对场上随机目标普攻。不可叠加。' },
+{ type:'state', name:'混乱', desc:'减益状态：控制效果，携带者行动阶段时，改为对场上随机目标普攻。不可叠加。' },
 { type:'note', name:'护盾', desc:'优先于生命值承受伤害。' } ] }
 };
 let gameMode = 'pve'; // 'pve' 人机对战 | 'pvp' 双人对战
 // 注：已移除 actingUnit / battleLog / selectedTarget 三个从未被读取的僵尸字段
-let gameState = { phase:'modeSelect', units:[], playerTeam:[], enemyTeam:[], actionBarMax:0, paused:false, autoMode:false, animating:false, waitingForTarget:false, targetType:null, pendingSkill:null, currentActor:null, lastTimestamp:0, rafId:null, snowballSnapshot:null, vayneKillThisTurn:false, damageLogTotal:0, damageLogSide:null, shouShiFiring:false, suyingFiring:false, shouShiTurnCount:0, wuXianXiaTurnCount:0, pendingCasts:[], needFlushAfterActionable:false, damageLogFallen:[] };
+let gameState = { phase:'modeSelect', units:[], playerTeam:[], enemyTeam:[], actionBarMax:0, paused:false, autoMode:false, animating:false, waitingForTarget:false, targetType:null, pendingSkill:null, currentActor:null, lastTimestamp:0, rafId:null, snowballSnapshot:null, vayneKillThisTurn:false, damageLogTotal:0, damageLogSide:null, shouShiFiring:false, shouShiTurnCount:0, wuXianXiaTurnCount:0, pendingCasts:[], needFlushAfterActionable:false, damageLogFallen:[] };
 let playerSelection = ['主角']; let enemySelection = ['主角'];
 /* ===== 自定义确认弹窗 =====
    showConfirmDialog(text, onConfirm)：点击「确定」才执行 onConfirm。
@@ -904,9 +904,20 @@ applySpeedBtn();
    数据结构：{ ver, theme?, items:[] }，ver 与主题一一对应。
    新增版本时往 CHANGELOG 数组**开头**加一条即可（渲染按数组顺序，最新的在最上面）。
    CURRENT_VERSION / CURRENT_THEME 同时驱动模式选择页底部那行文字。 */
-const CURRENT_VERSION = 'v1.4.7-patch.2';
+const CURRENT_VERSION = 'v1.4.7-patch.3';
 const CURRENT_THEME   = '咒术·最强之战';   // 1.4.x 大主题：小版本沿用，不随每次调整变更
 const CHANGELOG = [
+{ ver:'v1.4.7-patch.3', items:[
+'修复：鬼金羊「宿影暗渡」满层时连续施放两次。',
+'修复：放逐被误判为控制效果，免疫控制（鬼王之力）不应免疫放逐。',
+'修复：白藏主「狐守」代伤未先结算友方护盾——改为伤害先打护盾，溢出部分才由白藏主承担。',
+'修复：心友犬神「守势」在被白藏主「狐守」代伤时不触发——「受到攻击」早于伤害结算，判定对象应为原目标。',
+'调整：虚化算「受到攻击」，守势可触发；放逐因无法选中，不算被攻击目标，守势不触发。',
+'修正：五条悟被动「无下限」时机描述由「受到攻击前」改为「受到攻击时」。',
+'修复：「混乱」未走控制效果入口，免疫控制（鬼王之力）无法免疫混乱。',
+'修正：「混乱」描述补充「控制效果」，并将「行动时」明确为「行动阶段时」（回合外行动不受影响）。',
+'镰鼬：攻击 600 → 500。',
+] },
 { ver:'v1.4.7-patch.2', items:[
 '修复：东丈身上挂有「神威」时受到致死伤害会直接阵亡的问题。',
 ] },
@@ -1538,7 +1549,7 @@ const FORESEE_SHARE_RATE = 0.8;   // 雪拉比「预知未来」：记录伤害�
 const FORESEE_MAXHP_RATE = 0.09;  // 雪拉比「预知未来」：额外恢复量 = 自身最大生命值 × 9%
 const KAMUI_TRUE_RATE = 0.12;     // 神威：每层追加的施加者真实伤害率
 const KAMUI_ACTION_BONUS = 12;    // 神威：触发时施加者获得的行动条（与层数无关）
-const FLOWING_LIGHT_DURATION = 1; // 流光基础持续回合；施放者自己额外 +1 抵消本回合的倒计时
+const FLOWING_LIGHT_DURATION = 1; // 流光持续回合（本回合不计入，下回合结束时到期）
 const BANISH_AOE_TRUE_RATE = 0.36;// 神威·虚化：放逐结束后对敌方全体的真实伤害率
 
 /* ===== 治疗 与 恢复：两套独立机制 =====
@@ -1634,7 +1645,6 @@ return lost;
    累计值记在鬼金羊自己的 suyingCounter 上，满 2 进 1 层、余数保留。 */
 function onEnemyRageLost(unit, amount) {
 if (!unit || !amount) return;
-if (gameState.suyingFiring) return;   // 宿影阵自身爆发造成的怒气变化不再回喂
 (gameState.units || []).forEach(g => {
 /* 「宿影暗渡」的【被动效果】部分（攒宿影阵）：不需要角色本体施放，
    因此不受【无法行动】约束（被眩晕仍会攒层）；
@@ -1651,23 +1661,30 @@ addSuyingZhen(g);
 }
 /* 获得 1 层宿影阵；达到上限则移除全部层数并结算效果 */
 function addSuyingZhen(g) {
+/* 层数若被驱散 / 移除等方式清掉，等待中的那次施放也就不复存在 —— 同步解除闸门，
+   避免标记残留导致之后永远无法再次自动施放。 */
+if (g.suyingPendingFire && !getMark(g, '宿影阵')) g.suyingPendingFire = false;
 const m = addMark(g, '宿影阵', { stacks:1, maxStacks:SUYINGZHEN_MAX_STACKS, duration:999, effect:'suYingZhen', ignoreBanish:true });   // 技能内被动效果：不受无法行动约束
 if (!m) return;
 log(`${getSideLabel(g)}${g.name} 获得1层宿影阵！（当前${m.stacks}层）`, 'log-buff');
 refreshUnit(g);
 if ((m.stacks || 1) >= SUYINGZHEN_MAX_STACKS) {
+/* ★ 同一轮满层只结算一次：层数要等施放成功后才移除（onSuccess），
+   这期间层数恒为上限，任何一次新的攒层都会重新走到这里。
+   少了这道闸门，等待施放 / 施放期间的每次回喂都会再排一次队 → 连放。 */
+if (g.suyingPendingFire) return;
+g.suyingPendingFire = true;
 /* ★ 顺序：先【施放】「宿影暗渡」，成功后再移除所有层数。
    若此刻鬼金羊无法行动（放逐 / 眩晕），施放排入队列等待，
    层数保持 5 不变；一旦无法行动消失，最近的下一个安全点立刻补放并清层。 */
 log(`宿影阵达到上限！${getSideLabel(g)}${g.name} 施放「宿影暗渡」！`, 'log-skill');
 /* 排队施放（见 queueSkillCast）：此处位于 loseRage 的同步调用链里，无法 await。
-   守卫 suyingFiring 保证本次施放造成的怒气变化不再回喂被动，避免自我连锁。 */
-gameState.suyingFiring = true;
+   只靠上面的 suyingPendingFire 挡住连放：本技能自己造成的减怒会回喂被动（正常涨层），
+   不能靠屏蔽回喂来修，否则就抹掉了「鬼金羊的技能也会给自己涨层」这条机制。 */
 queueSkillCast(g, g.activeSkill, null, {
 dedupeKey: `宿影暗渡:${idxOf(g)}`,
-onSuccess: () => { removeMark(g, '宿影阵'); refreshUnit(g); log(`${getSideLabel(g)}${g.name} 的宿影阵层数已移除！`, 'log-buff'); }
+onSuccess: () => { g.suyingPendingFire = false; removeMark(g, '宿影阵'); refreshUnit(g); log(`${getSideLabel(g)}${g.name} 的宿影阵层数已移除！`, 'log-buff'); }
 });
-gameState.suyingFiring = false;
 }
 }
 // 从数组中随机取 n 个（不重复）
@@ -1770,12 +1787,14 @@ if (unit.banished && !ignoreBanish) return null;   // 阵亡 / 被放逐：不�
 const { stacks = 1, maxStacks = 999, duration = 999, effect = null, extra = null } = opts;
 const exist = getMark(unit, type);
 if (exist) {
-if (NO_STACK_MARKS.has(type)) { if (duration !== undefined) exist.duration = Math.max(exist.duration || 0, duration); return exist; }
+if (NO_STACK_MARKS.has(type)) { if (duration !== undefined) exist.duration = Math.max(exist.duration || 0, duration); exist.setTurnSeq = unit.turnSeq; return exist; }
 exist.stacks = Math.min((exist.stacks || 1) + stacks, maxStacks);
 if (duration !== undefined) exist.duration = Math.max(exist.duration || 0, duration);
+exist.setTurnSeq = unit.turnSeq;
 return exist;
 }
 const mark = { type, stacks, duration, effect };
+mark.setTurnSeq = unit.turnSeq;
 if (extra) Object.assign(mark, extra);
 unit.marks.push(mark);
 return mark;
@@ -1788,10 +1807,12 @@ const exist = (unit.states || []).find(s => s.type === type);
    （NO_STACK_STATES 里登记的是「明确注明不可叠加」的那些，语义上与此一致） */
 if (exist) {
 exist.duration = Math.max(exist.duration || 0, duration);
+exist.setTurnSeq = unit.turnSeq;
 if (NO_STACK_STATES.has(type)) delete exist.stacks;   // 兜底：清掉可能混入的层数
 return exist;
 }
 const st = { type, duration, effect };
+st.setTurnSeq = unit.turnSeq;
 unit.states.push(st); return st;
 }
 function removeMark(unit, type) { if (unit) unit.marks = (unit.marks || []).filter(m => m.type !== type); }
@@ -1804,8 +1825,9 @@ function addRule(unit, type, opts = {}) {
 if (!unit || !unit.alive) return null;
 const { duration = 999, effect = null, extra = null } = opts;
 const exist = (unit.rules || []).find(r => r.type === type);
-if (exist) { exist.duration = Math.max(exist.duration || 0, duration); return exist; }
+if (exist) { exist.duration = Math.max(exist.duration || 0, duration); exist.setTurnSeq = unit.turnSeq; return exist; }
 const ru = { type, duration, effect, extra };
+ru.setTurnSeq = unit.turnSeq;
 unit.rules = unit.rules || [];
 unit.rules.push(ru);
 return ru;
@@ -2251,6 +2273,10 @@ if (checkBattleEnd()) { gameState.animating = false; return; }
 gameState.paused = false; gameState.animating = false; gameState.currentActor = null; gameState.vayneKillThisTurn = false;
 return;
 }
+/* 回合号：进入该单位的一次回合就 +1。
+   效果施加时记下这个号（setTurnSeq），用于判断「本回合不计入持续时间」。
+   放在 pendingSkip 之前 —— 被跳过的回合同样算一号，后续效果计时才不会错位。 */
+unit.turnSeq = (Number(unit.turnSeq) || 0) + 1;
 /* 「守势」每单位回合限 1 次：每个单位的回合开始时重置计数。
    （多段攻击、群体攻击会在同一回合内造成多次受击，这里保证只反击一次） */
 gameState.shouShiTurnCount = 0;
@@ -2348,7 +2374,9 @@ await endTurn(unit);   // ③ 回合结束 + ④ 行动条更新
 return;
 }
 log(`📌 ${getSideLabel(unit)}${unit.name} 的行动回合！`, 'log-normal');
-/* 「混乱」：携带者行动时，改为对场上随机目标普攻（不分敌我）。
+/* 「混乱」：携带者【行动阶段】时，改为对场上随机目标普攻（不分敌我）。
+   只在行动阶段生效 —— 回合外行动（如心友犬神守势触发的「一誓归心」）不受影响，
+   那些走 triggerSkill / castExtraSkill，不经过这里的分支。
    放在无法行动判定之后、正常行动之前 —— 无法行动者已跳过行动阶段，
    不会因混乱而额外出手（混乱触发的普攻同样受 cannotAct 约束）。 */
 if (hasState(unit, '混乱')) {
@@ -2923,8 +2951,13 @@ if (!target || !target.alive) return 0;
 const dmg = Math.max(0, Math.floor(Number(amount) || 0));
 if (dmg <= 0) return 0;
 /* 放逐：免疫伤害（含固定伤害） */
+/* 放逐：无法选中 → 不算被攻击目标，守势不触发。 */
 if (target.banished) { showFloatingText(target, '免疫', 'floating-miss'); log(`${getSideLabel(target)}${target.name} 被放逐中，免疫${label}！`, 'log-buff'); return 0; }
-if (target.intangible) { showFloatingText(target, '免疫', 'floating-miss'); log(`${getSideLabel(target)}${target.name} 处于虚化，免疫${label}！`, 'log-buff'); return 0; }
+/* 虚化：仍算受到攻击 —— 先用受击前的护盾快照判守势，再免疫伤害。 */
+if (target.intangible) {
+await tryShoushiCounter(attacker, target, (Number(target.shield) || 0) > 0);
+showFloatingText(target, '免疫', 'floating-miss'); log(`${getSideLabel(target)}${target.name} 处于虚化，免疫${label}！`, 'log-buff'); return 0;
+}
 const hadShieldWhenHit = (Number(target.shield) || 0) > 0;
 const before = target.hp;
 target.hp = Math.max(0, target.hp - dmg);
@@ -2974,17 +3007,29 @@ u.hp = Math.max(0, before - dmg);
 hpLossAcc += before - u.hp;
 return before - u.hp;
 };
-/* 放逐：免疫伤害（与虚化同级的规则级免疫）。
-   被放逐者视为离开战局 —— 即便 AOE 等路径波及，也不会掉血。 */
+/* 【放逐】vs【虚化】—— 都是规则级免疫伤害，但「受到攻击」的定性完全不同：
+   · 放逐：还带有「无法选中」，常规情况下根本不会成为攻击目标 → 不算受到攻击，守势不触发。
+     （走 AOE 等路径波及到时，也只是被免疫掉，不产生任何「被攻击」的事实。）
+   · 虚化：只是免疫伤害，单位依然在场、依然会被选中 → 算受到攻击，守势照常反击。
+   因此两者的守势处理必须分开写，不能共用同一个 return。 */
 if (target.banished) { showFloatingText(target, '免疫', 'floating-miss'); log(`${getSideLabel(target)}${target.name} 被放逐中，免疫伤害！`, 'log-buff'); return; }
-if (target.intangible) { showFloatingText(target, '免疫', 'floating-miss'); return; }
-// 白藏主「狐守」：为友方代伤
+if (target.intangible) {
+/* 虚化算「受到攻击」：先用受击前的护盾快照判守势，再免疫伤害。 */
+await tryShoushiCounter(attacker, target, (Number(target.shield) || 0) > 0);
+showFloatingText(target, '免疫', 'floating-miss'); return;
+}
+/* 白藏主「狐守」：为友方代伤 —— 但只代【护盾没吸收掉】的那部分。
+   规则：伤害先打在友方自己的护盾上；护盾被打穿后，溢出的伤害才由白藏主承担；
+        若伤害未破盾（被完全吸收），白藏主一点都不承担。
+   因此代伤判定不能提前改 finalTarget —— 这里只先认下「代伤者是谁」，
+   真正的转移放在护盾结算之后。 */
 let finalTarget = target;
+let foxGuardBearer = null;
 if (hasMark(target, '狐守') && attacker.side !== target.side) {
 const baizang = getAliveAllies(target).find(u => u.name === '白藏主');
-if (baizang && target !== baizang) { log(`${getSideLabel(baizang)}${baizang.name} 代为承受了伤害！`, 'log-buff'); finalTarget = baizang; }
+if (baizang && target !== baizang) foxGuardBearer = baizang;
 }
-/* 五条悟被动「无下限」：受到攻击前，自身获得 8% 最大生命值的护盾。
+/* 五条悟被动「无下限」：受到攻击时，自身获得 8% 最大生命值的护盾。
    放在扣血之前、且在「是否持有护盾」快照之前 —— 这样盾先到位再判定，
    也让守势这类「受击时是否带盾」的判定拿到的是无下限生效后的状态。 */
 if (finalTarget.name === '五条悟' && isPassiveActive(finalTarget) && attacker && attacker.side !== finalTarget.side) {
@@ -3005,12 +3050,43 @@ refreshUnit(finalTarget);
 }
 }
 }
+/* ==================== 两个时机：受到【攻击】 vs 受到【伤害】 ====================
+   · 受到攻击 = 成为被攻击目标。这是【事实判定】，早于护盾扣减、代伤转移、扣血等一切伤害计算。
+   · 受到伤害 = 真正产生了生命 / 护盾损失。发生在伤害结算之后。
+   心友犬神「守势」属前者（"拥有护盾的友方单位受到攻击时"），因此：
+     ① 判定对象是【原目标】而不是代伤后的白藏主；
+     ② 护盾快照取【受击前】状态 —— 若扣完盾再判，正好把盾打破的那一下就会漏掉反击；
+     ③ 反击在伤害结算之前触发。 */
+const attackedTarget = target;
+const hadShieldWhenHit = (Number(attackedTarget.shield) || 0) > 0;
+/* 守势反击：【受到攻击】即触发，先于护盾吸收 / 白藏主代伤 / 扣血。 */
+await tryShoushiCounter(attacker, attackedTarget, hadShieldWhenHit);
+/* ① 友方护盾先吃伤害：这一层是「自己扛」，白藏主不介入。 */
+let remainDamage = result.damage;
+if (foxGuardBearer) {
+const shieldVal = Number(target.shield) || 0;
+if (shieldVal > 0) {
+const absorbedByAlly = Math.min(shieldVal, remainDamage);
+target.shield = Math.max(0, shieldVal - absorbedByAlly);
+remainDamage -= absorbedByAlly;
+showFloatingText(target, `盾-${absorbedByAlly}`, 'floating-shield');
+if (target.shield <= 0) { target.shield = 0; log(`${getSideLabel(target)}${target.name} 的护盾被击破！`, 'log-buff'); }
+refreshUnit(target);
+if (absorbedByAlly > 0) recordDamage(attacker, target, absorbedByAlly);
+}
+/* ② 只有溢出护盾的那部分才转移给白藏主；未破盾则不代伤。 */
+if (remainDamage > 0) {
+log(`${getSideLabel(foxGuardBearer)}${foxGuardBearer.name} 代为承受了 ${remainDamage} 点伤害！`, 'log-buff');
+finalTarget = foxGuardBearer;
+} else {
+log(`${getSideLabel(target)}${target.name} 的伤害被护盾完全吸收，${foxGuardBearer.name} 无需代伤！`, 'log-buff');
+}
+}
 const oldHp = finalTarget.hp;
-/* 先记录「受击瞬间是否持有护盾」。按描述「拥有护盾的友方单位受到攻击时」触发，
-   应取受击前状态 —— 若扣完盾再判，正好把盾打破的那一下就会漏掉反击。 */
-const hadShieldWhenHit = (Number(finalTarget.shield) || 0) > 0;
-const { damageToHp, absorbed } = await applyDamageWithShield(attacker, result, finalTarget);
-await tryShoushiCounter(attacker, finalTarget, hadShieldWhenHit);
+/* 后续统一按 remainDamage 结算：被护盾吃掉的部分已扣掉，
+   未破盾时为 0（此时只是走一遍受击后的常规流程，不产生扣血）。 */
+const bearResult = (remainDamage === result.damage) ? result : Object.assign({}, result, { damage: remainDamage });
+const { damageToHp, absorbed } = await applyDamageWithShield(attacker, bearResult, finalTarget);
 loseHp(finalTarget, damageToHp);
 const actualDamage = oldHp - finalTarget.hp;
 if (actualDamage + absorbed > 0) recordDamage(attacker, finalTarget, actualDamage + absorbed);
@@ -3125,7 +3201,7 @@ const GOJO_HA_RATE = 2.0;           // 五条悟「赫」普攻伤害倍率
 const GOJO_CANG_EXTRA_RATE = 0.4;   // 「苍」被五条悟攻击时追加的伤害倍率
 const GOJO_CANG_SPD_RATE = 0.1;     // 「苍」降低的速度比例
 const GOJO_CANG_DURATION = 2;       // 「苍」持续回合
-const GOJO_SHIELD_RATE = 0.08;      // 无下限：受到攻击前获得的护盾 = 最大生命 × 该比例
+const GOJO_SHIELD_RATE = 0.08;      // 无下限：受到攻击时获得的护盾 = 最大生命 × 该比例
 const WUXIANXIA_MAX_PER_TURN = 1;   // 无下限：每个单位回合内最多生效 1 次
 const SUKUNA_RESTORE_RATE = 0.05;   // 「斩击反转」：受到伤害后恢复的生命值 = 最大生命 × 该比例
 const GOJO_HUNLUAN_CHANCE = 0.4;    // 「无量空处」附加混乱的概率
@@ -3151,8 +3227,25 @@ const SUKUNA_JIE_EXTRA_TRUE = 0.63;  // 强化「解」：两段之外追加的�
 const SUKUNA_BA_TRUE_RATE = 1.2;     // 「捌」：攻击 120% 的真实伤害
 const SUKUNA_FIXED_MAXHP_RATE = 0.1; // 两面宿傩：目标最大生命值 10% 的固定伤害（捌 / 伏魔神龛）
 const SUKUNA_EXECUTE_BELOW = 0.3;    // 强化「捌」：造成伤害后目标生命低于该比例则斩杀
-// 施加控制效果：鬼王之力持有者免疫
+/* ==================== 控制效果：全集 ====================
+   目前只有两个：【眩晕】【混乱】。
+   归属判据是「剥夺 / 扭曲目标的行动自主权」——
+     · 眩晕：直接跳过行动阶段，无法行动；
+     · 混乱：仍能行动，但行动不再受自己控制（随机普攻、不分敌我）。
+   反例（都不算控制，勿混入）：
+     · 苍：只是减速 + 易伤，不干预行动；
+     · 放逐：规则类效果（视为离开战局），不是控制；
+     · 长星锁 / 谜夜：跳过回合类，按既有设计不属于控制。
+   新增控制类状态请同时登记进 CONTROL_STATES。 */
+const CONTROL_STATES = new Set(['眩晕', '混乱']);
+/* 施加控制效果的唯一入口：鬼王之力（免疫控制）与虚化都在这里拦。
+   ★ 所有控制都必须走这里 —— 此前「混乱」绕开本入口直接 addState，
+     导致鬼王酒吞童子（鬼王之力）能免疫眩晕却会被混乱，属于漏判。 */
 function tryApplyControl(target, type, duration, effect) {
+if (!CONTROL_STATES.has(type)) {   // 防御性：非控制类状态不许走这条控制链路
+console.warn(`[控制] 「${type}」未登记在 CONTROL_STATES 中，已按普通状态处理`);
+addState(target, type, { duration, effect }); refreshUnit(target); return true;
+}
 if (hasMark(target, '鬼王之力')) { log(`${getSideLabel(target)}${target.name} 拥有鬼王之力，免疫${type}！`, 'log-buff'); return false; }
 if (target.intangible) { log(`${getSideLabel(target)}${target.name} 处于虚化，免疫${type}！`, 'log-buff'); return false; }
 addState(target, type, { duration, effect });
@@ -3188,17 +3281,16 @@ if (damageToHp + absorbed > 0) recordDamage(attacker, target, damageToHp + absor
 refreshUnit(target);
 return cangLoss;
 }
-/* 「混乱」：减益状态，携带者行动时改为对场上随机目标普攻。
+/* 「混乱」：减益状态（控制效果），携带者行动阶段时改为对场上随机目标普攻。
    · 伤害型普攻：目标可以是除「放逐」与自身外的所有角色（含队友）
    · 治疗型普攻：目标可以是除「放逐」外的所有角色（含敌方与自身） */
 async function applyHunLuan(attacker, targets) {
 const list = (targets || []).filter(u => u && u.alive && !u.banished);
 for (const t of list) {
 if (Math.random() >= GOJO_HUNLUAN_CHANCE) continue;
-if (t.intangible) { log(`${getSideLabel(t)}${t.name} 处于虚化，免疫混乱！`, 'log-buff'); continue; }
-addState(t, '混乱', { duration: GOJO_HUNLUAN_DURATION, effect: 'hunLuan' });
-log(`${getSideLabel(t)}${t.name} 陷入「混乱」（持续${GOJO_HUNLUAN_DURATION}回合）！`, 'log-buff');
-refreshUnit(t);
+/* 混乱属于【控制效果】，走统一入口 —— 鬼王之力与虚化的免疫都在那里判定。
+   （此前这里直接 addState，绕过了免疫控制，鬼王酒吞童子会被混乱） */
+tryApplyControl(t, '混乱', GOJO_HUNLUAN_DURATION, 'hunLuan');
 }
 }
 /* 混乱下的行动：随机挑一个目标普攻（不分敌我）。返回 true 表示本回合行动已消费。 */
@@ -3502,6 +3594,8 @@ log(`${getSideLabel(unit)}我方全体+1怒气！`, 'log-buff'); break;
 /* 鬼金羊「宿影暗渡」的【施放】效果：敌方随机 2 个有怒气的单位 -1 怒气，我方随机 2 个 +1 怒气。
    同一个技能名既承载被动（攒宿影阵）又承载施放效果，两侧互不干扰。 */
 case 'suYingAnDu': {
+/* 注意：本技能自己造成的敌方 -2 怒气同样会回喂被动（鬼金羊的技能也会给自己涨层），
+   这是正常机制，不屏蔽。连放由 addSuyingZhen 的 suyingPendingFire 闸门挡住。 */
 const foes = getAliveEnemies(unit).filter(u => (Number(u.rage) || 0) > 0);
 pickRandom(foes, SUYINGZHEN_TRIGGER_UNITS).forEach(u => {
 const l = loseRage(u, 1);
@@ -3521,19 +3615,19 @@ cleared.states.forEach(t => log(`${getSideLabel(unit)}${unit.name} 的减益状�
 cleared.marks.forEach(t => log(`${getSideLabel(unit)}${unit.name} 的减益印记「${t}」被移除！`, 'log-buff'));
 // ② 进入虚化：持续期间免疫伤害（applyDamage）与减益状态/印记（tryApplyControl / kamuiMark）
 unit.intangible = true;
-/* 虚化改为标准规则 + duration 倒计时（不再靠 banishTurns 手动递减）：
-   施放者回合结束时 tick 一次，持续 BANISH_DURATION 个回合，即「下回合结束」解除。
-   与放逐同源同长，因此两者总是同时结束。 */
+/* 虚化为标准规则 + duration 倒计时（不再靠 banishTurns 手动递减）。
+   BANISH_DURATION = 1：本回合结束不计入，施放者下回合结束时递减到期 —— 即描述所说的
+   「持续至施放者带土下回合结束」。与放逐同源同长，两者总是同时结束。 */
 addRule(unit, '虚化', { duration: BANISH_DURATION, effect: 'intangibility' });
 log(`${getSideLabel(unit)}${unit.name} 进入虚化！免疫伤害与减益效果。`, 'log-buff'); break;
 }
 case 'flowingLight': {
-/* 持续 1 回合，但施放者的那 1 回合会在自己回合结束时立刻被扣掉 ——
-   于是「刚放完技能，流光就到期变照君」。
-   处理：其余友方给 1 回合（他们的回合还没走到，能完整撑过一轮）；
-        施放者自己给 2 回合，抵消自己回合结束的那次倒计时，等效撑到下回合结束。 */
+/* 持续 1 回合 —— 不再给施放者手动 +1。
+   「本回合不计入持续时间」已由 tickDuration 的 setTurnSeq 统一处理，
+   因此施放者自己也只需给 FLOWING_LIGHT_DURATION（= 描述的 1 回合）：
+   本回合结束跳过 → 下回合结束递减到期。 */
 getAliveAllies(unit).forEach(u => {
-const dur = (u === unit) ? FLOWING_LIGHT_DURATION + 1 : FLOWING_LIGHT_DURATION;  // 自身多给 1 抵消本回合倒计时
+const dur = FLOWING_LIGHT_DURATION;
 const exist = getMark(u, '流光');
 if (exist) { exist.duration = Math.max(exist.duration || 0, dur); log(`${getSideLabel(u)}${u.name} 已携带流光，持续时间刷新！`, 'log-buff'); }
 else addMark(u, '流光', { stacks:1, maxStacks:1, duration:dur, effect:'flowingLight' });   // 不可叠加
@@ -3629,15 +3723,20 @@ gameState.damageLogTotal = 0; gameState.damageLogSide = caster.side; gameState.d
 caster.pendingSnapshot = true;
 log(`${getSideLabel(caster)}${caster.name} 开始记录友方受到的伤害，下回合开始时将记录总伤害的80%分配给所有存活友方！`, 'log-buff');
 }
-const BANISH_DURATION = 2;       // 放逐 / 虚化的持续回合（统一走 rules 的 duration，施放者回合结束时递减）
+const BANISH_DURATION = 1;       // 放逐 / 虚化的持续回合（本回合不计入，施放者下回合结束时解除）
 async function performBanish(caster, skill, target) {
-if (hasMark(target, '鬼王之力')) { log(`${getSideLabel(target)}${target.name} 拥有鬼王之力，免疫放逐！`, 'log-buff'); return; }
+/* ★ 放逐是【规则】类效果（视为离开战局），不是控制效果 ——
+   「无法行动」只是它的附属结果，判定免疫要看效果类别而非后果。
+   因此免疫控制（鬼王之力）不能拦下放逐；免疫的是 tryApplyControl 那条路上的状态（眩晕等）。 */
 // 先快照当前位置，再置 banished —— 之后行动条即被锁定在该位置，任何推进/击退都无效
 lockActionValue(target);
 target.banished = true; target.banishedBy = caster;
 /* 放逐同样是标准规则 + duration；只是它的倒计时由**施放者**的回合驱动
    （被放逐者不行动、不会走 processTurnEnd），见 processTurnEnd 中的代 tick。 */
-addRule(target, '放逐', { duration: BANISH_DURATION, effect: 'banish', extra: { casterIdx: idxOf(caster) } });
+const banishRule = addRule(target, '放逐', { duration: BANISH_DURATION, effect: 'banish', extra: { casterIdx: idxOf(caster) } });
+/* 放逐的倒计时由【施放者】的回合驱动（被放逐者不走自己的回合），
+   因此「本回合不计入」要按施放者的回合号记 —— 与 processTurnEnd 里的代 tick 参照号一致。 */
+if (banishRule) banishRule.setTurnSeq = caster.turnSeq;
 log(`${getSideLabel(caster)}${caster.name} 将 ${getSideLabel(target)}${target.name} 放逐至神威空间！行动条锁定在 ${target.actionValue}%`, 'log-skill');
 updateActionBarDots(); refreshUnit(target);
 await sleep(500);
@@ -3830,14 +3929,36 @@ if (!isPassiveActive(unit)) return;
 const key = (HERO_DATA[unit.name] || {}).passive?.turnEnd;
 if (key && PASSIVE_TURN_END[key]) await PASSIVE_TURN_END[key](unit);
 }
+/* ==================== 持续时间的统一口径：本回合不计入 ====================
+   角色在自己回合内施放技能、给自己挂上有持续时间的 buff 时，
+   【本次回合结束不递减】，从下一个回合结束才开始计入 —— 即「描述写几回合，就真的持续几回合」。
+
+   实现方式：每个效果记下它是在持有者哪一号回合（unit.turnSeq）被施加 / 续期的；
+   倒计时时若发现「是本回合刚挂上的」，就跳过这一次递减。
+   回合号在 processUnitTurn 开头递增，因此下回合再 tick 时必然不相等，正常递减。
+
+   这样一处生效、全局一致，不再需要各处手动 +1 抵消（此前流光、百豪、万法等各写各的，
+   导致描述与实现长期对不上）。
+
+   为什么用「持有者自己的回合号」而不是全局回合：
+     每个人有自己的回合。给【队友】挂的效果，队友的回合是另一个时间点 ——
+     它下次自己回合结束时就该递减（与旧行为一致），不该被施放者的回合号豁免。
+     同理，回合外（如受击被动）给自己挂的效果，也不享受豁免。 */
 /* 倒计时：duration 为 999 视为永久，不清空。
    注意顺序：先把存活项写回 unit[field]，再统一触发过期回调 ——
    否则回调里新增的印记（如流光到期给的照君）会被随后的赋值覆盖掉。 */
-function tickDuration(unit, field, label, onExpire) {
+function tickDuration(unit, field, label, onExpire, seqRef) {
 const list = unit[field] || [];
+/* seqRef = 本次倒计时的「计时参照回合号」，默认取持有者自己的回合号。
+   ★ 代 tick 场景必须显式传：被放逐者不走回合、自己的 turnSeq 永远不变，
+     若仍按它自己比较，放逐会被永久豁免、再也不递减。放逐的倒计时由【施放者】的回合驱动，
+     所以参照号要取施放者的。 */
+const ref = (seqRef !== undefined) ? seqRef : unit.turnSeq;
 const kept = [], expired = [];
 list.forEach(item => {
 if (item.duration === 999 || !item.duration) { kept.push(item); return; }
+/* 本回合内刚施加 / 续期的效果：本次不递减（见上方口径说明）。 */
+if (item.setTurnSeq !== undefined && item.setTurnSeq === ref) { kept.push(item); return; }
 item.duration--;
 if (item.duration <= 0) { log(`${getSideLabel(unit)}${unit.name} 的${label}「${item.type}」消失了`, 'log-buff'); expired.push(item); }
 else kept.push(item);
@@ -3871,7 +3992,7 @@ unit.pendingActionBonus = 0;
 async function processTurnEnd(unit) {
 /* 规则统一走同一套 tickDuration：duration 到期 → 收集 → 逐个 await 结算。
    放逐与虚化不再用 banishTurns 手动递减，
-   持续回合数就是它们的 duration（BANISH_DURATION = 2 = 施放者的下回合结束）。 */
+   持续回合数就是它们的 duration（BANISH_DURATION = 1，本回合不计入 = 施放者的下回合结束）。 */
 const expiredRules = [];
 const collectRule = (it, u) => expiredRules.push({ unit: u, item: it });
 tickDuration(unit, 'states', '状态');
@@ -3882,7 +4003,7 @@ await flushAfterActionable();
 /* 放逐由**施放者**维持：被放逐者不行动（不会走 processTurnEnd），
    因此它的倒计时在施放者回合结束时代为推进 —— 放在 tick 自身规则之前。 */
 const banishedVictim = gameState.units.find(u => u.banished && u.banishedBy === unit);
-if (banishedVictim) tickDuration(banishedVictim, 'rules', '规则', collectRule);
+if (banishedVictim) tickDuration(banishedVictim, 'rules', '规则', collectRule, unit.turnSeq);   // 代 tick：参照施放者的回合号
 tickDuration(unit, 'rules', '规则', collectRule);
 for (const { unit: owner, item } of expiredRules) {
 const fn = item && item.effect ? RULE_EXPIRE[item.effect] : null;
@@ -4346,7 +4467,7 @@ function resetGame() {
 stopSkillCutin();
 closeConfirmDialog(false);
 speedBtnDisplay(false);
-if (gameState.rafId) cancelAnimationFrame(gameState.rafId); resetBp(); document.getElementById('bp-screen').style.display = 'none'; gameState = { phase:'modeSelect', units:[], playerTeam:[], enemyTeam:[], actionBarMax:0, paused:false, autoMode:false, animating:false, waitingForTarget:false, targetType:null, pendingSkill:null, currentActor:null, lastTimestamp:0, rafId:null, snowballSnapshot:null, vayneKillThisTurn:false, damageLogTotal:0, damageLogSide:null, currentCastSkill:null, currentCaster:null, shouShiFiring:false, suyingFiring:false, shouShiTurnCount:0, wuXianXiaTurnCount:0, pendingCasts:[], needFlushAfterActionable:false, damageLogFallen:[] }; playerSelection = ['主角']; enemySelection = ['主角']; document.getElementById('battle-screen').style.display = 'none'; document.getElementById('result-screen').classList.remove('show'); document.getElementById('selection-screen').style.display = 'none'; document.getElementById('mode-select-screen').style.display = 'flex'; document.getElementById('battle-log').innerHTML = ''; document.getElementById('floating-container').innerHTML = '';
+if (gameState.rafId) cancelAnimationFrame(gameState.rafId); resetBp(); document.getElementById('bp-screen').style.display = 'none'; gameState = { phase:'modeSelect', units:[], playerTeam:[], enemyTeam:[], actionBarMax:0, paused:false, autoMode:false, animating:false, waitingForTarget:false, targetType:null, pendingSkill:null, currentActor:null, lastTimestamp:0, rafId:null, snowballSnapshot:null, vayneKillThisTurn:false, damageLogTotal:0, damageLogSide:null, currentCastSkill:null, currentCaster:null, shouShiFiring:false, shouShiTurnCount:0, wuXianXiaTurnCount:0, pendingCasts:[], needFlushAfterActionable:false, damageLogFallen:[] }; playerSelection = ['主角']; enemySelection = ['主角']; document.getElementById('battle-screen').style.display = 'none'; document.getElementById('result-screen').classList.remove('show'); document.getElementById('selection-screen').style.display = 'none'; document.getElementById('mode-select-screen').style.display = 'flex'; document.getElementById('battle-log').innerHTML = ''; document.getElementById('floating-container').innerHTML = '';
 // 重置选人界面状态
 document.getElementById('player-selection-section').style.display = 'block';
 document.querySelector('#selection-screen h1').textContent = '⚔️ 狂想：跨界之战';
