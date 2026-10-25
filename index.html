@@ -904,9 +904,13 @@ applySpeedBtn();
    数据结构：{ ver, theme?, items:[] }，ver 与主题一一对应。
    新增版本时往 CHANGELOG 数组**开头**加一条即可（渲染按数组顺序，最新的在最上面）。
    CURRENT_VERSION / CURRENT_THEME 同时驱动模式选择页底部那行文字。 */
-const CURRENT_VERSION = 'v1.4.7-patch.1';
+const CURRENT_VERSION = 'v1.4.7-patch.2';
 const CURRENT_THEME   = '咒术·最强之战';   // 1.4.x 大主题：小版本沿用，不随每次调整变更
 const CHANGELOG = [
+{ ver:'v1.4.7-patch.2', items:[
+'修复：东丈身上挂有「神威」时受到致死伤害会直接阵亡，「不屈」完全失效 —— 派生伤害曾就地击杀、绕过了免死判定。现所有致死路径统一走死亡判定流程。',
+'东丈「不屈」的免死反击目标修正：由「致命一击」归属决定（主伤害致死→主攻击者；神威追加致死→神威施加者）。'
+] },
 { ver:'v1.4.7-patch.1', items:[
 '修复：东丈技能「龙卷风」层数与描述不符 —— 应为 1 层狂风 + 2 层风行（狂风曾误给 2 层、风行曾误给 1 层），现已常量化。',
 '禅心云外镜：技能1「心净明」改为需要选择友方目标（此前只能作用于默认目标）。'
@@ -2970,6 +2974,9 @@ if (!target || !target.alive) return;
    这是「受到伤害」与「受到攻击」的分界：宿傩「斩击反转」要求真的掉血才触发，
    而心友犬神「守势」只要求被打（打在盾上也算）。 */
 let hpLossAcc = 0;
+/* 派生伤害（神威）的致死来源：神威不可转移、直接作用于被标记者本人，
+   其击杀者是【神威施加者】而非主攻击者 —— 免死被动的反击目标要用对。 */
+let kamuiKiller = null;
 const loseHp = (u, dmg) => {
 const before = Number(u.hp) || 0;
 u.hp = Math.max(0, before - dmg);
@@ -3018,6 +3025,9 @@ const actualDamage = oldHp - finalTarget.hp;
 if (actualDamage + absorbed > 0) recordDamage(attacker, finalTarget, actualDamage + absorbed);
 if (damageToHp > 0) showFloatingText(finalTarget, (result.isCrit?'暴击 ':'') + (result.isSplash?'溅射 ':'') + '-' + damageToHp, result.isTrue?'floating-true':(result.isSplash?'floating-splash':(result.isCrit?'floating-crit':'floating-damage')));
 const el = document.getElementById(`unit-${idxOf(finalTarget)}`); el?.classList.add('hit'); await sleep(200); el?.classList.remove('hit'); refreshUnit(finalTarget);
+/* 主伤害是否已致死：用于判定「致命一击」来自谁 ——
+   若主伤害就已致死，免死反击指向主攻击者；若主伤害未致死、神威追加才致死，则指向神威施加者。 */
+const lethalByMain = finalTarget.hp <= 0;
 // 神威：受击时【每层】追加施加者 12% 真实伤害（公式⑤），同时施加者 +15% 行动条（与层数无关）
 // 伤害取施加者的「有效属性」，因此大妖之力 / 牵绊 / 狂风 / 超凡邪力等加成都会被吃到。
 // 该伤害【不可转移】：直接作用于被标记者本人，不经过狐守代伤。
@@ -3035,7 +3045,11 @@ if (extraToHp + extraAbsorbed > 0) recordDamage(applier, target, extraToHp + ext
 refreshUnit(target);
 // 施加者行动条推进：固定 +12%（KAMUI_ACTION_BONUS），与神威层数无关
 grantActionValueBonus(applier, KAMUI_ACTION_BONUS, '神威');
-if (target.hp <= 0) await killUnit(target, applier);
+/* ★ 不再就地 killUnit —— 派生伤害的死亡判定必须走末尾的统一流程。
+   就地击杀会绕过东丈「不屈」这类免死被动：
+   此前东丈身上挂着神威时，神威分支先把他杀掉，后面的不屈判定
+   因 isPassiveActive 要求 alive（已被置 false）而全部落空 → 直接阵亡。 */
+if (target.hp <= 0) kamuiKiller = applier;
 }
 }
 /* 东丈「不屈」：受到致命伤害时保留 1 点生命，并对伤害来源施放「龙卷风」。
@@ -3047,33 +3061,62 @@ if (attacker && target.alive) hpLossAcc += await procCang(attacker, target) || 0
    伤害被护盾完全吸收时只算「受到攻击」，不算「受到伤害」，
    因此不触发宿傩「斩击反转」（描述为"受到伤害后"）。
    注意与心友犬神「守势」区分：后者是"受到攻击时"，打在盾上也触发。 */
-/* 每局游戏限触发一次：buquUsed 标记随单位创建而重置（startBattle 会重建全部单位）。 */
-if (finalTarget.hp <= 0 && finalTarget.name === '东丈' && isPassiveActive(finalTarget) && !finalTarget.buquUsed && attacker && attacker.side !== finalTarget.side) {
-finalTarget.buquUsed = true;
-/* 触发时先移除自身所有减益状态与减益印记 —— 因此即便东丈正被【眩晕】，
-   随后的「龙卷风」反击依然能正常打出（眩晕在这里已被清掉）。 */
-const removed = removeEffects(finalTarget, CLEAR_POLARITY.DEBUFF);
-const removedNames = [...removed.states, ...removed.marks];
-if (removedNames.length > 0) log(`💪 ${getSideLabel(finalTarget)}东丈 的「不屈」移除了减益：${removedNames.join('、')}！`, 'log-buff');
-finalTarget.hp = 1;
-log(`💪 ${getSideLabel(finalTarget)}东丈 的「不屈」触发！保留1点生命值，对 ${getSideLabel(attacker)}${attacker.name} 施放「龙卷风」！`, 'log-skill');
-showFloatingText(finalTarget, '不屈', 'floating-heal');
-refreshUnit(finalTarget);
-const tornado = HERO_DATA['东丈'] ? HERO_DATA['东丈'].skill : null;
-if (tornado && attacker.alive) await triggerSkill(finalTarget, tornado, attacker);
-if (!attacker.alive) {
-const healed = await performRestore(finalTarget, finalTarget.maxHp, null);
-log(`💪 ${getSideLabel(finalTarget)}东丈 击倒了伤害来源，恢复 ${healed} HP（100%最大生命值）！`, 'log-heal');
-refreshUnit(finalTarget);
-}
-} else if (finalTarget.hp <= 0 && finalTarget.name === '东丈' && finalTarget.buquUsed) {
-log(`💪 ${getSideLabel(finalTarget)}东丈 的「不屈」本局已触发过，无法再次免死！`, 'log-buff');
-await killUnit(finalTarget, attacker);
-} else if (finalTarget.hp <= 0) await killUnit(finalTarget, attacker);
+/* ===== 统一死亡判定 =====
+   主伤害命中 finalTarget（若被白藏主代伤则不是原目标），
+   派生伤害（神威 / 苍，不可转移）命中 target —— 两者可能是不同单位，都要过一遍。
+   同一单位只结算一次，但「致命一击」归属要取对：
+   主伤害已致死 → 记主攻击者；主伤害未致死而神威追加才致死 → 改写为神威施加者。 */
+const victims = [];
+const upsertVictim = (u, killer, override) => {
+if (!u || u.hp > 0) return;
+const ex = victims.find(v => v.unit === u);
+if (ex) { if (override && killer) ex.killer = killer; return; }
+victims.push({ unit: u, killer: killer || attacker });
+};
+upsertVictim(finalTarget, attacker, false);
+upsertVictim(target, kamuiKiller, !lethalByMain);
+for (const v of victims) await resolveLethal(v.unit, v.killer);
 /* 受击后被动统一入口（放逐期间失效）。
    放在死亡判定【之后】：已阵亡的单位不再结算恢复，超量伤害能正常击杀。 */
 if (finalTarget.alive && hpLossAcc > 0) await applyPassiveOnDamaged(finalTarget, attacker);
 if (target !== finalTarget && target.alive) refreshUnit(target);
+}
+/* 东丈「不屈」：免死 + 反击。独立成函数，供统一死亡流程调用。
+   走 applyDamage 才会触发 —— 【斩杀】是即死效果、不经过这里，因此无法触发，符合设计。
+   触发时先移除自身所有减益状态与减益印记 —— 因此即便东丈正被【眩晕】，
+   随后的「龙卷风」反击依然能正常打出（眩晕在这里已被清掉）。 */
+async function resolveBuqu(unit, attacker) {
+if (!unit || unit.hp > 0) return false;
+if (unit.name !== '东丈' || !isPassiveActive(unit)) return false;
+if (unit.buquUsed) {
+log(`💪 ${getSideLabel(unit)}东丈 的「不屈」本局已触发过，无法再次免死！`, 'log-buff');
+return false;
+}
+if (!attacker || attacker.side === unit.side) return false;
+unit.buquUsed = true;
+const removed = removeEffects(unit, CLEAR_POLARITY.DEBUFF);
+const removedNames = [...removed.states, ...removed.marks];
+if (removedNames.length > 0) log(`💪 ${getSideLabel(unit)}东丈 的「不屈」移除了减益：${removedNames.join('、')}！`, 'log-buff');
+unit.hp = 1;
+log(`💪 ${getSideLabel(unit)}东丈 的「不屈」触发！保留1点生命值，对 ${getSideLabel(attacker)}${attacker.name} 施放「龙卷风」！`, 'log-skill');
+showFloatingText(unit, '不屈', 'floating-heal');
+refreshUnit(unit);
+const tornado = HERO_DATA['东丈'] ? HERO_DATA['东丈'].skill : null;
+if (tornado && attacker.alive) await triggerSkill(unit, tornado, attacker);
+if (!attacker.alive) {
+const healed = await performRestore(unit, unit.maxHp, null);
+log(`💪 ${getSideLabel(unit)}东丈 击倒了伤害来源，恢复 ${healed} HP（100%最大生命值）！`, 'log-heal');
+refreshUnit(unit);
+}
+return true;
+}
+/* 统一死亡判定：先给免死被动机会（当前仅东丈「不屈」），仍未免死才真正阵亡。
+   所有致死路径（主伤害 / 神威派生伤害）都必须走这里 ——
+   任何一处就地 killUnit 都会让免死被动失效。 */
+async function resolveLethal(unit, attacker) {
+if (!unit || unit.hp > 0 || !unit.alive) return;
+if (await resolveBuqu(unit, attacker)) return;
+await killUnit(unit, attacker);
 }
 const STUN_CHANCE = 0.3;     // 镰鼬「胖揍」眩晕概率
 const GALE_STACKS = 1;              // 东丈「龙卷风」获得的狂风层数（描述：1层）
