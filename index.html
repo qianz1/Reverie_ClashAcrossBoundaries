@@ -695,7 +695,7 @@ mechanics: [
 normal: { name:"炎影", type:"single", dmgRate:1.0, target:"enemy", effect:"rageDown" },
 skill: { name:"梦山狐影", cost:4, type:"buff", target:"ally", selfEffect:"foxGuard" },
 descNormal: "对敌方目标造成 <span class='dmg'>100%</span> 伤害，有 <span class='buff'>50%概率</span> 使目标减 <span class='buff'>1点怒气</span>。",
-descSkill: "使攻击最高的友方和血量最低的友方获得 <span class='m-mark'>狐守</span>（持续2回合），同时自身获得 <span class='m-mark'>狐佑</span>（持续2回合）。",
+descSkill: "使攻击最高的友方单位和血量最低的友方单位获得 <span class='m-mark'>狐守</span>（场上至多同时存在2个友方单位拥有狐守），持续2回合。然后自身获得 <span class='m-mark'>狐佑</span>，持续2回合。",
 mechanics: [
 { type:'mark', name:'狐守', desc:'增益印记：提升20%最终免伤率；拥有印记的友方所受伤害由白藏主代为承受，不可叠加。' },
 { type:'mark', name:'狐佑', desc:'增益印记：提升自身25%最终免伤率，不可叠加。' }
@@ -720,14 +720,16 @@ mechanics: [
 { type:'state', name:'牵绊', desc:'增益状态：+25%攻击、+10%防御、+10%暴击率，持续2回合。' },
 { type:'state', name:'眩晕', desc:'减益状态：控制效果，目标无法行动，持续1回合。' } ] },
 "鬼王酒吞童子": { atk:620, def:300, hp:5800, spd:209, critRate:0.08, critDmg:1.5, color:'#ffd700', tag:'均衡',
-normal: { name:"烈焰焚天", type:"single", dmgRate:2.0, splashRate:0.4, target:"enemy" },
-skill: { name:"天火怒焱", cost:4, type:"aoe", dmgRate:0, target:"enemy", effect:"dispelAndPush" },
+normal: { name:"焚天", type:"single", dmgRate:1.2, target:"enemy" },
+skill: { name:"天火怒焱", cost:4, type:"aoe", dmgRate:0, target:"enemy", effect:"dispelAndPush", selfEffect:"guiWangZiTai", requireNoMark:"鬼王姿态" },
 opening: 'jiutunMarks',
-descNormal: "对敌方目标造成 <span class='dmg'>200%</span> 伤害，<span class='dmg'>溅射40%</span> 给其余敌方。",
-descSkill: "驱散敌方全体随机1个增益状态，击退敌方全体行动条 <span class='buff'>40%</span>。先机：自身获得 <span class='m-mark'>鬼王之力</span>，友方全体获得 <span class='m-mark'>大妖之力</span>。",
+passive: { name:"红莲",
+desc:"自身免疫控制，<span class='m-mark'>大妖之力</span>效果翻倍，自身治疗减免 <span class='debuff'>30%</span>。先机：使友方全体获得 <span class='m-mark'>大妖之力</span>。" },
+descNormal: "对敌方目标造成 <span class='dmg'>120%</span> 伤害。（强化<span class='k'>烈焰焚天</span>：对敌方目标造成 <span class='dmg'>200%</span> 伤害，<span class='dmg'>溅射40%</span> 给其余敌方）",
+descSkill: "驱散敌方全体随机1个增益状态，击退敌方全体行动条 <span class='buff'>40%</span>，然后自身获得 <span class='m-mark'>鬼王姿态</span>（持续2回合）。仅在无<span class='m-mark'>鬼王姿态</span>时可施放此技能。",
 mechanics: [
-{ type:'mark', name:'鬼王之力', desc:'增益印记：免疫控制效果。' },
-{ type:'mark', name:'大妖之力', desc:'增益印记：每损失1%最大生命值，提升1%最终伤害率与0.5%最终免伤率。' },
+{ type:'mark', name:'大妖之力', desc:'增益印记：每损失1%最大生命值，提升1%最终伤害率与0.5%最终免伤率。随施放者阵亡清空。不可叠加。' },
+{ type:'mark', name:'鬼王姿态', desc:'增益印记：强化自身普攻。不可叠加。' },
 { type:'note', name:'先机', desc:'战斗开始时，触发一次相应效果。' } ] },
 "雪拉比": { atk:390, def:450, hp:4500, spd:220, critRate:0.08, critDmg:1.5, color:'#69f0ae', tag:'辅助',
 normal: { name:"治愈", type:"single", healRate:1.8, target:"ally", healEffect:"targetRageUp1" },
@@ -751,12 +753,12 @@ mechanics: [{ type:'mark', name:'龙之舞', desc:'增益印记：提升15%最�
 normal: { name:"流明", type:"single", dmgRate:1.0, target:"enemy", effect:"rageDown" },
 skill: { name:"飞彩凝辉", cost:4, type:"buff", target:"ally", selfEffect:"flowingLight" },
 opening: 'liuguangRage',
-passive: { name:"绮罗舞", turnEnd:'qiluoDance',
-desc:"自身回合结束时恢复全体友方 <span class='buff'>1点怒气</span>，然后怒气≥4的友方获得 <span class='m-mark'>1层照君</span>。先机：速度最高的3名友方获得 <span class='buff'>2点怒气</span>。" },
+passive: { name:"绮罗舞", turnStart:'qiluoDanceStart', turnEnd:'qiluoDance',
+desc:"自身回合开始时，使所有携带 <span class='m-mark'>流光</span> 的友方获得 <span class='m-mark'>1层照君</span>，驱散其随机 <span class='buff'>1个减益状态</span>，并移除流光。自身回合结束时恢复全体友方 <span class='buff'>1点怒气</span>，怒气≥4的友方获得 <span class='m-mark'>1层照君</span>。先机：速度最高的3名友方获得 <span class='buff'>2点怒气</span>。" },
 descNormal: "对敌方目标造成 <span class='dmg'>100%</span> 伤害，<span class='buff'>50%概率</span> 使其减 <span class='buff'>1点怒气</span>。",
-descSkill: "全体友方获得 <span class='m-mark'>流光</span>（持续1回合）。",
+descSkill: "全体友方获得 <span class='m-mark'>流光</span>。",
 mechanics: [
-{ type:'mark', name:'流光', desc:'增益印记：携带者怒气减少时（不包括技能消耗的怒气），恢复1点怒气，然后移除此印记。若流光未被移除，其持续时间结束时随机驱散携带者1个减益状态，并使携带者获得1层照君。' },
+{ type:'mark', name:'流光', desc:'增益印记：携带者怒气减少时（不包括技能消耗的怒气），恢复1点怒气，然后移除此印记。不可叠加。' },
 { type:'mark', name:'照君', desc:'增益印记：提升10%攻击、5点速度，最多叠加5层。' },
 { type:'note', name:'先机', desc:'战斗开始时，触发一次相应效果。' } ] },
 "维迦": { atk:1000, def:250, hp:3300, spd:155, critRate:0.5, critDmg:2.0, color:'#6a1b9a', tag:'攻击',
@@ -811,7 +813,7 @@ mechanics: [
 { type:'mark', name:'宿影阵', desc:'增益印记：上限5层。达到上限时，施放「宿影暗渡」，移除所有层数（先施放，成功后再移除）。' },
 { type:'mark', name:'长星锁', desc:'减益印记：携带者行动条达到100%时，鬼金羊对其施放「鬼宿奇惊·谜夜」，然后移除此印记。不可叠加。' },
 { type:'note', name:'先机', desc:'战斗开始时，触发一次相应效果。' } ] },
-"禅心云外镜": { atk:450, def:380, hp:5300, spd:240, critRate:0.05, critDmg:1.5, color:'#8d6e63', tag:'防御',   // 棕（心友犬神改前用色）
+"禅心云外镜": { atk:450, def:360, hp:5300, spd:240, critRate:0.05, critDmg:1.5, color:'#8d6e63', tag:'防御',   // 棕（心友犬神改前用色）
 normal: { name:"水无垠", type:"single", dmgRate:1.0, target:"enemy", selfEffect:"shuiWuYin" },
 /* 技能1「心净明」：与鬼金羊「宿影暗渡」同一模式 ——
    被动部分（行动阶段重新分配友方生命）写在 passive.desc 且用 boundSkill 绑定，
@@ -833,25 +835,25 @@ mechanics: [
 "两面宿傩": { atk:1020, def:310, hp:3900, spd:180, critRate:0.15, critDmg:1.8, color:'#d50000', tag:'攻击',
 normal: { name:"解·捌", type:"single", dmgRate:1.0, target:"enemy", sukunaForm:"jie" },
 skill: { name:"灶", cost:2, type:"single", dmgRate:1.2, trueRate:0.6, fixedMaxHpRate: 0.08, target:"enemy" },
-skill2: { name:"伏魔神龛", cost:4, type:"aoe", trueRate:0.8, fixedMaxHpRate: 0.1, target:"enemy", selfEffect:"fuMo" },   // 0.1 = SUKUNA_FIXED_MAXHP_RATE
+skill2: { name:"伏魔神龛", cost:4, type:"aoe", trueRate:0.9, fixedMaxHpRate: 0.1, target:"enemy", selfEffect:"fuMo", canExecute:true },   // 0.1 = SUKUNA_FIXED_MAXHP_RATE
 passive: { name:"斩击反转", onDamaged:'sukunaRestore',
 desc:"两面宿傩的普攻在<span class='k'>「解」</span>与<span class='k'>「捌」</span>之间切换，施放普攻后切换一次，初始为<span class='k'>解</span>。受到伤害后，<span class='restore'>恢复</span>自身 <span class='heal'>5%</span>最大生命值的生命值。" },
-descNormal: "<span class='k'>解</span>：对敌方目标造成两段 <span class='dmg'>63%</span> 的伤害（强化：额外造成 <span class='true-dmg'>63%真实伤害</span>）。<br><span class='k'>捌</span>：对敌方目标造成攻击 <span class='true-dmg'>120%的真实伤害</span>与 <span class='fixed-dmg'>10%目标最大生命值的固定伤害</span>（强化：若造成伤害后目标生命值低于 <span class='dmg'>30%</span>，则直接<span class='m-note'>斩杀</span>目标）。",
+descNormal: "<span class='k'>解</span>：对敌方目标造成两段 <span class='dmg'>63%</span> 的伤害（强化：额外造成 <span class='true-dmg'>63%真实伤害</span>）。<br><span class='k'>捌</span>：对敌方目标造成攻击 <span class='true-dmg'>120%的真实伤害</span>与 <span class='fixed-dmg'>10%目标最大生命值的固定伤害</span>（强化：若造成伤害过程中或结束后目标生命值低于 <span class='dmg'>10%</span>，则直接<span class='m-note'>斩杀</span>目标）。",
 descSkill: "对敌方目标造成 <span class='dmg'>120%</span>伤害、<span class='true-dmg'>60%真实伤害</span>与 <span class='fixed-dmg'>8%目标最大生命值的固定伤害</span>。",
-descSkill2: "分别对敌方全体造成 <span class='true-dmg'>80%真实伤害</span>与 <span class='fixed-dmg'>10%目标最大生命值的固定伤害</span>，然后使自身获得 <span class='m-mark'>伏魔</span>（持续2回合）。",
+descSkill2: "分别对敌方全体造成 <span class='true-dmg'>90%真实伤害</span>与 <span class='fixed-dmg'>10%目标最大生命值的固定伤害</span>，若造成伤害过程中或结束后目标生命值低于 <span class='dmg'>10%</span>，则直接<span class='m-note'>斩杀</span>目标。使自身获得 <span class='m-mark'>伏魔</span>（持续2回合）。",
 mechanics: [
 { type:'mark', name:'伏魔', desc:'增益印记：强化两面宿傩的普攻，不可叠加。' },
 { type:'note', name:'斩杀', desc:'达成斩杀条件时，目标立即死亡。' },
 { type:'note', name:'固定伤害', desc:'造成固定数值的伤害，不受任何影响，无视护盾。' } ] },
 "五条悟": { atk:1010, def:300, hp:3800, spd:181, critRate:0.15, critDmg:1.8, color:'#40c4ff', tag:'攻击',
 normal: { name:"苍·赫", type:"single", dmgRate:1.2, target:"enemy", gojoForm:"ao" },
-skill: { name:"茈", cost:2, type:"aoe", trueRate:0.4, fixedMaxHpRate:0.05, target:"enemy" },
-skill2: { name:"无量空处", cost:4, type:"aoe", trueRate:0.6, fixedMaxHpRate:0.08, target:"enemy", effect:"hunLuan" },
+skill: { name:"茈", cost:2, type:"aoe", trueRate:0.45, fixedMaxHpRate:0.05, target:"enemy" },
+skill2: { name:"无量空处", cost:4, type:"aoe", trueRate:0.75, fixedMaxHpRate:0.08, target:"enemy", effect:"hunLuan" },
 passive: { name:"无下限",
 desc:"五条悟的普攻在<span class='k'>「苍」</span>与<span class='k'>「赫」</span>之间切换，施放普攻后切换一次，初始为<span class='k'>苍</span>。受到攻击时，自身获得 <span class='buff'>8%最大生命值</span>的护盾（每个单位回合限一次）。" },
 descNormal: "<span class='k'>苍</span>：对敌方目标造成 <span class='dmg'>120%</span>伤害，并使其附加 <span class='m-state'>苍</span>（持续2回合）。<br><span class='k'>赫</span>：对敌方目标造成 <span class='dmg'>200%</span>伤害。",
-descSkill: "对敌方全体造成 <span class='true-dmg'>40%真实伤害</span>与 <span class='fixed-dmg'>5%目标最大生命值的固定伤害</span>。",
-descSkill2: "对敌方全体造成 <span class='true-dmg'>60%真实伤害</span>与 <span class='fixed-dmg'>8%目标最大生命值的固定伤害</span>，每个目标有 <span class='buff'>40%</span>概率被附加 <span class='m-state'>混乱</span>（持续1回合）。",
+descSkill: "对敌方全体造成 <span class='true-dmg'>45%真实伤害</span>与 <span class='fixed-dmg'>5%目标最大生命值的固定伤害</span>。",
+descSkill2: "对敌方全体造成 <span class='true-dmg'>75%真实伤害</span>与 <span class='fixed-dmg'>8%目标最大生命值的固定伤害</span>，每个目标有 <span class='buff'>40%</span>概率被附加 <span class='m-state'>混乱</span>（持续1回合）。",
 mechanics: [
 { type:'state', name:'苍', desc:'减益状态：携带者-10%速度，若受到施加者五条悟的攻击，则移除该状态，额外受到五条悟40%伤害。不可叠加。' },
 { type:'state', name:'混乱', desc:'减益状态：控制效果，携带者行动阶段时，改为对场上随机目标普攻。不可叠加。' },
@@ -904,18 +906,29 @@ applySpeedBtn();
    数据结构：{ ver, theme?, items:[] }，ver 与主题一一对应。
    新增版本时往 CHANGELOG 数组**开头**加一条即可（渲染按数组顺序，最新的在最上面）。
    CURRENT_VERSION / CURRENT_THEME 同时驱动模式选择页底部那行文字。 */
-const CURRENT_VERSION = 'v1.4.7-patch.3';
+const CURRENT_VERSION = 'v1.4.8';
 const CURRENT_THEME   = '咒术·最强之战';   // 1.4.x 大主题：小版本沿用，不随每次调整变更
 const CHANGELOG = [
+{ ver:'v1.4.8', items:[
+'流光追月神「绮罗舞」与「流光」调整。',
+'两面宿傩：强化「捌」斩杀线 30% → 10%；「伏魔神龛」真实伤害 80% → 90%，并新增斩杀；斩杀时机改为「造成伤害过程中或结束后」。',
+'五条悟：「茈」真实伤害 40% → 45%；「无量空处」真实伤害 60% → 75%。',
+'鬼王酒吞童子调整：普攻「焚天」（强化「烈焰焚天」）；新增被动「红莲」；「天火怒焱」新增「鬼王姿态」。',
+'禅心云外镜：防御 380 → 360。',
+'修复：固定伤害致死未走统一死亡流程，导致东丈「不屈」不触发。',
+] },
 { ver:'v1.4.7-patch.3', items:[
 '修复：鬼金羊「宿影暗渡」满层时连续施放两次。',
-'修复：放逐被误判为控制效果，免疫控制（鬼王之力）不应免疫放逐。',
+'修复：放逐被误判为控制效果，免疫控制不应免疫放逐。',
 '修复：白藏主「狐守」代伤未先结算友方护盾——改为伤害先打护盾，溢出部分才由白藏主承担。',
 '修复：心友犬神「守势」在被白藏主「狐守」代伤时不触发——「受到攻击」早于伤害结算，判定对象应为原目标。',
 '调整：虚化算「受到攻击」，守势可触发；放逐因无法选中，不算被攻击目标，守势不触发。',
 '修正：五条悟被动「无下限」时机描述由「受到攻击前」改为「受到攻击时」。',
-'修复：「混乱」未走控制效果入口，免疫控制（鬼王之力）无法免疫混乱。',
+'修复：「混乱」未走控制效果入口，免疫控制无法免疫混乱。',
 '修正：「混乱」描述补充「控制效果」，并将「行动时」明确为「行动阶段时」（回合外行动不受影响）。',
+'修复：白藏主已有「狐佑」时再次施放技能不刷新持续时间（且本回合即开始递减），导致狐佑提前消失。',
+'调整：白藏主「梦山狐影」改为施放时先清空场上狐守再重新授予，并刷新技能描述。',
+'修复：镰鼬「牵绊」、纲手「百豪」在已携带时不刷新持续时间（同狐佑）。',
 '镰鼬：攻击 600 → 500。',
 ] },
 { ver:'v1.4.7-patch.2', items:[
@@ -1549,7 +1562,7 @@ const FORESEE_SHARE_RATE = 0.8;   // 雪拉比「预知未来」：记录伤害�
 const FORESEE_MAXHP_RATE = 0.09;  // 雪拉比「预知未来」：额外恢复量 = 自身最大生命值 × 9%
 const KAMUI_TRUE_RATE = 0.12;     // 神威：每层追加的施加者真实伤害率
 const KAMUI_ACTION_BONUS = 12;    // 神威：触发时施加者获得的行动条（与层数无关）
-const FLOWING_LIGHT_DURATION = 1; // 流光持续回合（本回合不计入，下回合结束时到期）
+const FLOWING_LIGHT_DURATION = 999; // 流光不再自然到期：由「绮罗舞」回合开始结算 或 怒气减少时移除
 const BANISH_AOE_TRUE_RATE = 0.36;// 神威·虚化：放逐结束后对敌方全体的真实伤害率
 
 /* ===== 治疗 与 恢复：两套独立机制 =====
@@ -1816,6 +1829,13 @@ st.setTurnSeq = unit.turnSeq;
 unit.states.push(st); return st;
 }
 function removeMark(unit, type) { if (unit) unit.marks = (unit.marks || []).filter(m => m.type !== type); }
+/* 移除指定印记，返回是否真的移除过（用于需要判断是否刷新的场合） */
+function removeMarkIfHas(unit, type) {
+if (!unit) return false;
+const before = (unit.marks || []).length;
+unit.marks = (unit.marks || []).filter(m => m.type !== type);
+return unit.marks.length < before;
+}
 function removeRule(unit, type) { if (unit) unit.rules = (unit.rules || []).filter(r => r.type !== type); }
 /* 规则统一入口：与 addMark / addState 对齐，走同一套 duration 倒计时机制。
    规则「不区分增益/减益」，但同样可以有持续时间 —— 到期由 RULE_EXPIRE 按 effect 分派。
@@ -1846,7 +1866,7 @@ const MARK_POLARITY  = {
 '神威':'debuff',                                  // 减益印记（唯一）
 '风行':'buff', '狂风':'buff', '龙之舞':'buff', '雷压':'buff',
 '超凡邪力':'buff', '狐守':'buff', '狐佑':'buff', '流光':'buff', '照君':'buff',
-'大妖之力':'buff', '鬼王之力':'buff',
+'大妖之力':'buff', '鬼王姿态':'buff',
 '守势':'buff', '宿影阵':'buff',          // 心友犬神 / 鬼金羊 的增益印记
 '雀之印':'debuff', '长星锁':'debuff',   // 心友犬神 / 鬼金羊 的减益印记
 '伏魔':'buff', '万法':'buff'              // 两面宿傩「伏魔」/ 禅心云外镜「万法」增益印记
@@ -1922,6 +1942,15 @@ const isAo = unit.gojoForm !== 'ha';   // 初始/缺省为苍
 return { ...base, name: isAo ? '苍' : '赫', dmgRate: isAo ? GOJO_AO_RATE : GOJO_HA_RATE,
 gojoForm: isAo ? 'ao' : 'ha', effect: isAo ? 'cang' : null };
 }
+/* 鬼王酒吞童子普攻「焚天 / 烈焰焚天」：由「鬼王姿态」决定是否强化。
+   未持有姿态 = 焚天（120%）；持有 = 烈焰焚天（200% + 溅射 40%）。 */
+if (unit.name === '鬼王酒吞童子') {
+const boosted = hasMark(unit, '鬼王姿态');
+return { ...base, name: boosted ? '烈焰焚天' : '焚天',
+dmgRate: boosted ? GUIWANG_BLAZE_RATE : GUIWANG_NORMAL_RATE,
+splashRate: boosted ? GUIWANG_BLAZE_SPLASH : 0,
+guiWangForm: boosted ? 'blaze' : 'normal' };
+}
 if (unit.name !== '两面宿傩') return base;
 const boosted = hasMark(unit, '伏魔');
 if (unit.sukunaForm === 'ba') {
@@ -1938,13 +1967,18 @@ async function performSukunaNormal(attacker, skill, target) {
 document.getElementById(`unit-${idxOf(attacker)}`)?.classList.add('attack-anim'); await sleep(300);
 if (!target || !target.alive) { document.getElementById(`unit-${idxOf(attacker)}`)?.classList.remove('attack-anim'); return; }
 if (skill.sukunaForm === 'ba') {
-for (const r of calculateDamage(attacker, { trueRate: SUKUNA_BA_TRUE_RATE }, target)) await applyDamage(attacker, r, target);
+/* canExecute 随每段伤害一起传入 —— 「过程中」判定由 applyDamage / applyFixedDamage 负责。 */
+const exFlag = !!skill.canExecute;
+for (const r of calculateDamage(attacker, { trueRate: SUKUNA_BA_TRUE_RATE }, target)) {
+await applyDamage(attacker, exFlag ? { ...r, canExecute:true } : r, target);
+if (!target.alive) break;
+}
 // 固定伤害：目标最大生命值 10%，不受任何影响、无视护盾
 if (target.alive && skill.fixedMaxHpRate) {
 const fixed = Math.floor((Number(target.maxHp) || 0) * skill.fixedMaxHpRate);
-if (fixed > 0) await applyFixedDamage(attacker, target, fixed, '捌·固定伤害');
+if (fixed > 0) await applyFixedDamage(attacker, target, fixed, '捌·固定伤害', exFlag);
 }
-// 强化：造成伤害后目标生命低于 30% 最大生命 → 立即斩杀
+// 强化：造成伤害后目标生命低于 10% 最大生命 → 立即斩杀
 if (target.alive && skill.canExecute) {
 const ratio = (Number(target.hp) || 0) / (Number(target.maxHp) || 1);
 if (ratio < SUKUNA_EXECUTE_BELOW) await executeKillTarget(attacker, target, '斩杀');
@@ -2363,6 +2397,9 @@ setActionValue(unit, ACTION_MAX); updateActionBarDots();   // 站到终点，表
    会被当成「立即生效」加在 100% 上被截断，随后 endTurn 又清零 —— 镰鼬自己的 +30% 凭空消失。 */
 gameState.currentActor = unit;
 const idx = idxOf(unit); document.getElementById(`unit-${idx}`)?.classList.add('acting');
+/* 被动：自身回合开始时结算（如流光追月神「绮罗舞」的流光转化）。
+   放在上述各「回合开始」结算之后、行动阶段之前。 */
+await applyPassiveTurnStart(unit);
 // ── ② 行动阶段 ──────────────────────────────────────────
 /* 无法行动：跳过【行动阶段】（不能施放技能，也不能普攻）。
    统一走 cannotAct —— 覆盖放逐与眩晕两种来源。
@@ -2509,6 +2546,8 @@ if (skill.type === 'banish' && gameState.units.some(u => u.alive && u.banished &
 // 技能冷却（禅心云外镜「万法皆空」）：自身回合开始时递减，归零前不可施放
 const cd = Number(unit.skillCooldown) || 0;
 if (skill.cooldown && cd > 0) return `技能冷却中，还需 ${cd} 回合！`;
+// 「仅在无某印记时可施放」（鬼王酒吞童子「天火怒焱」要求无「鬼王姿态」）
+if (skill.requireNoMark && hasMark(unit, skill.requireNoMark)) return `已处于「${skill.requireNoMark}」，无法施放此技能！`;
 return null;
 }
 function canCastSkill(unit, skill) { return getSkillBlockReason(unit, skill) === null; }
@@ -2767,12 +2806,23 @@ const targets = getAliveEnemies(attacker);
 document.getElementById(`unit-${idxOf(attacker)}`)?.classList.add('attack-anim'); await sleep(300);
 const perTargetEffect = (skill.effect && !AOE_ONCE_EFFECTS.has(skill.effect)) ? skill.effect : null;
 const onceEffect = (skill.effect && AOE_ONCE_EFFECTS.has(skill.effect)) ? skill.effect : null;
+const aoeExFlag = !!skill.canExecute;
 for (const target of targets) {
-for (const r of calculateDamage(attacker, skill, target)) await applyDamage(attacker, r, target);
+for (const r of calculateDamage(attacker, skill, target)) {
+await applyDamage(attacker, aoeExFlag ? { ...r, canExecute:true } : r, target);
+if (!target.alive) break;
+}
 // 固定伤害：目标最大生命值 × 比例（伏魔神龛）。不受任何影响、无视护盾
 if (skill.fixedMaxHpRate && target.alive) {
 const fixed = Math.floor((Number(target.maxHp) || 0) * skill.fixedMaxHpRate);
-if (fixed > 0) await applyFixedDamage(attacker, target, fixed, `${skill.name}·固定伤害`);
+if (fixed > 0) await applyFixedDamage(attacker, target, fixed, `${skill.name}·固定伤害`, aoeExFlag);
+}
+/* 技能自带的斩杀（如「伏魔神龛」）：造成伤害后目标生命低于阈值则即死，逐个目标独立判定。
+   与普攻「捌」的区别：普攻的 canExecute 只在【伏魔强化】下才置上，技能则是常驻。
+   斩杀属即死效果、不经过伤害结算，因此无视护盾与虚化。 */
+if (skill.canExecute && target.alive) {
+const ratio = (Number(target.hp) || 0) / (Number(target.maxHp) || 1);
+if (ratio < SUKUNA_EXECUTE_BELOW) await executeKillTarget(attacker, target, `${skill.name}·斩杀`);
 }
 if (perTargetEffect) await applySkillEffect(attacker, target, perTargetEffect);
 }
@@ -2810,7 +2860,12 @@ if ((unit.states || []).some(s => s.type === '百豪')) atk += Math.floor(atk * 
 // ④ 最终伤害率（纯加法，顺序无关）
 if (has('龙之舞')) finalDmgRate += 0.15 * stacksOf('龙之舞');
 if (has('雷压')) { finalDmgRate += 0.2; critRate += 0.3; }
-if (has('大妖之力')) finalDmgRate += clamp01(1 - ((Number(unit.hp) || 0) / (Number(unit.maxHp) || 1)));
+if (has('大妖之力')) {
+const lossPct = clamp01(1 - ((Number(unit.hp) || 0) / (Number(unit.maxHp) || 1)));
+/* 鬼王酒吞童子被动：自身「大妖之力」效果翻倍（只影响他自己，队友仍是原值） */
+const mult = (unit.name === '鬼王酒吞童子' && isPassiveActive(unit)) ? DAEMON_POWER_SELF_MULT : 1;
+finalDmgRate += lossPct * mult;
+}
 return { atk, critRate, critDmg, finalDmgRate };
 }
 // 守方防御 / 最终免伤的统一入口
@@ -2825,7 +2880,11 @@ if (has('狂风')) def += 100 * stacksOf('狂风');
 if (has('守势')) def += SHOUSHI_DEF_BONUS;   // 心友犬神「守势」：固定 +270 防御
 if (has('狐守')) finalReduction += 0.2;
 if (has('狐佑')) finalReduction += 0.25;
-if (has('大妖之力')) finalReduction += clamp01(1 - ((Number(unit.hp) || 0) / (Number(unit.maxHp) || 1))) * 0.5;
+if (has('大妖之力')) {
+const lossPct = clamp01(1 - ((Number(unit.hp) || 0) / (Number(unit.maxHp) || 1)));
+const mult = (unit.name === '鬼王酒吞童子' && isPassiveActive(unit)) ? DAEMON_POWER_SELF_MULT : 1;
+finalReduction += lossPct * 0.5 * mult;
+}
 if ((unit.states || []).some(s => s.type === '牵绊')) def += Math.floor(def * 0.1);
 return { def, finalReduction };
 }
@@ -2859,6 +2918,13 @@ gameState.damageLogFallen.push({ idx: idxOf(unit), actionValue: Number(unit.acti
 unit.alive = false; unit.hp = 0;
 // 阵亡即清空全部 buff / 效果（状态 / 印记 / 规则 / 护盾 / 虚化 / 放逐）
 clearAllEffects(unit);
+/* 鬼王酒吞童子阵亡 → 其赋予的「大妖之力」随施放者【全体清空】。
+   印记本身挂在别人身上，自身的 clearAllEffects 清不到，必须在这里单独处理。 */
+if (unit.name === '鬼王酒吞童子') {
+const cleared = gameState.units.filter(u => removeMarkIfHas(u, '大妖之力'));
+cleared.forEach(u => refreshUnit(u));
+if (cleared.length > 0) log(`💀 ${getSideLabel(unit)}鬼王酒吞童子 阵亡，全体的「大妖之力」随之消散！`, 'log-buff');
+}
 log(`💀 ${getSideLabel(unit)}${unit.name} 被击败了！`, 'log-death');
 refreshUnit(unit);
 removeActionBarDot(unit);   // 死亡即从行动条移除，不再残留
@@ -2946,7 +3012,7 @@ await castExtraSkill(shouShiDog, 'yiShiGuiXin');
    · 无法被转移：直接作用于目标本人，**不走 applyDamage，因此白藏主「狐守」代伤不生效**
    · 仍会触发心友犬神「守势」反击（符合"拥有护盾的友方单位受到攻击时"的条件）
    · 虚化（免疫伤害）依然生效 —— 虚化是规则级免疫，不属于伤害计算 */
-async function applyFixedDamage(attacker, target, amount, label = '固定伤害') {
+async function applyFixedDamage(attacker, target, amount, label = '固定伤害', canExecute = false) {
 if (!target || !target.alive) return 0;
 const dmg = Math.max(0, Math.floor(Number(amount) || 0));
 if (dmg <= 0) return 0;
@@ -2967,7 +3033,14 @@ if (dealt > 0) recordDamage(attacker, target, dealt);
 log(`${getSideLabel(target)}${target.name} 受到 ${dealt} 点${label}！（无视护盾、无法被转移）`, 'log-damage');
 refreshUnit(target);
 await tryShoushiCounter(attacker, target, hadShieldWhenHit);
-if (target.hp <= 0) await killUnit(target, attacker);
+/* 【斩杀】固定伤害同样可能把血量打到阈值以下 —— 「过程中」判定，先于死亡判定。 */
+if (canExecute && target.alive) {
+const exRatio = (Number(target.hp) || 0) / (Number(target.maxHp) || 1);
+if (exRatio < SUKUNA_EXECUTE_BELOW) { await executeKillTarget(attacker, target, '斩杀'); return dealt; }
+}
+/* ★ 不再就地 killUnit —— 固定伤害属于【伤害】，致死必须走统一死亡流程，
+   否则会绕过东丈「不屈」这类「受到致命伤害时」的免死被动。 */
+if (target.hp <= 0) await resolveLethal(target, attacker);
 /* 受击后被动（如两面宿傩「斩击反转」）：固定伤害属于【伤害】，
    且无视护盾必然造成实际生命损失，因此照样触发（门槛 hpLoss > 0 天然满足）。
    位置与 applyDamage 一致 —— 放在死亡判定【之后】：已阵亡者不再触发。 */
@@ -2978,11 +3051,11 @@ return dealt;
 /* 【斩杀】—— 不是伤害，而是即死效果。
    因此它不吃任何伤害相关规则：无视护盾、**无视虚化**（虚化只免疫伤害，斩杀不算伤害）、
    也无法被转移。达成条件即令目标立即死亡。 */
-async function executeKillTarget(attacker, target, reason = '斩杀') {
+async function executeKillTarget(attacker, target, reason = '斩杀', belowRate = SUKUNA_EXECUTE_BELOW) {
 if (!target || !target.alive) return false;
 // 虚化不阻断斩杀：虚化免疫的是「伤害」，斩杀属于即死效果
 const left = Math.max(0, Number(target.hp) || 0);
-log(`⚔️ ${getSideLabel(target)}${target.name} 生命值低于${Math.round(SUKUNA_EXECUTE_BELOW*100)}%，被${getSideLabel(attacker)}${attacker.name} ${reason}！`, 'log-death');
+log(`⚔️ ${getSideLabel(target)}${target.name} 生命值低于${Math.round(belowRate*100)}%，被${getSideLabel(attacker)}${attacker.name} ${reason}！`, 'log-death');
 target.hp = 0;
 target.shield = 0;
 refreshUnit(target);
@@ -3092,6 +3165,14 @@ const actualDamage = oldHp - finalTarget.hp;
 if (actualDamage + absorbed > 0) recordDamage(attacker, finalTarget, actualDamage + absorbed);
 if (damageToHp > 0) showFloatingText(finalTarget, (result.isCrit?'暴击 ':'') + (result.isSplash?'溅射 ':'') + '-' + damageToHp, result.isTrue?'floating-true':(result.isSplash?'floating-splash':(result.isCrit?'floating-crit':'floating-damage')));
 const el = document.getElementById(`unit-${idxOf(finalTarget)}`); el?.classList.add('hit'); await sleep(200); el?.classList.remove('hit'); refreshUnit(finalTarget);
+/* 【斩杀】「造成伤害过程中」判定：本次伤害自带斩杀，且承伤者血量已跌破阈值 → 立即即死。
+   ★ 位置必须在死亡判定【之前】：东丈「不屈」这类免死被动是在随后的 resolveLethal 里生效的，
+     先斩杀就绕开了它 —— 这正是「斩杀东丈不触发被动」的关键。
+   斩杀属即死效果、不经伤害结算，因此无视护盾、无视虚化、不可转移。 */
+if (result.canExecute && finalTarget.alive) {
+const exRatio = (Number(finalTarget.hp) || 0) / (Number(finalTarget.maxHp) || 1);
+if (exRatio < SUKUNA_EXECUTE_BELOW) { await executeKillTarget(attacker, finalTarget, '斩杀'); return; }
+}
 /* 主伤害是否已致死：用于判定「致命一击」来自谁 ——
    若主伤害就已致死，免死反击指向主攻击者；若主伤害未致死、神威追加才致死，则指向神威施加者。 */
 const lethalByMain = finalTarget.hp <= 0;
@@ -3193,6 +3274,12 @@ const XINJINGMING_PUSH_EMPTY = 100;  // 未移除到任何减益时改为 +100%
 const RENDUO_CHANCE = 0.3;   // 镰鼬「人多势众」：回合结束使自身 +100% 行动条的概率
 const RAGE_DOWN_CHANCE = 0.5;// 白藏主「炎影」减怒气概率
 const PUSH_AMOUNT = 40;      // 鬼王酒吞童子「天火怒焱」行动条击退百分比
+const GUIWANG_NORMAL_RATE = 1.2;     // 鬼王酒吞童子「焚天」伤害倍率
+const GUIWANG_BLAZE_RATE = 2.0;      // 强化「烈焰焚天」伤害倍率
+const GUIWANG_BLAZE_SPLASH = 0.4;    // 强化「烈焰焚天」溅射比例
+const GUIWANG_ZITAI_DURATION = 2;    // 「鬼王姿态」持续回合
+const DAEMON_POWER_SELF_MULT = 2;    // 鬼王酒吞童子被动：自身「大妖之力」效果翻倍
+const GUIWANG_HEAL_REDUCTION = 0.3;  // 鬼王酒吞童子被动：自身治疗减免 30%
 const WINDWALK_SPD_PER_STACK = 25;  // 东丈「风行」每层提升的速度点数（最多5层）
 const TSUNADE_STUN_CHANCE = 0.3;    // 纲手「怪力」的眩晕概率
 const TSUNADE_ALLY_PUSH = 15;       // 纲手「怪力」给最低血友方的行动条加成
@@ -3226,7 +3313,7 @@ const SUKUNA_JIE_RATE = 0.63;        // 两面宿傩「解」每段伤害倍率�
 const SUKUNA_JIE_EXTRA_TRUE = 0.63;  // 强化「解」：两段之外追加的真实伤害倍率
 const SUKUNA_BA_TRUE_RATE = 1.2;     // 「捌」：攻击 120% 的真实伤害
 const SUKUNA_FIXED_MAXHP_RATE = 0.1; // 两面宿傩：目标最大生命值 10% 的固定伤害（捌 / 伏魔神龛）
-const SUKUNA_EXECUTE_BELOW = 0.3;    // 强化「捌」：造成伤害后目标生命低于该比例则斩杀
+const SUKUNA_EXECUTE_BELOW = 0.1;    // 斩杀阈值：造成伤害【过程中或结束后】目标生命低于该比例则斩杀（强化「捌」与「伏魔神龛」共用）
 /* ==================== 控制效果：全集 ====================
    目前只有两个：【眩晕】【混乱】。
    归属判据是「剥夺 / 扭曲目标的行动自主权」——
@@ -3238,15 +3325,26 @@ const SUKUNA_EXECUTE_BELOW = 0.3;    // 强化「捌」：造成伤害后目标�
      · 长星锁 / 谜夜：跳过回合类，按既有设计不属于控制。
    新增控制类状态请同时登记进 CONTROL_STATES。 */
 const CONTROL_STATES = new Set(['眩晕', '混乱']);
-/* 施加控制效果的唯一入口：鬼王之力（免疫控制）与虚化都在这里拦。
+/* 免疫控制的判定：只读角色名，不依赖任何载体印记。
+   参考鬼金羊免疫长星锁的写法 —— 那种「被动自带、无需载体」的口径更干净：
+   以前靠「鬼王之力」印记当载体，等于凭空多出一个会在查看详情里显示的印记，
+   既占版面又容易与「免疫控制」这个被动本身混淆（载体被驱散就等于被动失效，也不合理）。
+   新增免疫控制的角色，在这里加名字即可。 */
+function isImmuneControl(unit) {
+if (!unit) return false;
+/* 免疫控制属【被动效果】部分：不需要角色本体施放，
+   因此不受【无法行动】约束，只要存活即免疫（与鬼金羊免疫长星锁同一口径）。 */
+return unit.name === '鬼王酒吞童子';
+}
+/* 施加控制效果的唯一入口：免疫控制与虚化都在这里拦。
    ★ 所有控制都必须走这里 —— 此前「混乱」绕开本入口直接 addState，
-     导致鬼王酒吞童子（鬼王之力）能免疫眩晕却会被混乱，属于漏判。 */
+     导致鬼王酒吞童子能免疫眩晕却会被混乱，属于漏判。 */
 function tryApplyControl(target, type, duration, effect) {
 if (!CONTROL_STATES.has(type)) {   // 防御性：非控制类状态不许走这条控制链路
 console.warn(`[控制] 「${type}」未登记在 CONTROL_STATES 中，已按普通状态处理`);
 addState(target, type, { duration, effect }); refreshUnit(target); return true;
 }
-if (hasMark(target, '鬼王之力')) { log(`${getSideLabel(target)}${target.name} 拥有鬼王之力，免疫${type}！`, 'log-buff'); return false; }
+if (isImmuneControl(target)) { log(`${getSideLabel(target)}${target.name} 免疫控制，免疫${type}！`, 'log-buff'); return false; }
 if (target.intangible) { log(`${getSideLabel(target)}${target.name} 处于虚化，免疫${type}！`, 'log-buff'); return false; }
 addState(target, type, { duration, effect });
 log(`${getSideLabel(target)}${target.name} 进入${type}！`, 'log-buff'); refreshUnit(target);
@@ -3288,7 +3386,7 @@ async function applyHunLuan(attacker, targets) {
 const list = (targets || []).filter(u => u && u.alive && !u.banished);
 for (const t of list) {
 if (Math.random() >= GOJO_HUNLUAN_CHANCE) continue;
-/* 混乱属于【控制效果】，走统一入口 —— 鬼王之力与虚化的免疫都在那里判定。
+/* 混乱属于【控制效果】，走统一入口 —— 免疫控制与虚化的免疫都在那里判定。
    （此前这里直接 addState，绕过了免疫控制，鬼王酒吞童子会被混乱） */
 tryApplyControl(t, '混乱', GOJO_HUNLUAN_DURATION, 'hunLuan');
 }
@@ -3553,18 +3651,39 @@ unit.def = Math.max(0, unit.def - DEF_DOWN_AMOUNT);
 log(`${getSideLabel(unit)}${unit.name} 防御永久降低${DEF_DOWN_AMOUNT}点！`, 'log-buff'); break;
 }
 case 'foxGuard': {
+/* 先清空场上已有的狐守（全体单位），再重新授予 —— 场上至多同时存在 2 个友方单位拥有狐守。
+   清空而非跳过，带来两个好处：
+     ① 重新选人：上次挂在 A、B 身上，这次按当前局势可能该给 A、C；
+     ② 时长刷新：重新 addMark 会刷新 duration 与 setTurnSeq，
+        不会出现"已有者不刷新、本回合就开始递减"的老问题。
+   用 removeMark 直接移除，不走自然到期回调（狐守没有到期效果）。 */
+gameState.units.forEach(u => { if (removeMarkIfHas(u, '狐守')) refreshUnit(u); });
 // 狐守的授予对象排除白藏主自身（自己已另有「狐佑」）
 const allies = getAliveAllies(unit, false);
 if (allies.length > 0) {
 const highestAtk = findHighestAtkAmong(allies);
 const lowestHp = findLowestHpAmong(allies);   // 当前绝对血量最低
 [highestAtk, lowestHp].forEach((t, i) => {
-if (!t || (i === 1 && t === highestAtk) || hasMark(t, '狐守')) return;
+if (!t || (i === 1 && t === highestAtk)) return;
 addMark(t, '狐守', { duration:2, effect:'foxGuard' });
 log(`${getSideLabel(t)}${t.name} 获得狐守！`, 'log-buff'); refreshUnit(t);
 });
 }
-if (!hasMark(unit, '狐佑')) { addMark(unit, '狐佑', { duration:2, effect:'foxBless' }); log(`${getSideLabel(unit)}${unit.name} 获得狐佑！`, 'log-buff'); }
+/* ★ 已有狐佑时也必须重新 addMark —— 不能用 if(!hasMark) 包住。
+   包住会带来两个后果：① 时长不刷新；② setTurnSeq 不更新，
+   于是「本回合不计入持续时间」对这次施放失效，回合结束立刻递减 →
+   表现就是"刚放完技能，狐佑反而更快没了"。
+   addMark 内部对已存在的印记是刷新时长（取 max），不会叠加。 */
+addMark(unit, '狐佑', { duration:2, effect:'foxBless' });
+log(`${getSideLabel(unit)}${unit.name} 获得狐佑（持续时间已刷新）！`, 'log-buff');
+break;
+}
+case 'guiWangZiTai': {
+/* 鬼王酒吞童子「天火怒焱」：自身获得「鬼王姿态」（持续2回合），用于强化普攻。
+   无条件 addMark —— 已存在时由内部刷新时长与 setTurnSeq（本回合不计入）。 */
+addMark(unit, '鬼王姿态', { duration: GUIWANG_ZITAI_DURATION, effect: 'guiWangZiTai' });
+log(`${getSideLabel(unit)}${unit.name} 获得鬼王姿态！普攻被强化（持续${GUIWANG_ZITAI_DURATION}回合）`, 'log-buff');
+refreshUnit(unit);
 break;
 }
 case 'bond': {
@@ -3574,7 +3693,10 @@ case 'bond': {
    走统一入口后：队友立即生效，镰鼬自己的那份登记到回合结束后落地。 */
 getAliveAllies(unit).forEach(u => {
 grantActionValueBonus(u, BOND_ACTION_BONUS, '牵绊');
-if (!u.states.some(s => s.type === '牵绊')) addState(u, '牵绊', { duration:2, effect:'bond' });
+/* 无条件 addState：已存在时由 addState 内部刷新时长与 setTurnSeq。
+   此前用 if(!has) 包住 → 已携带者既不刷新时长，也享受不到「本回合不计入」，
+   于是刚放完技能、回合结束就递减，牵绊提前消失（与狐佑同一个坑）。 */
+addState(u, '牵绊', { duration:2, effect:'bond' });
 refreshUnit(u);
 });
 updateActionBarDots(); log(`${getSideLabel(unit)}全体获得牵绊，行动条+${BOND_ACTION_BONUS}%！`, 'log-buff'); break;
@@ -3582,6 +3704,8 @@ updateActionBarDots(); log(`${getSideLabel(unit)}全体获得牵绊，行动条+
 case 'hundredHeal': {
 for (const t of getAliveAllies(unit)) {
 await performHeal(unit, { name:'百豪之术', healRate:2.0 }, t);
+/* 无条件 addState：已存在时由 addState 内部刷新时长（取 max）并更新 setTurnSeq，
+   即重复施放「百豪之术」会把百豪续回完整 3 回合，且本次回合结束不递减。 */
 addState(t, '百豪', { duration:3, effect:'hundredHeal' });
 refreshUnit(t);
 }
@@ -3622,16 +3746,23 @@ addRule(unit, '虚化', { duration: BANISH_DURATION, effect: 'intangibility' });
 log(`${getSideLabel(unit)}${unit.name} 进入虚化！免疫伤害与减益效果。`, 'log-buff'); break;
 }
 case 'flowingLight': {
-/* 持续 1 回合 —— 不再给施放者手动 +1。
-   「本回合不计入持续时间」已由 tickDuration 的 setTurnSeq 统一处理，
-   因此施放者自己也只需给 FLOWING_LIGHT_DURATION（= 描述的 1 回合）：
-   本回合结束跳过 → 下回合结束递减到期。 */
+/* 流光不再靠持续时间到期 —— 它的两种退出方式是：
+     ① 携带者怒气减少（技能消耗不算）→ 恢复 1 点怒气并移除（见 onRageLost）；
+     ② 流光追月神自身回合开始 → 「绮罗舞」转化为照君 + 驱散（见 PASSIVE_TURN_START.qiluoDanceStart）。
+   因此 duration 用 999，只等上述两个出口。 */
 getAliveAllies(unit).forEach(u => {
 const dur = FLOWING_LIGHT_DURATION;
-const exist = getMark(u, '流光');
-if (exist) { exist.duration = Math.max(exist.duration || 0, dur); log(`${getSideLabel(u)}${u.name} 已携带流光，持续时间刷新！`, 'log-buff'); }
-else addMark(u, '流光', { stacks:1, maxStacks:1, duration:dur, effect:'flowingLight' });   // 不可叠加
+/* ★ 流光【不可刷新】：已携带的单位保持原有倒计时，本次施放不延长。
+   这与狐佑 / 牵绊 / 百豪相反 —— 那几个是重复施放即刷新时长。
+   「不刷新」= 什么都不做：既不改 duration，也不动 setTurnSeq。
+   setTurnSeq 保持首次授予时的值是正确的：本次并未重新授予，
+   所以它照常在持有者回合结束时递减（不享受「本回合不计入」）。 */
+if (getMark(u, '流光')) {
+log(`${getSideLabel(u)}${u.name} 已携带流光（不可叠加）！`, 'log-buff');
+} else {
+addMark(u, '流光', { stacks:1, maxStacks:1, duration:dur, effect:'flowingLight' });   // 不可叠加、不可刷新
 log(`${getSideLabel(u)}${u.name} 获得流光！（持续${dur}回合）`, 'log-buff');
+}
 refreshUnit(u);
 });
 break;
@@ -3648,7 +3779,10 @@ if (!isRecoverable(target)) return 0;   // 0 血视为已阵亡，治疗不生�
 if (target.banished) { log(`${getSideLabel(target)}${target.name} 被放逐中，无法接受治疗！`, 'log-buff'); return 0; }
 let healBonus = Number(target.healBonus) || 1.0;
 if ((target.states || []).some(s => s.type === '百豪')) healBonus += 0.2;   // 百豪（增益状态）：+20% 治疗加成
-const reduction = clamp01(1 - (Number(target.healReduction) || 0));
+/* 鬼王酒吞童子被动：自身治疗减免 30%（与其它治疗减免加法叠加） */
+let healRed = clamp01(Number(target.healReduction) || 0);
+if (target.name === '鬼王酒吞童子' && isPassiveActive(target)) healRed = clamp01(healRed + GUIWANG_HEAL_REDUCTION);
+const reduction = clamp01(1 - healRed);
 const isCrit = Math.random() < (Number(healer.critRate) || 0);
 const critMultiplier = isCrit ? (Number(healer.critDmg) || 1.5) : 1.0;
 let healVal = Math.floor(healer.atk * (Number(skill.healRate) || 0) * healBonus * reduction * critMultiplier);
@@ -3727,7 +3861,7 @@ const BANISH_DURATION = 1;       // 放逐 / 虚化的持续回合（本回合�
 async function performBanish(caster, skill, target) {
 /* ★ 放逐是【规则】类效果（视为离开战局），不是控制效果 ——
    「无法行动」只是它的附属结果，判定免疫要看效果类别而非后果。
-   因此免疫控制（鬼王之力）不能拦下放逐；免疫的是 tryApplyControl 那条路上的状态（眩晕等）。 */
+   因此免疫控制不能拦下放逐；免疫的是 tryApplyControl 那条路上的状态（眩晕等）。 */
 // 先快照当前位置，再置 banished —— 之后行动条即被锁定在该位置，任何推进/击退都无效
 lockActionValue(target);
 target.banished = true; target.banishedBy = caster;
@@ -3791,11 +3925,10 @@ updateActionBarDots(); refreshUnit(caster);
    先机（opening）与被动共用一套注册表，行为：开局每个单位依次结算自己的先机。
    ============================== */
 const OPENING_EFFECTS = {
-// 鬼王酒吞童子：友方全体大妖之力，自身额外鬼王之力
+// 鬼王酒吞童子：友方全体大妖之力（免疫控制是被动「红莲」的一部分，不需要载体印记）
 'jiutunMarks': (unit) => {
-getAliveAllies(unit).forEach(ally => { if (!hasMark(ally, '大妖之力')) { addMark(ally, '大妖之力', { duration:999, effect:'daemonPower' }); refreshUnit(ally); } });
-addMark(unit, '鬼王之力', { duration:999, effect:'immuneControl' });
-log(`${getSideLabel(unit)}鬼吞先机！全体获得大妖之力，${unit.name} 获得鬼王之力！`, 'log-buff');
+getAliveAllies(unit).forEach(ally => { addMark(ally, '大妖之力', { duration:999, effect:'daemonPower' }); refreshUnit(ally); });
+log(`${getSideLabel(unit)}鬼吞先机！全体获得大妖之力！`, 'log-buff');
 refreshUnit(unit);
 },
 // 心友犬神：先机施放「浪客归刃」（护盾 + 守势）—— 施放的是技能，因此要有技能演出
@@ -3838,6 +3971,33 @@ blessed.forEach(u => {
 const zm = addMark(u, '照君', { stacks:1, maxStacks:5, duration:999, effect:'zhaojun' });
 if (!zm) return;
 log(`${getSideLabel(u)}${u.name} 怒气≥4，获得1层照君！（当前${zm.stacks}层）`, 'log-buff');
+refreshUnit(u);
+});
+}
+};
+/* 自身回合开始：结算被动（与 applyPassiveTurnEnd 对称）。
+   由 processUnitTurn 的「① 回合开始」段调用 —— 位置在 pendingSkip / 长星锁早退之后，
+   被跳过的是「完整回合」（含回合开始与回合结束），这类被动自然也不触发；
+   而眩晕只跳过行动阶段，回合开始照常结算，被动仍会触发。 */
+async function applyPassiveTurnStart(unit) {
+if (!isPassiveActive(unit)) return;
+const key = (HERO_DATA[unit.name] || {}).passive?.turnStart;
+if (key && PASSIVE_TURN_START[key]) await PASSIVE_TURN_START[key](unit);
+}
+const PASSIVE_TURN_START = {
+/* 绮罗舞（回合开始）：所有携带流光的友方 → 获得 1 层照君 + 驱散随机 1 个减益状态 + 移除流光。
+   这是流光转化为照君的主出口（另一出口是「携带者怒气减少」）。 */
+'qiluoDanceStart': async (unit) => {
+const carriers = getAliveAllies(unit).filter(u => hasMark(u, '流光'));
+if (carriers.length === 0) return;
+log(`💃 ${getSideLabel(unit)}${unit.name} 的绮罗舞：流光转化！`, 'log-buff');
+carriers.forEach(u => {
+const zm = addMark(u, '照君', { stacks:1, maxStacks:5, duration:999, effect:'zhaojun' });
+if (zm) log(`${getSideLabel(u)}${u.name} 获得1层照君！（当前${zm.stacks}层）`, 'log-buff');
+// 「负面状态」= 减益状态 → polarity 传 debuff
+const removed = dispelStates(u, 1, CLEAR_POLARITY.DEBUFF);
+removed.forEach(t => log(`${getSideLabel(u)}${u.name} 的减益状态「${t}」被驱散！`, 'log-buff'));
+removeMark(u, '流光');
 refreshUnit(u);
 });
 }
@@ -3966,18 +4126,11 @@ else kept.push(item);
 unit[field] = kept;
 if (onExpire) expired.forEach(it => onExpire(it, unit));
 }
-/* 印记自然到期回调：流光在未被移除的情况下到期 →
-   随机驱散携带者 1 个减益状态，并使携带者获得 1 层照君。 */
+/* 印记自然到期回调。
+   原「流光到期 → 驱散减益 + 给照君」已整体移到被动「绮罗舞」的【自身回合开始】结算
+   （PASSIVE_TURN_START.qiluoDanceStart），且流光改为不自然到期。因此这里不再处理任何印记。 */
 function onMarkExpire(item, unit) {
 if (!item || !unit) return;
-if (item.type !== '流光') return;
-// 技能描述指定「驱散减益」→ polarity 传 debuff
-const removed = dispelStates(unit, 1, CLEAR_POLARITY.DEBUFF);
-removed.forEach(t => log(`${getSideLabel(unit)}${unit.name} 的减益状态「${t}」被流光驱散！`, 'log-buff'));
-const zm = addMark(unit, '照君', { stacks:1, maxStacks:5, duration:999, effect:'zhaojun' });
-if (!zm) return;
-log(`${getSideLabel(unit)}${unit.name} 的流光消散，获得1层照君！（当前${zm.stacks}层）`, 'log-buff');
-refreshUnit(unit);
 }
 /* 清空一个单位的全部 buff / 效果 —— 阵亡时的唯一清理入口。
    清什么：状态(states) / 印记(marks) / 规则(rules) 三类全清，
@@ -4420,7 +4573,7 @@ document.getElementById('b-true').onclick = () => calcDemo('true');
 else if (key === 'buff') {
 const info = {
 state: '【状态】蓝色\n· 可驱散：驱散效果可清除状态\n· 可移除：移除效果可清除状态\n· 区分增益与减益\n· 实例：眩晕（减益）、牵绊（增益）、百豪（增益）',
-mark: '【印记】紫色\n· 不可驱散：驱散效果无法清除印记\n· 可移除：移除效果可清除印记\n· 区分增益与减益\n· 实例：风行、狂风、雷压、神威、流光、照君、狐守、狐佑、大妖之力、鬼王之力',
+mark: '【印记】紫色\n· 不可驱散：驱散效果无法清除印记\n· 可移除：移除效果可清除印记\n· 区分增益与减益\n· 实例：风行、狂风、雷压、神威、流光、照君、狐守、狐佑、大妖之力、鬼王姿态',
 clear: '【驱散 与 移除】\n两者都是中性操作，本身不自带增益/减益倾向；清除哪一种完全由技能描述中指定的类型决定。\n\n· 驱散：只作用于「状态」，印记不可被驱散\n· 移除：对「状态 + 印记」都生效\n· 规则：不受驱散与移除影响，仅由特定条件清除\n\n实例：\n· 流光到期 → 驱散携带者的减益状态\n· 鬼王酒吞童子「天火怒焱」→ 驱散敌方的增益状态\n· 宇智波带土「虚化」→ 移除自身的减益状态与减益印记\n· 禅心云外镜「水无垠」→ 移除自身的减益状态与减益印记',
 rule: '【规则】橙色\n· 仅由特定条件清除，不受驱散与移除影响\n· 不区分增益与减益\n· 实例：放逐（放逐结束时解除）、虚化（持续时间结束时解除）'
 };
