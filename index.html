@@ -276,7 +276,10 @@ body { font-family: 'Microsoft YaHei', sans-serif; background: #0a0a1a; color: #
 #bp-ban-row { display: flex; align-items: center; gap: 8px; margin: 6px 0; flex-wrap: wrap; }
 .bp-ban-label { font-size: 12px; color: #ef5350; }
 #bp-ban-slots { display: flex; gap: 5px; flex-wrap: wrap; }
-.bp-ban-slot { width: 34px; height: 34px; border-radius: 50%; border: 1px solid #c62828; background: #2a0d0d; color: #ef9a9a; font-size: 10px; display: flex; align-items: center; justify-content: center; text-align: center; line-height: 1.05; overflow: hidden; }
+.bp-ban-slot { position: relative; width: 34px; height: 34px; border-radius: 50%; border: 1px solid #c62828; background: #2a0d0d; color: #ef9a9a; font-size: 10px; display: flex; align-items: center; justify-content: center; text-align: center; line-height: 1.05; overflow: hidden; }
+/* 双方可禁用同一英雄：用描边色区分归属（绿=P1，蓝=P2） */
+.bp-ban-slot.p1 { border-color: #66bb6a; color: #a5d6a7; }
+.bp-ban-slot.p2 { border-color: #42a5f5; color: #90caf9; }
 .hero-card.bp-banned { opacity: .35; filter: grayscale(100%); pointer-events: none; }
 .hero-card.bp-banned::after { content: '禁用'; position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%) rotate(-14deg); color: #ff5252; font-weight: bold; font-size: 15px; text-shadow: 0 0 6px #000; }
 .hero-card.bp-picked { opacity: .5; pointer-events: none; }
@@ -294,6 +297,34 @@ body { font-family: 'Microsoft YaHei', sans-serif; background: #0a0a1a; color: #
 #bp-confirm-cancel:hover { color: #fff; border-color: #888; }
 /* 待确认的卡片：金色描边高亮 */
 .hero-card.bp-pending { border-color: #ffd700; box-shadow: 0 0 14px rgba(255,215,0,.55); transform: scale(1.03); }
+/* 同轮 BP：对方已选的英雄【仍可选】—— 取消 bp-picked 的禁用，但保留角标 */
+.hero-card.bp-picked.pickable-again { pointer-events: auto; opacity: .85; }
+/* 角标定位不再依赖 bp-picked（同轮下双方可能同时选中同一英雄，需要两个角标） */
+.hero-card .bp-pick-mark { position: absolute; top: 4px; right: 4px; font-size: 11px; padding: 1px 5px; border-radius: 4px; color: #fff; z-index: 2; }
+.hero-card .bp-pick-mark.p1 { background: #2e7d32; }
+.hero-card .bp-pick-mark.p2 { background: #1565c0; }
+.hero-card .bp-pick-mark.p2.dual { right: 4px; top: 22px; }
+/* 自己本轮暗禁的英雄：橙色角标，仅自己可见（未亮出） */
+.hero-card .bp-own-ban { position: absolute; top: 4px; left: 4px; font-size: 11px; padding: 1px 5px; border-radius: 4px; color: #fff; background: #ef6c00; z-index: 2; }
+/* 本轮已锁定但未亮出的槽位 */
+.bp-slot.locked { border-style: solid; border-color: #ffd70088; color: #ffd700; background: #1a1608; }
+/* 模式标签 */
+#bp-mode-tag { text-align: center; font-size: 12px; color: #ce93d8; margin: -6px 0 8px; }
+/* 上一轮亮出结果 */
+#bp-reveal { text-align: center; font-size: 12px; color: #b0bec5; margin-bottom: 6px; min-height: 16px; }
+#bp-reveal b.p1 { color: #81c784; } #bp-reveal b.p2 { color: #64b5f6; }
+/* ===== BP 模式选择弹层 ===== */
+#bp-type-overlay { display: none; position: fixed; inset: 0; z-index: 200; background: rgba(0,0,0,.72); align-items: center; justify-content: center; }
+#bp-type-overlay.show { display: flex; }
+#bp-type-card { width: min(92vw, 420px); background: linear-gradient(135deg, #1b1035, #2a1750); border: 2px solid #ab47bc; border-radius: 16px; padding: 18px 16px; box-shadow: 0 0 34px rgba(171,71,188,.45); }
+#bp-type-card h2 { text-align: center; color: #ffd700; font-size: 19px; margin: 0 0 14px; }
+.bp-type-btn { display: block; width: 100%; margin-bottom: 10px; padding: 12px 14px; text-align: left; background: rgba(255,255,255,.06); border: 1px solid #7b4397; border-radius: 12px; cursor: pointer; transition: all .25s; }
+.bp-type-btn:hover { background: rgba(171,71,188,.22); border-color: #ce93d8; transform: translateY(-1px); }
+.bp-type-name { display: block; font-size: 16px; font-weight: bold; color: #fff; margin-bottom: 4px; }
+.bp-type-desc { display: block; font-size: 12px; color: #b39ddb; line-height: 1.5; }
+.bp-type-desc b { color: #ffd700; }
+.bp-type-cancel { display: block; margin: 4px auto 0; padding: 7px 22px; font-size: 13px; background: transparent; color: #9e9e9e; border: 1px solid #555; border-radius: 16px; cursor: pointer; }
+.bp-type-cancel:hover { color: #fff; border-color: #888; }
 #bp-start-btn { display: block; margin: 18px auto; padding: 12px 40px; font-size: 18px; background: linear-gradient(135deg, #ff6f00, #ff8f00); color: #fff; border: none; border-radius: 25px; cursor: pointer; transition: all .3s; }
 #bp-start-btn:hover:not(:disabled) { transform: scale(1.05); box-shadow: 0 0 20px rgba(255,111,0,.5); }
 #bp-start-btn:disabled { opacity: .4; cursor: not-allowed; }
@@ -523,9 +554,24 @@ word-break: break-word; }
 </div>
 </div>
 </div>
+<div id="bp-type-overlay">
+<div id="bp-type-card">
+<h2>选择 BP 模式</h2>
+<button class="bp-type-btn" id="bp-type-draft" type="button">
+<span class="bp-type-name">征召 BP</span>
+<span class="bp-type-desc">轮流禁用与选择，<b>英雄独占</b>：一方已选的英雄另一方不可再选。</span>
+</button>
+<button class="bp-type-btn" id="bp-type-mirror" type="button">
+<span class="bp-type-name">同轮 BP</span>
+<span class="bp-type-desc">每方各禁 1 人，之后 5 轮选人；每轮双方各选 1 人，<b>本轮选完统一亮出</b>。英雄不独占，双方可选相同英雄。</span>
+</button>
+<button class="bp-type-cancel" id="bp-type-cancel" type="button">取消</button>
+</div>
+</div>
 <div id="bp-screen">
 <button id="bp-back-btn" type="button">← 返回</button>
 <h1>🛡️ BP 选人</h1>
+<div id="bp-mode-tag"></div>
 <div id="bp-topbar">
 <div class="bp-team bp-team-p1">
 <div class="bp-team-title">🟢 玩家1</div>
@@ -541,6 +587,7 @@ word-break: break-word; }
 <span id="bp-stage-sub"></span>
 </div>
 <div id="bp-flow"></div>
+<div id="bp-reveal"></div>
 <div id="bp-ban-row">
 <span class="bp-ban-label">已禁用</span>
 <div id="bp-ban-slots"></div>
@@ -918,6 +965,7 @@ const CHANGELOG = [
 '修复：「雷压」「狐守」「狐佑」「大妖之力」「鬼王姿态」重复获得时会叠加层数，而非按描述「不可叠加」刷新时长。',
 '禅心云外镜：防御 380 → 360。',
 '修复：固定伤害致死未走统一死亡流程，导致东丈「不屈」不触发。',
+'新增：BP 模式分为「征召BP」与「同轮BP」（每轮双方各选1人，本轮选完统一亮出，英雄不独占）；双方禁用可为同一英雄。',
 ] },
 { ver:'v1.4.7-patch.3', items:[
 '修复：鬼金羊「宿影暗渡」满层时连续施放两次。',
@@ -1051,7 +1099,11 @@ return;
 resetGame();
 };
 /* BP 模式：入口 / 返回 / 搜索 / 开始（onclick 赋值，避免重复叠加监听） */
-document.getElementById('bp-mode-btn').onclick = openBpScreen;
+document.getElementById('bp-mode-btn').onclick = openBpTypeMenu;
+document.getElementById('bp-type-draft').onclick = () => openBpScreen('draft');
+document.getElementById('bp-type-mirror').onclick = () => openBpScreen('mirror');
+document.getElementById('bp-type-cancel').onclick = closeBpTypeMenu;
+document.getElementById('bp-type-overlay').addEventListener('click', (e) => { if (e.target === document.getElementById('bp-type-overlay')) closeBpTypeMenu(); });
 document.getElementById('bp-back-btn').onclick = closeBpScreen;
 document.getElementById('bp-start-btn').onclick = startBpBattle;
 document.getElementById('bp-confirm-btn').onclick = bpConfirmPending;
@@ -1119,11 +1171,20 @@ renderHeroGrid('enemy');
 }
 function getHeroList() { return Object.keys(HERO_DATA); }
 /* ==================== BP 模式 ====================
-   完整流程（10 步）：
-     P1禁1 → P2禁1 → P1选1 → P2选2 → P1选2 → P1禁1 → P2禁1 → P2选2 → P1选2 → P2选1
-   双方各选 5 人 + 必选主角 = 6 人；共禁用 4 人。
-   英雄独占：任一方已选的英雄另一方不可再选（主角由双方自动锁定，不参与 BP）。 */
-const BP_STEPS = [
+   两种模式，进入时选择：
+
+   ①【征召 BP】轮流禁用与选择，英雄【独占】—— 一方已选的英雄另一方不可再选。
+      流程（10 步）：
+        P1禁1 → P2禁1 → P1选1 → P2选2 → P1选2 → P1禁1 → P2禁1 → P2选2 → P1选2 → P2选1
+   ②【同轮 BP】每方先各禁 1 人；之后 5 轮选人，每轮双方各选 1 人，
+      【本轮双方都选完后才统一亮出】；英雄【不独占】，双方可以选用相同英雄。
+      公平性说明：因为是同轮的，双方各自操作时都看不到对方本轮选了什么，
+      所以「先让一方选、再让另一方选」不会泄露信息。
+
+   两种模式都是双方各选 5 人 + 必选主角 = 6 人（主角自动锁定，不参与 BP）。 */
+const BP_PICK_TARGET = 5;                     // 每方需选人数（+主角 = 6）
+/* 征召 BP 步骤表 */
+const BP_STEPS_DRAFT = [
 { side:'p1', action:'ban',  count:1 },
 { side:'p2', action:'ban',  count:1 },
 { side:'p1', action:'pick', count:1 },
@@ -1135,14 +1196,48 @@ const BP_STEPS = [
 { side:'p1', action:'pick', count:2 },
 { side:'p2', action:'pick', count:1 },
 ];
-const BP_PICK_TARGET = 5;                     // 每方需选人数（+主角 = 6）
-let bpState = { active:false, step:0, progress:0, p1:[], p2:[], bans:[] };
-function resetBp() { bpState = { active:false, step:0, progress:0, p1:[], p2:[], bans:[] }; }
-/* 当前步：全部走完则返回 null */
-function bpCurrentStep() { return bpState.step < BP_STEPS.length ? BP_STEPS[bpState.step] : null; }
+/* 同轮 BP 步骤表：禁用轮（round 0）+ 5 轮选人
+   ★ 禁用同样是【同轮】的：双方各禁 1 人，都禁完后才统一亮出。
+     否则 P2 在自己禁用时就能看到 P1 禁了谁 —— 与选人一样存在信息泄露。
+   每轮（含禁用轮）两步走完即 flush，round 用于判断是否跨轮。 */
+const BP_MIRROR_BAN_ROUND = 0;
+const BP_STEPS_MIRROR = [
+{ side:'p1', action:'ban',  count:1, round: BP_MIRROR_BAN_ROUND },
+{ side:'p2', action:'ban',  count:1, round: BP_MIRROR_BAN_ROUND },
+...Array.from({ length: BP_PICK_TARGET }, (_, i) => ([
+{ side:'p1', action:'pick', count:1, round: i + 1 },
+{ side:'p2', action:'pick', count:1, round: i + 1 },
+])).flat(),
+];
+const BP_MODE_META = {
+draft:  { name:'征召 BP', steps: BP_STEPS_DRAFT  },
+mirror: { name:'同轮 BP', steps: BP_STEPS_MIRROR },
+};
+/* bans：公开禁用池（双方合并，用于「已禁用的英雄不可再选」与展示）
+   bansBy：分方记录 —— 双方允许禁用【同一个】英雄，因此不能只看合并池判断"是否已禁过"。 */
+/*   hidden / hiddenBan：同轮模式下本轮尚未亮出的暗选 / 暗禁 —— 对方看不到。 */
+let bpState = { active:false, mode:'draft', step:0, progress:0, p1:[], p2:[], bans:[], bansBy:{ p1:[], p2:[] },
+hidden:{ p1:null, p2:null }, hiddenBan:{ p1:null, p2:null }, reveal:null };
+function resetBp(mode) {
+bpState = { active:false, mode: mode || 'draft', step:0, progress:0, p1:[], p2:[], bans:[], bansBy:{ p1:[], p2:[] },
+hidden:{ p1:null, p2:null }, hiddenBan:{ p1:null, p2:null }, reveal:null };
+}
+/* 当前模式的步骤表 / 当前步（全部走完则返回 null） */
+function bpSteps() { return (BP_MODE_META[bpState.mode] || BP_MODE_META.draft).steps; }
+function bpCurrentStep() { const L = bpSteps(); return bpState.step < L.length ? L[bpState.step] : null; }
 function bpSideName(side) { return side === 'p1' ? '玩家1' : '玩家2'; }
-function openBpScreen() {
-resetBp(); bpState.active = true;
+/* 同轮 BP：本轮是否已有人暗选（用于槽位显示「已锁定」） */
+function bpIsMirror() { return bpState.mode === 'mirror'; }
+/* 打开模式选择弹层 */
+function openBpTypeMenu() {
+document.getElementById('bp-type-overlay').classList.add('show');
+}
+function closeBpTypeMenu() {
+document.getElementById('bp-type-overlay').classList.remove('show');
+}
+function openBpScreen(mode) {
+resetBp(mode || 'draft'); bpState.active = true;
+document.getElementById('bp-type-overlay').classList.remove('show');
 document.getElementById('selection-screen').style.display = 'none';
 document.getElementById('bp-screen').style.display = 'block';
 document.getElementById('bp-search').value = '';
@@ -1150,19 +1245,68 @@ renderBp();
 }
 function closeBpScreen() {
 bpState.active = false;
+document.getElementById('bp-type-overlay').classList.remove('show');
 document.getElementById('bp-screen').style.display = 'none';
 document.getElementById('selection-screen').style.display = 'block';
 }
-/* 某英雄当前状态：'ban' | 'p1' | 'p2' | null */
+/* 某英雄当前归属：'ban' | 'p1' | 'p2' | null
+   同轮模式下双方可能同时持有同一英雄 —— 判定时改用 bpOwnedBy()，这里只用于标记显示。 */
 function bpHeroState(name) {
 if (bpState.bans.includes(name)) return 'ban';
 if (bpState.p1.includes(name)) return 'p1';
 if (bpState.p2.includes(name)) return 'p2';
 return null;
 }
+/* 该英雄当前这一步是否【可选】
+     · 禁用的永远不可选
+     · 征召 BP（独占）：任一方已选 → 不可选
+     · 同轮 BP（不独占）：只有【当前操作方自己】已选的不可重复选，对方已选的照样可选 */
+function bpIsPickable(name, step) {
+if (!step) return false;
+/* 禁用阶段：双方可以禁【同一个】英雄 —— 只排除当前操作方自己已禁过的。
+   （禁用反映的是"自己不想看到谁"，两人都禁同一个完全合理。） */
+if (step.action === 'ban') {
+if (bpState.bans.includes(name) && !bpIsMirror()) return false;   // 征召：已进公开禁用池
+/* 同轮：禁用池里【已亮出】的不能再禁；对方本轮暗禁的允许重复禁（禁同一个完全合理），
+   只看自己方：已禁过的 + 本轮已暗禁的 排除。 */
+if (bpState.bansBy[step.side].includes(name)) return false;
+if (bpIsMirror() && bpState.hiddenBan[step.side] === name) return false;
+if (bpIsMirror()) return !bpState.bans.includes(name);
+return true;
+}
+/* 选人阶段：已进禁用池的英雄任何人都不能选 */
+if (bpState.bans.includes(name)) return false;
+const own = step.side === 'p1' ? bpState.p1 : bpState.p2;
+if (own.includes(name)) return false;
+if (bpState.hidden[step.side] === name) return false;
+if (bpIsMirror()) return true;                  // 同轮：只看自己方
+return !bpState.p1.includes(name) && !bpState.p2.includes(name);   // 征召：独占
+}
+/* 同轮 BP：一轮走完 → 把双方本轮的暗选同时亮出 */
+function bpFlushRound(round) {
+const h = bpState.hidden;
+/* 禁用轮：把双方本轮的暗禁同时亮出（允许双方禁了同一个英雄） */
+const hb = bpState.hiddenBan;
+if (hb.p1 || hb.p2) {
+if (hb.p1) { if (!bpState.bans.includes(hb.p1)) bpState.bans.push(hb.p1); bpState.bansBy.p1.push(hb.p1); }
+if (hb.p2) { if (!bpState.bans.includes(hb.p2)) bpState.bans.push(hb.p2); bpState.bansBy.p2.push(hb.p2); }
+bpState.reveal = { round: round, ban:{ p1: hb.p1, p2: hb.p2 } };
+bpState.hiddenBan = { p1:null, p2:null };
+return;
+}
+if (h.p1) bpState.p1.push(h.p1);
+if (h.p2) bpState.p2.push(h.p2);
+bpState.reveal = { round: round || 0, p1: h.p1, p2: h.p2 };
+bpState.hidden = { p1:null, p2:null };
+}
 function renderBp() {
 const step = bpCurrentStep();
-/* 顶部双方头像槽：主角固定占位 + 5 个待选位 */
+/* 模式标签 */
+const tag = document.getElementById('bp-mode-tag');
+const meta = BP_MODE_META[bpState.mode] || BP_MODE_META.draft;
+tag.textContent = `${meta.name}${bpIsMirror() ? '（本轮选完统一亮出，英雄不独占）' : '（英雄独占）'}`;
+/* 顶部双方头像槽：主角固定占位 + 5 个待选位
+   同轮 BP：本轮已暗选的位置显示「已锁定」（不露名字，避免对方看到） */
 const renderSlots = (sideKey, list) => {
 const box = document.getElementById(`bp-${sideKey}-slots`);
 box.innerHTML = '';
@@ -1173,7 +1317,12 @@ box.appendChild(d);
 };
 add('主角', 'filled protagonist', '主角（自动锁定）');
 for (let i = 0; i < BP_PICK_TARGET; i++) {
-add(list[i] || '', list[i] ? 'filled' : '', list[i] || '待选');
+if (list[i]) { add(list[i], 'filled', list[i]); continue; }
+/* 暗选占位：只在这一方本轮已操作时显示，且不明示是谁 */
+if (bpIsMirror() && bpState.hidden[sideKey] && i === list.length) {
+add('🔒', 'locked', `${bpSideName(sideKey)}本轮已锁定（本轮结束后亮出）`); continue;
+}
+add('', '', '待选');
 }
 };
 renderSlots('p1', bpState.p1);
@@ -1186,7 +1335,10 @@ const isBan = step.action === 'ban';
 st.className = isBan ? 'ban' : step.side;
 st.textContent = `${bpSideName(step.side)} ${isBan ? '禁用' : '选择'} ${step.count} 人`;
 const remain = step.count - bpState.progress;
-sub.textContent = `本阶段还需 ${remain} 个（第 ${bpState.step + 1}/${BP_STEPS.length} 步）`;
+let subText = `本阶段还需 ${remain} 个（第 ${bpState.step + 1}/${bpSteps().length} 步）`;
+/* 同轮 BP 的选人阶段：提示本轮结束才亮出 */
+if (bpIsMirror()) subText += isBan ? ' · 双方都禁完后统一亮出' : ` · 第 ${step.round} 轮，本轮双方选完后统一亮出`;
+sub.textContent = subText;
 } else {
 st.className = 'done'; st.textContent = 'BP 完成';
 sub.textContent = '双方阵容已确定，可开始游戏';
@@ -1194,18 +1346,37 @@ sub.textContent = '双方阵容已确定，可开始游戏';
 /* 流程进度条 */
 const flow = document.getElementById('bp-flow');
 flow.innerHTML = '';
-BP_STEPS.forEach((sp, i) => {
+bpSteps().forEach((sp, i) => {
 const d = document.createElement('span');
 const cls = i < bpState.step ? 'done' : (i === bpState.step ? 'active' : '');
 d.className = `bp-flow-step ${cls}`;
 d.textContent = `${bpSideName(sp.side)}${sp.action === 'ban' ? '禁' : '选'}${sp.count}`;
 flow.appendChild(d);
 });
+/* 上一轮亮出结果（同轮 BP） */
+const rev = document.getElementById('bp-reveal');
+if (bpIsMirror() && bpState.reveal) {
+const rv = bpState.reveal;
+if (rv.ban) rev.innerHTML = `禁用亮出：<b class="p1">🟢 ${rv.ban.p1 || '—'}</b> ／ <b class="p2">🔵 ${rv.ban.p2 || '—'}</b>`;
+else rev.innerHTML = `第 ${rv.round} 轮亮出：<b class="p1">🟢 ${rv.p1 || '—'}</b> ／ <b class="p2">🔵 ${rv.p2 || '—'}</b>`;
+} else rev.innerHTML = '';
 /* 禁用池 */
 const banBox = document.getElementById('bp-ban-slots');
 banBox.innerHTML = '';
-bpState.bans.forEach(n => { const d = document.createElement('div'); d.className = 'bp-ban-slot'; d.textContent = n; banBox.appendChild(d); });
-if (bpState.bans.length === 0) banBox.innerHTML = '<span style="font-size:12px;color:#616161">暂无</span>';
+/* 按方分别渲染并标注归属：同一个英雄可能被双方同时禁用，合并去重会丢信息。 */
+['p1','p2'].forEach(sd => {
+bpState.bansBy[sd].forEach(n => {
+const d = document.createElement('div');
+d.className = `bp-ban-slot ${sd}`; d.textContent = n; d.title = `${bpSideName(sd)} 禁用`;
+banBox.appendChild(d);
+});
+});
+if (bpState.bans.length === 0) {
+const locked = (bpState.hiddenBan.p1 ? 1 : 0) + (bpState.hiddenBan.p2 ? 1 : 0);
+banBox.innerHTML = locked > 0
+? `<span style="font-size:12px;color:#ffd700">本轮已锁定 ${locked} 个（双方禁完后统一亮出）</span>`
+: '<span style="font-size:12px;color:#616161">暂无</span>';
+}
 /* 英雄网格 */
 const grid = document.getElementById('bp-hero-grid');
 const search = document.getElementById('bp-search').value.toLowerCase();
@@ -1215,18 +1386,31 @@ if (name === '主角') return;             // 主角自动锁定，不参与 BP
 if (search && !name.toLowerCase().includes(search)) return;
 const data = HERO_DATA[name];
 const stt = bpHeroState(name);
+const pickable = !!step && bpIsPickable(name, step);
 const card = document.createElement('div');
 let cls = 'hero-card';
 if (stt === 'ban') cls += ' bp-banned';
-else if (stt) cls += ' bp-picked';
+else if (bpState.p1.includes(name) || bpState.p2.includes(name)) {
+cls += ' bp-picked';
+/* 同轮 BP：对方已选的仍可选 —— 解除 bp-picked 的禁用（同队不可重复选由 bpIsPickable 管） */
+if (pickable) cls += ' pickable-again';
+}
 if (bpState.pending === name) cls += ' bp-pending';   // 待确认：金色高亮
 card.className = cls;
-const mark = stt === 'p1' ? '<span class="bp-pick-mark p1">P1</span>' : (stt === 'p2' ? '<span class="bp-pick-mark p2">P2</span>' : '');
+/* 角标：同轮模式下双方可能同时选中同一英雄，两个角标都要显示 */
+let mark = '';
+/* 自己本轮暗禁的英雄：给自己一个橙色「已禁」角标（未亮出，对方看不到） */
+if (bpIsMirror() && step && step.action === 'ban' && bpState.hiddenBan[step.side] === name) {
+mark += '<span class="bp-own-ban">已禁</span>';
+}
+const isP1 = bpState.p1.includes(name), isP2 = bpState.p2.includes(name);
+if (isP1) mark += '<span class="bp-pick-mark p1">P1</span>';
+if (isP2) mark += `<span class="bp-pick-mark p2${isP1 ? ' dual' : ''}">P2</span>`;
 card.innerHTML = `<div class="hero-avatar" style="background:linear-gradient(135deg,${data.color}66,${data.color}33);border-color:${data.color}88;">${heroAvatarInner(name)}</div><div class="hero-name">${name}</div><div class="hero-tags"><span class="tag tag-${data.tag==='攻击'?'atk':data.tag==='防御'?'def':data.tag==='辅助'?'sup':'spd'}">${data.tag}</span></div><button class="detail-btn" type="button">查看详情</button>${mark}`;
 card.querySelector('.detail-btn').addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); showHeroDetail(name); });
 card.querySelector('.detail-btn').addEventListener('touchstart', (e) => { e.stopPropagation(); }, { passive: true });
 /* 点卡片只是「选中待确认」，不立即生效 —— 需再点确认按钮 */
-if (!stt && step) card.addEventListener('click', () => bpSelectPending(name));
+if (pickable) card.addEventListener('click', () => bpSelectPending(name));
 grid.appendChild(card);
 });
 /* 确认条：仅在有待确认英雄时显示 */
@@ -1251,7 +1435,8 @@ btn.textContent = step ? 'BP 进行中…' : '点击开始游戏';
 }
 /* 第一步：点卡片 → 进入待确认（高亮 + 显示确认条） */
 function bpSelectPending(name) {
-if (!bpCurrentStep() || bpHeroState(name)) return;
+const step = bpCurrentStep();
+if (!step || !bpIsPickable(name, step)) return;
 bpState.pending = name;
 renderBp();
 }
@@ -1259,20 +1444,32 @@ renderBp();
 function bpConfirmPending() {
 const step = bpCurrentStep();
 const name = bpState.pending;
-if (!step || !name || bpHeroState(name)) { bpState.pending = null; renderBp(); return; }
-if (step.action === 'ban') bpState.bans.push(name);
-else if (step.side === 'p1') bpState.p1.push(name);
+if (!step || !name || !bpIsPickable(name, step)) { bpState.pending = null; renderBp(); return; }
+if (step.action === 'ban') {
+if (bpIsMirror()) bpState.hiddenBan[step.side] = name;   // 同轮：暗禁，双方都禁完才亮出
+else { bpState.bans.push(name); bpState.bansBy[step.side].push(name); }
+} else if (bpIsMirror()) {
+bpState.hidden[step.side] = name;              // 同轮：先暗选，本轮结束才亮出
+} else if (step.side === 'p1') bpState.p1.push(name);
 else bpState.p2.push(name);
 bpState.pending = null;
 bpState.progress++;
-if (bpState.progress >= step.count) { bpState.step++; bpState.progress = 0; }
+/* 一轮是否结束：下一步已跨轮（或已无下一步）→ 统一亮出本轮双方所选 */
+if (bpState.progress >= step.count) {
+const nextIdx = bpState.step + 1;
+if (bpIsMirror() && step.round !== undefined && (nextIdx >= bpSteps().length || bpSteps()[nextIdx].round !== step.round)) {
+bpFlushRound(step.round);
+}
+bpState.step = nextIdx; bpState.progress = 0;
+}
 renderBp();
 }
 function bpCancelPending() { bpState.pending = null; renderBp(); }
 function bpHeroClick(name) {
 const step = bpCurrentStep();
-if (!step || bpHeroState(name)) return;
-if (step.action === 'ban') bpState.bans.push(name);
+if (!step || !bpIsPickable(name, step)) return;
+if (step.action === 'ban') { if (bpIsMirror()) bpState.hiddenBan[step.side] = name; else { bpState.bans.push(name); bpState.bansBy[step.side].push(name); } }
+else if (bpIsMirror()) bpState.hidden[step.side] = name;
 else if (step.side === 'p1') bpState.p1.push(name);
 else bpState.p2.push(name);
 bpState.progress++;
@@ -1282,6 +1479,8 @@ renderBp();
 /* BP 完成 → 写入双方阵容并开局（双人对战） */
 function startBpBattle() {
 if (bpCurrentStep()) return;            // 未走完流程不允许开始
+/* 兜底：万一还有未亮出的暗选（理论上轮结束已 flush），开局前补上 */
+if (bpIsMirror() && (bpState.hidden.p1 || bpState.hidden.p2 || bpState.hiddenBan.p1 || bpState.hiddenBan.p2)) bpFlushRound(BP_PICK_TARGET);
 if (bpState.p1.length !== BP_PICK_TARGET || bpState.p2.length !== BP_PICK_TARGET) return;
 playerSelection = ['主角', ...bpState.p1];
 enemySelection  = ['主角', ...bpState.p2];
