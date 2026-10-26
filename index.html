@@ -690,7 +690,7 @@ descSkill: "对敌方目标造成 <span class='dmg'>340%</span> 伤害，并使�
 mechanics: [
 { type:'mark', name:'风行', desc:'增益印记：提升自身速度25点，最多叠加5层。' },
 { type:'mark', name:'狂风', desc:'增益印记：提升自身攻击150点、防御100点，最多叠加3层。' },
-{ type:'state', name:'眩晕', desc:'减益状态：控制效果，目标无法行动，持续1回合。' } ] },
+{ type:'state', name:'眩晕', desc:'减益状态：控制效果，目标无法行动，持续1回合。不可叠加。' } ] },
 "白藏主": { atk:450, def:600, hp:7000, spd:300, critRate:0.05, critDmg:1.5, color:'#26c6da', tag:'防御',   // 浅蓝（与鬼金羊同色）
 normal: { name:"炎影", type:"single", dmgRate:1.0, target:"enemy", effect:"rageDown" },
 skill: { name:"梦山狐影", cost:4, type:"buff", target:"ally", selfEffect:"foxGuard" },
@@ -717,8 +717,8 @@ desc:"回合结束后，有 <span class='buff'>30%</span> 概率使自身<span c
 descNormal: "对敌方目标造成 <span class='dmg'>100%</span> 伤害，<span class='buff'>30%概率</span> 附加<span class='m-state'>眩晕</span>。",
 descSkill: "全体行动条+<span class='buff'>30%</span>，同时全体获得 <span class='m-state'>牵绊</span>（持续2回合）。",
 mechanics: [
-{ type:'state', name:'牵绊', desc:'增益状态：+25%攻击、+10%防御、+10%暴击率，持续2回合。' },
-{ type:'state', name:'眩晕', desc:'减益状态：控制效果，目标无法行动，持续1回合。' } ] },
+{ type:'state', name:'牵绊', desc:'增益状态：+25%攻击、+10%防御、+10%暴击率，持续2回合。不可叠加。' },
+{ type:'state', name:'眩晕', desc:'减益状态：控制效果，目标无法行动，持续1回合。不可叠加。' } ] },
 "鬼王酒吞童子": { atk:620, def:300, hp:5800, spd:209, critRate:0.08, critDmg:1.5, color:'#ffd700', tag:'均衡',
 normal: { name:"焚天", type:"single", dmgRate:1.2, target:"enemy" },
 skill: { name:"天火怒焱", cost:4, type:"aoe", dmgRate:0, target:"enemy", effect:"dispelAndPush", selfEffect:"guiWangZiTai", requireNoMark:"鬼王姿态" },
@@ -742,7 +742,7 @@ normal: { name:"怪力", type:"single", dmgRate:1.5, target:"enemy", effect:"gua
 skill: { name:"百豪之术", cost:4, type:"buff", target:"ally", selfEffect:"hundredHeal" },
 descNormal: "对敌方单个目标造成 <span class='dmg'>150%</span> 伤害，<span class='buff'>30%</span>概率使目标附加 <span class='m-state'>眩晕</span>，并使当前生命值最低的友方<span class='buff'>+15%</span>行动条。",
 descSkill: "<span class='heal'>治疗所有友方200%生命</span>，使所有友方获得 <span class='m-state'>百豪</span>（持续3回合）。",
-mechanics: [{ type:'state', name:'百豪', desc:'增益状态：提升10%攻击、20%治疗加成，持续3回合。' }] },
+mechanics: [{ type:'state', name:'百豪', desc:'增益状态：提升10%攻击、20%治疗加成，持续3回合。不可叠加。' }] },
 "裂空座": { atk:1050, def:240, hp:4100, spd:154, critRate:0.24, critDmg:1.8, color:'#00c853', tag:'攻击',
 normal: { name:"龙爪", type:"single", dmgRate:1.2, target:"enemy", selfEffect:"dragonDance" },
 skill: { name:"画龙点睛", cost:4, type:"aoe", dmgRate:2.6, target:"enemy", selfEffect:"defDownPerm" },
@@ -771,7 +771,8 @@ skill2: { name:"能量爆裂", cost:4, type:"single", dmgRate:3.0, target:"enemy
 descNormal: "对敌方目标造成 <span class='dmg'>100%</span> 伤害，若造成击杀则获得 <span class='m-mark'>1层超凡邪力</span>。",
 descSkill: "对敌方目标造成 <span class='dmg'>100%</span> 伤害，并附加<span class='m-state'>眩晕</span>（持续1回合），若造成击杀则获得 <span class='m-mark'>1层超凡邪力</span>。",
 descSkill2: "对敌方目标造成 <span class='dmg'>300%</span> 伤害，若造成击杀则获得 <span class='m-mark'>1层超凡邪力</span>，且回合结束后自身 <span class='buff'>+60%行动条</span>，获得 <span class='buff'>4点怒气</span>，<span class='restore'>恢复</span>自身最大生命值 <span class='heal'>30%</span> 的生命值。",
-mechanics: [{ type:'mark', name:'超凡邪力', desc:'增益印记：永久提升攻击20%、暴击率10%、暴击伤害20%、最终伤害率10%，最多叠加5层。' }] },
+mechanics: [{ type:'mark', name:'超凡邪力', desc:'增益印记：永久提升攻击20%、暴击率10%、暴击伤害20%、最终伤害率10%，最多叠加5层。' },
+{ type:'state', name:'眩晕', desc:'减益状态：控制效果，目标无法行动，持续1回合。不可叠加。' }] },
 "心友犬神": { atk:900, def:270, hp:3600, spd:154, critRate:0.12, critDmg:1.6, color:'#26c6da', tag:'均衡',   // 浅蓝（与鬼金羊同色）
 normal: { name:"天心斩", type:"single", dmgRate:1.2, target:"enemy", effect:"queZhiYin" },
 skill: { name:"浪客归刃", cost:4, type:"buff", target:"ally", selfEffect:"langKeGuiRen" },
@@ -914,6 +915,7 @@ const CHANGELOG = [
 '两面宿傩：强化「捌」斩杀线 30% → 10%；「伏魔神龛」真实伤害 80% → 90%，并新增斩杀；斩杀时机改为「造成伤害过程中或结束后」。',
 '五条悟：「茈」真实伤害 40% → 45%；「无量空处」真实伤害 60% → 75%。',
 '鬼王酒吞童子调整：普攻「焚天」（强化「烈焰焚天」）；新增被动「红莲」；「天火怒焱」新增「鬼王姿态」。',
+'修复：「雷压」「狐守」「狐佑」「大妖之力」「鬼王姿态」重复获得时会叠加层数，而非按描述「不可叠加」刷新时长。',
 '禅心云外镜：防御 380 → 360。',
 '修复：固定伤害致死未走统一死亡流程，导致东丈「不屈」不触发。',
 ] },
@@ -1786,10 +1788,17 @@ function removeState(unit, type) { if (unit) unit.states = (unit.states || []).f
 function getMark(unit, type) { return unit ? (unit.marks || []).find(m => m.type === type) : null; }
 // 已存在则叠层（受 maxStacks 限制），否则新增
 // 不可叠加的印记：已存在时只刷新持续时间，不叠层（没有"层数"语义）
-const NO_STACK_MARKS = new Set(['流光', '守势', '长星锁', '万法', '伏魔']);   // 不可叠加：重复获得只刷新时长，且 buff 标签不显示层数
+/* 不可叠加的印记：重复获得只【刷新时长】，不叠层。
+   ★ 登记依据只有一个 —— 角色描述里写了「不可叠加」。
+   描述写了却没登记，就会出现"重复获得不但不刷新、反而叠起层数"的怪象（狐佑踩过这个坑）。
+   已登记：雷压 / 狐守 / 狐佑 / 大妖之力 / 鬼王姿态 / 流光 / 守势 / 长星锁 / 万法 / 伏魔
+   （风行、狂风、神威、宿影阵、照君、超凡邪力、雀之印、龙之舞 均为可叠层，勿登记） */
+const NO_STACK_MARKS = new Set(['雷压', '狐守', '狐佑', '大妖之力', '鬼王姿态', '流光', '守势', '长星锁', '万法', '伏魔']);
 /* 不可叠加的【状态】：状态本身没有层数语义（addState 不叠层，只刷新时长），
-   这里登记是为了与印记侧口径一致，且在显示层做兜底 —— 万一某处给状态塞了 stacks 也不会显示 ×N。 */
-const NO_STACK_STATES = new Set(['苍', '混乱']);
+   这里登记是为了与印记侧口径一致，且在显示层做兜底 —— 万一某处给状态塞了 stacks 也不会显示 ×N。
+   登记依据同印记侧：描述里写了「不可叠加」。目前全体状态本就都不叠层，
+   已登记：苍 / 混乱 / 眩晕 / 牵绊 / 百豪。 */
+const NO_STACK_STATES = new Set(['苍', '混乱', '眩晕', '牵绊', '百豪']);
 function addMark(unit, type, opts = {}) {
 /* ignoreBanish：仅用于【技能内被动效果】的自动结算（如鬼金羊攒宿影阵）。
    这类效果不需要角色本体施放，因此不受【无法行动】约束 —— 即便被放逐也照常结算。
