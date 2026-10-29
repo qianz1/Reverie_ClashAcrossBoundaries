@@ -771,7 +771,7 @@ normal: { name:"焚天", type:"single", dmgRate:1.2, target:"enemy" },
 skill: { name:"天火怒焱", cost:4, type:"aoe", dmgRate:0, target:"enemy", effect:"dispelAndPush", selfEffect:"guiWangZiTai", requireNoMark:"鬼王姿态" },
 opening: 'jiutunMarks',
 passive: { name:"红莲",
-desc:"自身免疫控制，<span class='m-mark'>大妖之力</span>效果翻倍，自身治疗减免 <span class='debuff'>30%</span>。先机：使友方全体获得 <span class='m-mark'>大妖之力</span>。" },
+desc:"自身免疫控制，<span class='m-mark'>大妖之力</span>的最终伤害率翻倍，自身治疗减免 <span class='debuff'>30%</span>。先机：使友方全体获得 <span class='m-mark'>大妖之力</span>。" },
 descNormal: "对敌方目标造成 <span class='dmg'>120%</span> 伤害。（强化<span class='k'>烈焰焚天</span>：对敌方目标造成 <span class='dmg'>200%</span> 伤害，<span class='dmg'>溅射40%</span> 给其余敌方）",
 descSkill: "驱散敌方全体随机1个增益状态，击退敌方全体行动条 <span class='buff'>40%</span>，然后自身获得 <span class='m-mark'>鬼王姿态</span>（持续2回合）。仅在无<span class='m-mark'>鬼王姿态</span>时可施放此技能。",
 mechanics: [
@@ -3070,7 +3070,8 @@ if (has('龙之舞')) finalDmgRate += 0.15 * stacksOf('龙之舞');
 if (has('雷压')) { finalDmgRate += 0.2; critRate += 0.3; }
 if (has('大妖之力')) {
 const lossPct = clamp01(1 - ((Number(unit.hp) || 0) / (Number(unit.maxHp) || 1)));
-/* 鬼王酒吞童子被动：自身「大妖之力」效果翻倍（只影响他自己，队友仍是原值） */
+/* 鬼王酒吞童子被动「红莲」：自身「大妖之力」的【最终伤害率】翻倍。
+   只加倍这一项 —— 大妖之力的【最终免伤率】部分不翻倍（见 getEffectiveDefStats）。 */
 const mult = (unit.name === '鬼王酒吞童子' && isPassiveActive(unit)) ? DAEMON_POWER_SELF_MULT : 1;
 finalDmgRate += lossPct * mult;
 }
@@ -3089,9 +3090,10 @@ if (has('守势')) def += SHOUSHI_DEF_BONUS;   // 心友犬神「守势」：固
 if (has('狐守')) finalReduction += 0.2;
 if (has('狐佑')) finalReduction += 0.25;
 if (has('大妖之力')) {
-const lossPct = clamp01(1 - ((Number(unit.hp) || 0) / (Number(unit.maxHp) || 1)));
-const mult = (unit.name === '鬼王酒吞童子' && isPassiveActive(unit)) ? DAEMON_POWER_SELF_MULT : 1;
-finalReduction += lossPct * 0.5 * mult;
+/* 注意：这里的【最终免伤率】不翻倍。
+   鬼王酒吞童子被动「红莲」只让「大妖之力」的【最终伤害率】部分翻倍，
+   免伤部分对所有人（含他自己）都按原值结算。 */
+finalReduction += clamp01(1 - ((Number(unit.hp) || 0) / (Number(unit.maxHp) || 1))) * 0.5;
 }
 if ((unit.states || []).some(s => s.type === '牵绊')) def += Math.floor(def * 0.1);
 return { def, finalReduction };
@@ -3486,7 +3488,7 @@ const GUIWANG_NORMAL_RATE = 1.2;     // 鬼王酒吞童子「焚天」伤害倍�
 const GUIWANG_BLAZE_RATE = 2.0;      // 强化「烈焰焚天」伤害倍率
 const GUIWANG_BLAZE_SPLASH = 0.4;    // 强化「烈焰焚天」溅射比例
 const GUIWANG_ZITAI_DURATION = 2;    // 「鬼王姿态」持续回合
-const DAEMON_POWER_SELF_MULT = 2;    // 鬼王酒吞童子被动：自身「大妖之力」效果翻倍
+const DAEMON_POWER_SELF_MULT = 2;    // 鬼王酒吞童子被动「红莲」：自身「大妖之力」的【最终伤害率】翻倍（免伤率不翻倍）
 const GUIWANG_HEAL_REDUCTION = 0.3;  // 鬼王酒吞童子被动：自身治疗减免 30%
 const WINDWALK_SPD_PER_STACK = 25;  // 东丈「风行」每层提升的速度点数（最多5层）
 const TSUNADE_STUN_CHANCE = 0.3;    // 纲手「怪力」的眩晕概率
