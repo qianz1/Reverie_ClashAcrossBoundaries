@@ -1101,6 +1101,14 @@ if (this.statusCb) this.statusCb(t);
 },
 /* 右上角常驻挂件：显示「身份 · 传输方式 · 延迟」。
    联机面板一旦关闭，#net-status 就不可见了，这里是唯一能持续观察延迟的地方。 */
+/* 挂件：连接刚建立的几秒内显示「WS中继 45ms」，之后自动收敛为纯「45ms」。
+   平时保持极简，但在玩家最需要确认"到底走的是哪条路"的时刻给出一次明确答复 */
+_hudShowMode() {
+if (this._transportAt && Date.now() - this._transportAt < 6000) {
+return this.transport === 'ws' ? 'WS中继 ' : (this.transport === 'mqtt' ? '公共 ' : '');
+}
+return '';
+},
 renderHud() {
 const hud = document.getElementById('net-hud');
 if (!hud) return;
@@ -1116,7 +1124,7 @@ if (this.rtt == null) { hud.classList.remove('show'); return; }
 hud.classList.add('show');
 hud.classList.remove('good', 'mid', 'bad');
 hud.classList.add(this.rtt < 120 ? 'good' : (this.rtt < 400 ? 'mid' : 'bad'));
-hud.textContent = `${this.rtt}ms`;
+hud.textContent = this._hudShowMode() + `${this.rtt}ms`;
 },
 /* 「🟢 延迟 85ms」这类后缀；未测得则不显示 */
 latencyTag() {
@@ -1202,6 +1210,8 @@ if (this.active) { this.active = false; this.setStatus('❌ 与中继服务器�
 const ok = await this.waitWsJoined(12000);
 if (!ok) { try { ws.close(); } catch (e) {} this.ws = null; this.active = false; this.setStatus('❌ 房间配对失败，请重试'); return false; }
 this.transport = 'ws';
+this._transportAt = Date.now();
+setTimeout(() => this.renderHud(), 6200);   // 6 秒后收敛为纯数字
 this.startLatencyProbe();   // 两侧都测：房主也要看到自己的读数
 if (this.role === 'host') this.setStatus(`✅ 房间已创建（${this.room}），等待对手加入…`);
 else this.setStatus(`✅ 已加入房间 ${this.room}，等待房主开始…`);
@@ -1238,6 +1248,7 @@ this.transport = null;
    于是之后每次进选人界面都会再弹一次"对手已退出"、状态栏也一直挂着警告。
    同理清掉延迟读数与面板记录，避免沿用上一局的陈旧状态。 */
 this.peerGone = false; this.peerGoneNotified = false;
+this._transportAt = 0;
 this.rtt = null; this._rttSent = 0;
 this._lastPanel = null; this._panelAge = 0; this.panelIdx = -1; this.pickedPending = false;
 this.guestQueue = []; this.guestDraining = false; this.waitingPick = false;
@@ -1257,6 +1268,8 @@ this.myId = this.role + '-' + Math.random().toString(36).slice(2, 10);
    而竞速天然选出当前网络下最快的那个；公共 broker 负载波动大，这点尤其有用。
    用户手动填的服务器排在最前（他有明确目标时优先满足，且仍参与竞速以免白等）。 */
 this.transport = 'mqtt';
+this._transportAt = Date.now();
+setTimeout(() => this.renderHud(), 6200);
 this.setStatus(`⏳ 正在连接服务器…`);
 const brokerList = this.customBroker ? [this.customBroker].concat(RELAY_BROKERS) : RELAY_BROKERS;
 try {
