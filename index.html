@@ -1329,6 +1329,7 @@ try {
 if (o.t === 'log') log(this.flipLog(o.text), o.cls);
 else if (o.t === 'logs') (o.items || []).forEach(it => log(this.flipLog(it.text), it.cls));
 else if (o.t === 'ft') { const u = gameState.units[o.idx]; if (u) showFloatingText(u, o.text, o.cls); }
+else if (o.t === 'anim') { const el = document.getElementById(`unit-${o.idx}`); if (el) el.classList.toggle(o.cls, !!o.on); }
 else if (o.t === 'cutin') { const u = gameState.units[o.idx]; if (u) await playSkillCutin(u, o.name, !!o.nm); }
 else if (o.t === 'st') this.applySnapshot(o);
 else if (o.t === 'panel') this.applyPanel(o);
@@ -1348,6 +1349,8 @@ document.getElementById('selection-screen').style.display = 'none';
 document.getElementById('battle-screen').style.display = 'flex';
 document.getElementById('battle-log').innerHTML = '';
 renderUnits(); renderActionBarDots();
+/* 开局前清掉上一局可能残留的演出 class（如动画播到一半就重开了） */
+gameState.units.forEach((u, i) => clearUnitAnims(i));
 applyNetViewFlip();
 this.bindGuestButtons();
 },
@@ -1420,6 +1423,7 @@ if (items.length) this.send({ t:'logs', items });
 },
 onFloat(idx, text, cls) { if (this.active && this.role === 'host') this.send({ t:'ft', idx, text:String(text), cls:cls || '' }); },
 onCutin(idx, name, isNormal) { if (this.active && this.role === 'host') this.send({ t:'cutin', idx, name, nm:!!isNormal }); },
+onAnim(idx, cls, on) { if (this.active && this.role === 'host') this.send({ t:'anim', idx:Number(idx), cls:String(cls), on:!!on }); },
 snapshot() {
 return {
 t:'st',
@@ -1563,6 +1567,7 @@ const CURRENT_THEME   = '咒术·最强之战';   // 1.4.x 大主题：小版本
 const CHANGELOG = [
 { ver:'v1.4.10', items:[
 '新增：联机对战模式（公共 MQTT over WebSocket 中继 · 房主权威广播）—— 两台设备各控一方，房主生成房间码，对手输入即连。',
+'新增：全局背景图 —— 主界面、选人、BP、战斗、结算统一生效，竖屏与横屏自动适配不同画面。',
 ] },
 { ver:'v1.4.9', items:[
 '五条悟重做：普攻固定为「苍」120%；被动改为「六眼·无下限」（友方施放技能时附加「视」；受击时获得护盾）；新增机制「视」。',
@@ -3012,8 +3017,8 @@ trueRate: 0, extraTrueRate: boosted ? SUKUNA_JIE_EXTRA_TRUE : 0, sukunaForm: 'ji
 
 /* 两面宿傩普攻执行：解 = 两段 63%（强化额外 63% 真实）；捌 = 120% 真实 + 10% 最大生命固定伤害（强化可斩杀） */
 async function performSukunaNormal(attacker, skill, target) {
-document.getElementById(`unit-${idxOf(attacker)}`)?.classList.add('attack-anim'); await sleep(300);
-if (!target || !target.alive) { document.getElementById(`unit-${idxOf(attacker)}`)?.classList.remove('attack-anim'); return; }
+unitAnimOn(idxOf(attacker), 'attack-anim'); await sleep(300);
+if (!target || !target.alive) { unitAnimOff(idxOf(attacker), 'attack-anim'); return; }
 if (skill.sukunaForm === 'ba') {
 /* canExecute 随每段伤害一起传入 —— 「过程中」判定由 applyDamage / applyFixedDamage 负责。 */
 const exFlag = !!skill.canExecute;
@@ -3044,7 +3049,7 @@ if (target.alive && skill.extraTrueRate) {
 for (const r of calculateDamage(attacker, { trueRate: skill.extraTrueRate }, target)) await applyDamage(attacker, r, target);
 }
 }
-document.getElementById(`unit-${idxOf(attacker)}`)?.classList.remove('attack-anim');
+unitAnimOff(idxOf(attacker), 'attack-anim');
 await sleep(200);
 }
 
@@ -3841,7 +3846,7 @@ const isExtra  = skill.__kind === 'extra';
    动态生成的对象要继承 __kind，否则后续判定会失效。 */
 if (isNormal) { const dyn = getEffectiveNormalSkill(unit); if (dyn) { dyn.__kind = 'normal'; skill = dyn; } }
 gameState.currentCastSkill = skill; gameState.currentCaster = unit;
-const idx = idxOf(unit); const el = document.getElementById(`unit-${idx}`); el?.classList.add('attack-anim');
+const idx = idxOf(unit); const el = document.getElementById(`unit-${idx}`); unitAnimOn(idx, 'attack-anim');
 // 怒气收支统一走 gainRage / spendRage：普攻回复；主动技按各自 cost 扣除（不再固定 4）；额外技能不收支
 const cost = Number(skill.cost) || 0;
 if (isNormal) gainRage(unit, RAGE_PER_NORMAL);
@@ -3863,7 +3868,7 @@ if (unit.name === '两面宿傩' && isNormal) {
 unit.sukunaForm = unit.sukunaForm === 'jie' ? 'ba' : 'jie';
 log(`🔄 ${getSideLabel(unit)}${unit.name} 切换普攻形态 → ${unit.sukunaForm === 'jie' ? '解' : '捌'}`, 'log-buff');
 }
-el?.classList.remove('attack-anim'); el?.classList.remove('acting');
+unitAnimOff(idx, 'attack-anim'); el?.classList.remove('acting');
 /* 行动后统一钩子：① 施放技能 → 五条悟附加「视」；② 结算「视」的 40% 伤害。
    放在 endTurn 之前 —— 此时仍处在该单位的行动期间。 */
 await afterAnyUnitAction(unit, skill);
@@ -3889,7 +3894,7 @@ refreshUnit(target);
 return { damageToHp, absorbed };
 }
 async function performSingleAttack(attacker, skill, target) {
-document.getElementById(`unit-${idxOf(attacker)}`)?.classList.add('attack-anim'); await sleep(300);
+unitAnimOn(idxOf(attacker), 'attack-anim'); await sleep(300);
 // 多段命中：hitCount 段各自独立走一遍伤害公式（每段独立判定暴击），累加即为本次技能总伤害
 const hitCount = Math.max(1, Math.floor(Number(skill.hitCount) || 1));
 // actualDirect = 主目标「实际受到」的直接伤害（扣盾后、免疫/代伤后为 0）
@@ -3930,7 +3935,7 @@ await sleep(200);
 const AOE_ONCE_EFFECTS = new Set(['dispelAndPush']);
 async function performAoeAttack(attacker, skill) {
 const targets = getAliveEnemies(attacker);
-document.getElementById(`unit-${idxOf(attacker)}`)?.classList.add('attack-anim'); await sleep(300);
+unitAnimOn(idxOf(attacker), 'attack-anim'); await sleep(300);
 const perTargetEffect = (skill.effect && !AOE_ONCE_EFFECTS.has(skill.effect)) ? skill.effect : null;
 const onceEffect = (skill.effect && AOE_ONCE_EFFECTS.has(skill.effect)) ? skill.effect : null;
 const aoeExFlag = !!skill.canExecute;
@@ -4303,7 +4308,7 @@ loseHp(finalTarget, damageToHp);
 const actualDamage = oldHp - finalTarget.hp;
 if (actualDamage + absorbed > 0) recordDamage(attacker, finalTarget, actualDamage + absorbed);
 if (damageToHp > 0) showFloatingText(finalTarget, (result.isCrit?'暴击 ':'') + (result.isSplash?'溅射 ':'') + '-' + damageToHp, result.isTrue?'floating-true':(result.isSplash?'floating-splash':(result.isCrit?'floating-crit':'floating-damage')));
-const el = document.getElementById(`unit-${idxOf(finalTarget)}`); el?.classList.add('hit'); await sleep(200); el?.classList.remove('hit'); refreshUnit(finalTarget);
+unitAnimOn(idxOf(finalTarget), 'hit'); await sleep(200); unitAnimOff(idxOf(finalTarget), 'hit'); refreshUnit(finalTarget);
 /* 【斩杀】「造成伤害过程中」判定：本次伤害自带斩杀，且承伤者血量已跌破阈值 → 立即即死。
    ★ 位置必须在死亡判定【之前】：东丈「不屈」这类免死被动是在随后的 resolveLethal 里生效的，
      先斩杀就绕开了它 —— 这正是「斩杀东丈不触发被动」的关键。
@@ -5041,7 +5046,7 @@ return total;
 }
 async function playHealAnim(target) {
 const el = document.getElementById(`unit-${idxOf(target)}`);
-el?.classList.add('heal-anim'); await sleep(300); el?.classList.remove('heal-anim'); refreshUnit(target);
+unitAnimOn(idxOf(target), 'heal-anim'); await sleep(300); unitAnimOff(idxOf(target), 'heal-anim'); refreshUnit(target);
 }
 async function performSnapshot(caster, skill) {
 gameState.snowballSnapshot = {};
@@ -5387,6 +5392,30 @@ return unit.side === 'player' ? '【我方】' : '【敌方】';
 }
 }
 // 战斗日志用 textContent 渲染，任何 HTML 标签都会原样显示成源码，因此统一剥离后再输出
+/* ==================== 单位动画（联机同步） ====================
+   「角色卡动一下」这类演出（attack / hit / heal / acting）原先全是直接改本地 DOM 的 class，
+   不随状态快照同步 —— 于是客机端只看到血条数字在跳，完全没有任何动画，观感很僵硬。
+   统一收口到 unitAnim()：房主端改 class 的同时广播 on/off 给客机。
+   用 on/off 两条消息而不是「播 N 毫秒」单条，能忠实镜像房主的时序 ——
+   房主 add 与 remove 之间的真实 sleep 就是两条消息的间隔，倍速也能自动跟上。 */
+function unitAnim(idx, cls, on) {
+const el = document.getElementById(`unit-${idx}`);
+if (!el) return;
+/* 状态没变化就不重复广播：一次行动里 attack-anim 会被 add 好几次
+   （executeSkill 加一次、performSingleAttack 又加一次），
+   重复 add 对 CSS 无意义，只会白白多发消息。 */
+if (el.classList.contains(cls) === !!on) return;
+el.classList.toggle(cls, !!on);
+if (typeof Net !== 'undefined') Net.onAnim(idx, cls, !!on);
+}
+function unitAnimOn(idx, cls)  { unitAnim(idx, cls, true); }
+function unitAnimOff(idx, cls) { unitAnim(idx, cls, false); }
+/* 清掉某单位上所有演出 class（重开 / 重新初始化时用，避免残留） */
+function clearUnitAnims(idx) {
+const el = document.getElementById(`unit-${idx}`); if (!el) return;
+['attack-anim', 'hit', 'heal-anim', 'acting'].forEach(c => el.classList.remove(c));
+}
+
 function log(text, className = 'log-normal') { const logEl = document.getElementById('battle-log'); if (!logEl) return; const entry = document.createElement('div'); entry.className = `log-entry ${className}`; const plain = String(text).replace(/<[^>]*>/g, ''); entry.textContent = `[${new Date().toLocaleTimeString()}] ${plain}`; logEl.appendChild(entry); logEl.scrollTop = logEl.scrollHeight; if (typeof Net !== 'undefined') Net.onLog(text, className); }
 function showFloatingText(target, text, className) { const container = document.getElementById('floating-container'); const el = document.getElementById(`unit-${idxOf(target)}`); if (!el) return; const rect = el.getBoundingClientRect(); const floating = document.createElement('div'); floating.className = `floating-text ${className}`; floating.textContent = text; floating.style.left = (rect.left + rect.width/2) + 'px'; floating.style.top = (rect.top - 20) + 'px'; container.appendChild(floating); setTimeout(() => floating.remove(), 1000); if (typeof Net !== 'undefined') Net.onFloat(idxOf(target), text, className); }
 /* 倍速：所有等待时长除以 SPEED_MULTIPLIER（1 = 正常，2 = 两倍速）。
