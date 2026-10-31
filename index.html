@@ -999,7 +999,7 @@ mechanics: [
 };
 let gameMode = 'pve'; // 'pve' 人机对战 | 'pvp' 双人对战
 // 注：已移除 actingUnit / battleLog / selectedTarget 三个从未被读取的僵尸字段
-let gameState = { phase:'modeSelect', units:[], playerTeam:[], enemyTeam:[], actionBarMax:0, paused:false, autoMode:false, animating:false, waitingForTarget:false, targetType:null, pendingSkill:null, currentActor:null, lastTimestamp:0, rafId:null, snowballSnapshot:null, vayneKillThisTurn:false, damageLogTotal:0, damageLogSide:null, shouShiFiring:false, shouShiTurnCount:0, wuXianXiaTurnCount:0, pendingCasts:[], needFlushAfterActionable:false, damageLogFallen:[], actionHookBusy:false };
+let gameState = { phase:'modeSelect', units:[], playerTeam:[], enemyTeam:[], actionBarMax:0, paused:false, auto:{ player:false, enemy:false }, animating:false, waitingForTarget:false, targetType:null, pendingSkill:null, currentActor:null, lastTimestamp:0, rafId:null, snowballSnapshot:null, vayneKillThisTurn:false, damageLogTotal:0, damageLogSide:null, shouShiFiring:false, shouShiTurnCount:0, wuXianXiaTurnCount:0, pendingCasts:[], needFlushAfterActionable:false, damageLogFallen:[], actionHookBusy:false };
 let playerSelection = ['主角']; let enemySelection = ['主角'];
 /* ============================================================================
    联机对战（公共 MQTT over WebSocket 中继 · 房主权威广播）
@@ -1245,6 +1245,17 @@ return;
 }
 if (H && o.t === 'act') { this.hostDoAction(o.kind); return; }
 if (H && o.t === 'pick') { this.hostDoPick(o.idx); return; }
+/* 客机的自动偏好：写进房主这边（战斗逻辑只跑在房主端，客机本地改无效） */
+if (H && o.t === 'auto') {
+gameState.auto[NET_GUEST_SIDE] = !!o.on;
+/* 立刻生效：若此刻正轮到客机方，按开/关接管或交还操作 */
+const actor = gameState.currentActor;
+if (actor && actor.side === NET_GUEST_SIDE) {
+if (o.on) { hideControlPanel(); executeAutoAction(actor); }
+else showControlPanel(actor);
+}
+return;
+}
 /* ---- 联机 BP ---- */
 if (o.t === 'bpReq') { bpOnRequest(o.mode); return; }
 if (o.t === 'bpAck') { bpOnAck(o.mode); return; }
@@ -1361,9 +1372,11 @@ gameState.units.forEach((u, i) => { if (u) refreshUnitView(i); });
 applyPanel(o) {
 const set = (id, show) => { const b = document.getElementById(id); if (b) b.style.display = show ? 'inline-block' : 'none'; };
 this.waitingPick = (o.mode === 'select');
-if (o.mode === 'none') { set('btn-normal', false); set('btn-skill', false); set('btn-skill2', false); set('btn-cancel', false); clearHighlights(); return; }
+/* 客机的「自动」按钮不随面板模式隐藏 —— 托管是持续性偏好，
+   不是某一步的操作项；轮到对方时也应能提前开关。 */
+if (o.mode === 'none') { set('btn-normal', false); set('btn-skill', false); set('btn-skill2', false); set('btn-cancel', false); set('btn-auto', true); clearHighlights(); return; }
 if (o.mode === 'select') {
-set('btn-normal', false); set('btn-skill', false); set('btn-skill2', false); set('btn-cancel', true);
+set('btn-normal', false); set('btn-skill', false); set('btn-skill2', false); set('btn-cancel', true); set('btn-auto', true);
 const type = o.ttype || 'enemy';
 gameState.targetType = type;
 /* isValidTarget 需要一个 actor 来比对阵营，客机端没有真实行动者 ——
@@ -1380,7 +1393,12 @@ document.getElementById('btn-normal').onclick = () => this.send({ t:'act', kind:
 document.getElementById('btn-skill').onclick  = () => this.send({ t:'act', kind:'skill' });
 document.getElementById('btn-skill2').onclick = () => this.send({ t:'act', kind:'skill2' });
 document.getElementById('btn-cancel').onclick = () => { this.waitingPick = false; clearHighlights(); this.send({ t:'act', kind:'cancel' }); };
-document.getElementById('btn-auto').style.display = 'none';   // 联机下不提供托管
+/* 自动：客机【也要有】—— 玩家2 同样需要能托管自己那一方。
+   （此前这里写的是"联机下不提供托管"并把按钮藏了，于是房主一点自动，
+     AI 把两边都接管，客机却被锁在手动且没有按钮，只能干看着。） */
+document.getElementById('btn-auto').style.display = 'inline-block';
+document.getElementById('btn-auto').onclick = toggleAuto;
+updateAutoBtn();
 /* 倍速与重新开始：客机同样需要 —— 前者是本地观感设置，
    后者要求「双方都能发起」，所以不能只在房主侧显示。 */
 document.getElementById('speed-btn').style.display = 'block';
@@ -2543,6 +2561,7 @@ document.getElementById('btn-normal').onclick = () => onActionBtn('normal');
 document.getElementById('btn-skill').onclick = () => onActionBtn('skill');
 document.getElementById('btn-skill2').onclick = () => onActionBtn('skill2');
 document.getElementById('btn-auto').onclick = toggleAuto;
+updateAutoBtn();   // 每局重开后按钮文案回到 OFF（避免沿用上一局残留的 ON）
 // 用 onclick 赋值：与 btn-normal / btn-skill 一致，避免每次开局重复叠加监听器
 document.getElementById('speed-btn').onclick = toggleSpeed;
 document.getElementById('btn-cancel').onclick = cancelTargetSelection;
@@ -3384,7 +3403,7 @@ const acted = await performChaosAction(unit);
 document.getElementById(`unit-${idx0}`)?.classList.remove('acting');
 if (acted) { await endTurn(unit); return; }
 }
-const needIn = !gameState.autoMode && (unit.side === 'player' || (unit.side === 'enemy' && gameMode === 'pvp'));
+const needIn = !isAutoUnit(unit) && (unit.side === 'player' || (unit.side === 'enemy' && gameMode === 'pvp'));
 await flushPendingCasts();
 if (needIn) { showControlPanel(unit); gameState.currentActor = unit; }
 else { if (unit.side === 'enemy') await sleep(1000); await executeAutoAction(unit); }
@@ -3468,8 +3487,8 @@ if (acted) { await endTurn(unit); return; }
    放在眩晕判定之后（眩晕跳过的是行动阶段，被动自然不触发），且在施放技能之前结算，
    这样本回合的技能（如万法皆空的扣血/护盾）是基于重新分配后的血量。 */
 if (unit.name === '禅心云外镜') await applyXinJingMing(unit);
-// 需要玩家操作的场合：我方（PVE/PVP）或 PVP 下的第二玩家
-const needPlayerInput = !gameState.autoMode && (unit.side === 'player' || (unit.side === 'enemy' && gameMode === 'pvp'));
+// 需要玩家操作的场合：我方（PVE/PVP）或 PVP 下的第二玩家；且该阵营【未开启】自动
+const needPlayerInput = !isAutoUnit(unit) && (unit.side === 'player' || (unit.side === 'enemy' && gameMode === 'pvp'));
 /* 施放队列安全点②：行动之前。保证排队中的施放先演出完，再执行本回合行动。 */
 await flushPendingCasts();
 if (needPlayerInput) { showControlPanel(unit); gameState.currentActor = unit; }
@@ -3530,11 +3549,48 @@ document.getElementById('btn-cancel').style.display = 'none';
 gameState.waitingForTarget = false; clearHighlights();
 if (typeof Net !== 'undefined' && Net.active && Net.role === 'host') Net.send({ t:'panel', mode:'none' });
 }
+/* ==================== 自动战斗（分阵营） ====================
+   autoMode 原先是【全局单开关】：房主一点自动，AI 会把敌我两边都接管，
+   于是客机（玩家2）也被托管了 —— 而客机那边连按钮都没有，只能干看着。
+   现在改成每个阵营各有一个开关：
+     · 房主只切自己那一方（player）
+     · 客机只切自己那一方（enemy）
+     · 双人对战（同一设备）两边都由本机操作，因此一键同时切
+   注意：战斗逻辑只跑在房主端，客机改的本地开关不会生效 ——
+   必须把偏好发给房主（见下方 Net.send({t:'auto'}) 与 handle 中的分支）。 */
+function isAutoSide(side) { return !!(gameState.auto && gameState.auto[side]); }
+function isAutoUnit(u) { return !!u && isAutoSide(u.side); }
+/* 本端「自动」按钮所控制的阵营 */
+function localAutoSides() {
+if (typeof Net !== 'undefined' && Net.active) {
+return Net.role === 'guest' ? [NET_GUEST_SIDE] : ['player'];
+}
+return (gameMode === 'pvp') ? ['player', 'enemy'] : ['player'];   // 双人共屏：两边都是本机操作
+}
+/* 刷新按钮外观：显示本端所控阵营的自动状态（多阵营时全部开启才显示 ON） */
+function updateAutoBtn() {
+const btn = document.getElementById('btn-auto'); if (!btn) return;
+const sides = localAutoSides();
+const on = sides.every(sd => isAutoSide(sd));
+btn.textContent = `自动: ${on ? 'ON' : 'OFF'}`;
+btn.classList.toggle('auto-on', on);
+}
 function toggleAuto() {
-gameState.autoMode = !gameState.autoMode; const btn = document.getElementById('btn-auto');
-btn.textContent = `自动: ${gameState.autoMode ? 'ON' : 'OFF'}`; btn.classList.toggle('auto-on', gameState.autoMode);
-if (gameState.autoMode && gameState.currentActor) { hideControlPanel(); executeAutoAction(gameState.currentActor); }
-else if (!gameState.autoMode && gameState.currentActor) { showControlPanel(gameState.currentActor); }
+const sides = localAutoSides();
+const on = !sides.every(sd => isAutoSide(sd));      // 有任一方未开 → 本次统一开启
+sides.forEach(sd => { gameState.auto[sd] = on; });
+updateAutoBtn();
+/* 联机客机：逻辑全在房主端跑，本地改状态无效 —— 必须把偏好发过去，
+   由房主写入它那边的 gameState.auto 并决定是否立刻接管当前回合。 */
+if (typeof Net !== 'undefined' && Net.active && Net.role === 'guest') {
+Net.send({ t:'auto', on });
+return;
+}
+/* 房主 / 单机：若当前行动者正好属于刚开启自动的阵营，立刻接管 */
+const actor = gameState.currentActor;
+if (!actor || !sides.includes(actor.side)) return;
+if (on) { hideControlPanel(); executeAutoAction(actor); }
+else { showControlPanel(actor); }
 }
 // 无需选目标的技能类型：群体 / 增益 / 快照 / 记录恢复
 const NO_TARGET_SKILL_TYPES = new Set(['aoe', 'buff', 'snapshot', 'damageLog']);
@@ -5770,7 +5826,7 @@ function resetGame() {
 stopSkillCutin();
 closeConfirmDialog(false);
 speedBtnDisplay(false);
-if (gameState.rafId) cancelAnimationFrame(gameState.rafId); resetBp(); document.getElementById('bp-screen').style.display = 'none'; gameState = { phase:'modeSelect', units:[], playerTeam:[], enemyTeam:[], actionBarMax:0, paused:false, autoMode:false, animating:false, waitingForTarget:false, targetType:null, pendingSkill:null, currentActor:null, lastTimestamp:0, rafId:null, snowballSnapshot:null, vayneKillThisTurn:false, damageLogTotal:0, damageLogSide:null, currentCastSkill:null, currentCaster:null, shouShiFiring:false, shouShiTurnCount:0, wuXianXiaTurnCount:0, pendingCasts:[], needFlushAfterActionable:false, damageLogFallen:[], actionHookBusy:false }; playerSelection = ['主角']; enemySelection = ['主角']; document.getElementById('battle-screen').style.display = 'none'; document.getElementById('result-screen').classList.remove('show'); document.getElementById('selection-screen').style.display = 'none'; document.getElementById('mode-select-screen').style.display = 'flex'; document.getElementById('battle-log').innerHTML = ''; document.getElementById('floating-container').innerHTML = '';
+if (gameState.rafId) cancelAnimationFrame(gameState.rafId); resetBp(); document.getElementById('bp-screen').style.display = 'none'; gameState = { phase:'modeSelect', units:[], playerTeam:[], enemyTeam:[], actionBarMax:0, paused:false, auto:{ player:false, enemy:false }, animating:false, waitingForTarget:false, targetType:null, pendingSkill:null, currentActor:null, lastTimestamp:0, rafId:null, snowballSnapshot:null, vayneKillThisTurn:false, damageLogTotal:0, damageLogSide:null, currentCastSkill:null, currentCaster:null, shouShiFiring:false, shouShiTurnCount:0, wuXianXiaTurnCount:0, pendingCasts:[], needFlushAfterActionable:false, damageLogFallen:[], actionHookBusy:false }; playerSelection = ['主角']; enemySelection = ['主角']; document.getElementById('battle-screen').style.display = 'none'; document.getElementById('result-screen').classList.remove('show'); document.getElementById('selection-screen').style.display = 'none'; document.getElementById('mode-select-screen').style.display = 'flex'; document.getElementById('battle-log').innerHTML = ''; document.getElementById('floating-container').innerHTML = '';
 // 重置选人界面状态
 document.getElementById('player-selection-section').style.display = 'block';
 document.querySelector('#selection-screen h1').textContent = '⚔️ 狂想：跨界之战';
