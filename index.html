@@ -236,6 +236,10 @@ body { font-family: 'Microsoft YaHei', sans-serif; background-color: #0a0a1a; ba
 #battle-screen.flipped #player-area { order: 1; padding-bottom: clamp(2px, 0.5vh, 6px); }
 #battle-screen.flipped #action-bar-container { order: 2; }
 #battle-screen.flipped #enemy-area { order: 3; padding-bottom: clamp(150px, 22vh, 190px); }
+/* ★ 日志栏【不参与翻转】：order 给到最大，永远排在最后（屏幕下方）。
+   上面三个区域改了 order 后，日志栏的 order 仍是默认 0 —— 会被排到最前面，
+   表现就是"玩家2 的日志跑到了屏幕顶部"。 */
+#battle-screen.flipped #battle-log { order: 9; }
 #battle-screen.flipped .unit.enemy { border-color: #2e7d32; }   /* 客机视角：enemy = 自己 → 绿 */
 #battle-screen.flipped .unit.player { border-color: #c62828; }
 .unit.dead { filter: grayscale(100%) brightness(0.3); pointer-events: none; }
@@ -475,6 +479,9 @@ word-break: break-word; }
    一旦被屏蔽，点击「重新开始」就会静默失败 —— 这正是之前的 bug 根因。 */
 #confirm-overlay { position: fixed; inset: 0; z-index: 700; display: none; justify-content: center; align-items: center; background: rgba(0,0,0,.8); padding: 20px; }
 #confirm-overlay.show { display: flex; }
+/* 通知型弹窗：只留一个「确定」按钮（.notice 由 showNoticeDialog 添加，关闭时移除） */
+#confirm-overlay.notice #confirm-no { display: none; }
+#confirm-overlay.notice #confirm-card { border-color: #ffb74d; }
 #confirm-card { background: #16213e; border: 2px solid #4fc3f7; border-radius: 12px; padding: 22px 20px; width: 100%; max-width: 340px; text-align: center; }
 #confirm-text { color: #e0e0e0; font-size: 15px; line-height: 1.7; margin-bottom: 18px; }
 #confirm-actions { display: flex; gap: 12px; justify-content: center; }
@@ -699,15 +706,6 @@ word-break: break-word; }
 <div id="restart-btn">重新开始</div>
 <div id="floating-container"></div>
 <div id="overlay"><div id="overlay-text"></div></div>
-<div id="confirm-overlay">
-<div id="confirm-card">
-<div id="confirm-text"></div>
-<div id="confirm-actions">
-<button id="confirm-no" type="button">取消</button>
-<button id="confirm-yes" type="button">确定</button>
-</div>
-</div>
-</div>
 <div id="skill-cutin">
 <div class="sc-bg"></div><div class="sc-glow"></div><div class="sc-bars"></div>
 <div class="sc-stage">
@@ -720,6 +718,20 @@ word-break: break-word; }
 </div>
 </div>
 <div class="sc-skip">点击跳过</div>
+</div>
+</div>
+</div>
+<!-- 全局确认弹窗：必须放在 #battle-screen【之外】。
+     此前它嵌在 battle-screen 里，而战斗界面未打开时 battle-screen 是 display:none ——
+     父元素隐藏会让子元素即使 display:flex 也不可见。
+     后果：选人界面触发的确认（联机 BP 申请、联机返回确认）根本弹不出来，
+     只有战斗界面里的「重新开始」能用。 -->
+<div id="confirm-overlay">
+<div id="confirm-card">
+<div id="confirm-text"></div>
+<div id="confirm-actions">
+<button id="confirm-no" type="button">取消</button>
+<button id="confirm-yes" type="button">确定</button>
 </div>
 </div>
 </div>
@@ -1030,6 +1042,7 @@ const RELAY_HELLO_BEACON = 15000; // 房主在线标记的心跳间隔
 
 const Net = {
 active:false, role:null, room:'', myId:'', broker:'',
+peerGone:false,        // 对手是否已退出（收到 bye 置位；之后重开不再需要双方确认）
 client:null, myTopic:'', peerTopic:'',
 entered:false,         // 是否已进过选人界面（对手断线重连时不再重复进入）
 guestRoster:null,      // 房主收到客机阵容后存放，开局时写入 enemySelection
@@ -1119,7 +1132,11 @@ dialBroker(url) {
 return new Promise((resolve, reject) => {
 let c = null;
 try {
-c = window.mqtt.connect(url, { clientId:this.myId, keepalive:30, connectTimeout:8000, clean:true, reconnectPeriod:0 });
+/* will（遗嘱）：本端【非正常断开】（直接关页面 / 断网 / 进程被杀）时，
+   broker 会自动代发这条 bye 给对手 —— 这是 MQTT 的标准机制，
+   也是唯一能可靠感知"对方消失"的办法（对方没机会自己发消息）。 */
+c = window.mqtt.connect(url, { clientId:this.myId, keepalive:30, connectTimeout:8000, clean:true, reconnectPeriod:0,
+will: { topic: this.myTopic, payload: JSON.stringify({ t:'bye' }), qos:0, retain:false } });
 } catch (e) { reject(e); return; }
 let done = false;
 c.on('connect', () => { if (done) return; done = true; resolve(c); });
@@ -1167,9 +1184,21 @@ const to = setTimeout(() => finish(false), ms);
 },
 
 /* 断开：退出 / 重开时调用。房主额外清掉在线标记，免得留下僵尸房间。 */
+/* 对手退出：给出明确提示，并解除「重开需双方确认」的限制 ——
+   否则对局会卡死：一方已经不在，另一方却永远等不到确认。 */
+onPeerGone() {
+if (this.peerGone) return;      // bye 可能重复到达（手动一次 + 遗嘱一次）
+this.peerGone = true;
+this.setStatus('⚠️ 对手已退出联机');
+showNoticeDialog('对手已退出联机。你可以直接「重新开始」，无需等待对方确认。');
+},
+
 disconnect() {
 try { if (this._openTimer) { clearInterval(this._openTimer); this._openTimer = null; } } catch (e) {}
 if (this.client) {
+/* 主动退出时自己发一次 bye：让对手立刻收到提示，不用等 keepalive 超时才触发遗嘱。
+   （正常 end() 不会触发 will，所以必须手动发。） */
+try { if (this.active) this.publishRaw(this.myTopic, JSON.stringify({ t:'bye' }), false); } catch (e) {}
 try { if (this.role === 'host') this.publishRaw(this.myTopic, '', true); } catch (e) {}
 try { this.client.end(true); } catch (e) {}
 }
@@ -1184,6 +1213,13 @@ this.publishRaw(this.myTopic, JSON.stringify(obj), false);
 /* ---------- 消息分发 ---------- */
 handle(o) {
 const H = this.role === 'host';
+/* 收到任何非 bye 的消息都说明对手在线 —— 对手重连后自动解除「已退出」状态 */
+if (o.t !== 'bye') this.peerGone = false;
+/* 对手退出：对方主动退出，或其页面/网络异常断开触发遗嘱 */
+if (o.t === 'bye') { this.onPeerGone(); return; }
+/* 重新开始：任一方都可发起，需双方确认；对手已退出时发起方单独执行 */
+if (o.t === 'restart') { netOnRestartRequest(); return; }
+if (o.t === 'restartAck') { netResetToSelection(); return; }
 /* 客机打招呼 → 房主据此确认对手已到（保留消息只能证明房间存在，不能证明人在） */
 if (H && o.t === 'hello') {
 this.setStatus(`✅ 对手已加入（房间 ${this.room}）`);
@@ -1256,6 +1292,17 @@ clearHighlights();
 executeAction(actor, gameState.pendingSkill, target);
 },
 
+/* 客机：把房主视角的「我方/敌方」翻成自己的视角。
+   房主广播的文本里【我方】= 房主自己 = 客机的对手，所以要互换。
+   用  做中间占位，避免两步替换互相覆盖。 */
+flipLog(text) {
+if (this.role !== 'guest') return text;
+return String(text)
+.replace(/【我方】/g, '\u0001')
+.replace(/【敌方】/g, '【我方】')
+.replace(/\u0001/g, '【敌方】');
+},
+
 /* ---------- 客机：串行消费事件队列 ---------- */
 async drainGuest() {
 if (this.guestDraining) return;
@@ -1263,8 +1310,8 @@ this.guestDraining = true;
 while (this.guestQueue.length > 0) {
 const o = this.guestQueue.shift();
 try {
-if (o.t === 'log') log(o.text, o.cls);
-else if (o.t === 'logs') (o.items || []).forEach(it => log(it.text, it.cls));
+if (o.t === 'log') log(this.flipLog(o.text), o.cls);
+else if (o.t === 'logs') (o.items || []).forEach(it => log(this.flipLog(it.text), it.cls));
 else if (o.t === 'ft') { const u = gameState.units[o.idx]; if (u) showFloatingText(u, o.text, o.cls); }
 else if (o.t === 'cutin') { const u = gameState.units[o.idx]; if (u) await playSkillCutin(u, o.name, !!o.nm); }
 else if (o.t === 'st') this.applySnapshot(o);
@@ -1298,6 +1345,12 @@ u.states = (d.st || []).map(x => ({ type:x[0], duration:x[1] }));
 u.marks = (d.mk || []).map(x => ({ type:x[0], duration:x[1], stacks:x[2] || 1 }));
 });
 renderActionBarDots();
+/* 同步「正在行动」高亮：房主那边的 .acting 是本地 class，不会随快照自动过来 */
+const actIdx = (o.acting == null) ? -1 : Number(o.acting);
+gameState.units.forEach((u, i) => {
+const el = document.getElementById(`unit-${i}`);
+if (el) el.classList.toggle('acting', i === actIdx);
+});
 gameState.units.forEach((u, i) => { if (u) refreshUnitView(i); });
 },
 applyPanel(o) {
@@ -1323,6 +1376,10 @@ document.getElementById('btn-skill').onclick  = () => this.send({ t:'act', kind:
 document.getElementById('btn-skill2').onclick = () => this.send({ t:'act', kind:'skill2' });
 document.getElementById('btn-cancel').onclick = () => { this.waitingPick = false; clearHighlights(); this.send({ t:'act', kind:'cancel' }); };
 document.getElementById('btn-auto').style.display = 'none';   // 联机下不提供托管
+/* 倍速与重新开始：客机同样需要 —— 前者是本地观感设置，
+   后者要求「双方都能发起」，所以不能只在房主侧显示。 */
+document.getElementById('speed-btn').style.display = 'block';
+setupRestartButton();
 },
 
 /* ---------- 房主侧插桩：广播演出与状态 ---------- */
@@ -1343,6 +1400,11 @@ onCutin(idx, name, isNormal) { if (this.active && this.role === 'host') this.sen
 snapshot() {
 return {
 t:'st',
+/* 正在行动的单位索引（没有则 -1）：客机端据此还原蓝色行动高亮。
+   直接读 DOM 上带 .acting 的元素，而不是记 gameState.currentActor ——
+   后者在"行动结束但回合未结束"的间隙里仍残留，会让客机一直亮着；
+   读 DOM 则自动跟随所有 add/remove 路径，不用在 4 处调用点各插一遍。 */
+acting: (() => { const el = document.querySelector('.unit.acting'); if (!el) return -1; return parseInt(String(el.id).replace('unit-',''), 10) || -1; })(),
 bars: gameState.units.map(u => Math.round(Number(u.actionValue) || 0)),
 us: gameState.units.map(u => ({
 hp: Math.round(u.hp), sh: Math.round(Number(u.shield) || 0), rg: u.rage,
@@ -1378,17 +1440,78 @@ const ov = document.getElementById('confirm-overlay');
 if (!ov) { if (onConfirm) onConfirm(); return; }   // 兜底：无弹窗时直接执行
 document.getElementById('confirm-text').textContent = text;
 confirmDialogCallback = onConfirm || null;
+ov.classList.remove('notice');
 ov.classList.add('show');
+}
+/* 纯通知：只有一个「确定」按钮，用于「对手已退出」这类单向告知 */
+function showNoticeDialog(text) {
+const ov = document.getElementById('confirm-overlay');
+if (!ov) return;
+document.getElementById('confirm-text').textContent = text;
+confirmDialogCallback = null;
+ov.classList.add('show', 'notice');
 }
 function closeConfirmDialog(run) {
 const ov = document.getElementById('confirm-overlay');
-if (ov) ov.classList.remove('show');
+if (ov) { ov.classList.remove('show'); ov.classList.remove('notice'); }
 const cb = confirmDialogCallback; confirmDialogCallback = null;
 if (run && cb) cb();
 }
 document.getElementById('confirm-yes').onclick = () => closeConfirmDialog(true);
 document.getElementById('confirm-no').onclick = () => closeConfirmDialog(false);
 document.getElementById('confirm-overlay').onclick = (e) => { if (e.target && e.target.id === 'confirm-overlay') closeConfirmDialog(false); };
+
+/* ==================== 联机「重新开始」====================
+   设计要点：
+     · 双方都显示按钮、都能发起 —— 不是房主专属；
+     · 需要【双方确认】：一方发起、另一方同意后才真正重开，
+       避免一方误触把正在进行的对局打断；
+     · 对手已退出（收到 bye）时，发起方单独执行即可 ——
+       否则对局卡死：没人能给出确认。
+   重开后保持连接，双方各自回到联机选人界面，可直接再来一局。 */
+function netRequestRestart() {
+const online = (typeof Net !== 'undefined' && Net.active);
+const needFoe = online && !Net.peerGone;   // 对手还在 → 要等他同意；已退出 → 自己说了算
+/* ★ 单机 / 双人对战也必须先确认再执行 —— 不能因为走了联机分支就把确认跳过去 */
+showConfirmDialog('确定要结束当前对局并重新开始吗？' + (needFoe ? '（需对手同意）' : ''), () => {
+if (!needFoe) { netResetToSelection(); return; }
+Net.send({ t:'restart' });
+Net.setStatus('⏳ 已申请重新开始，等待对手同意…');
+});
+}
+/* 收到对手的重开申请 */
+function netOnRestartRequest() {
+showConfirmDialog('对手申请重新开始本局对战，是否同意？', () => {
+Net.send({ t:'restartAck' });
+netResetToSelection();
+});
+}
+/* 真正执行重开：结束对局 → 回到联机选人（连接保持） */
+function netResetToSelection() {
+stopSkillCutin();
+closeConfirmDialog(false);
+gameState.phase = 'ended';   // 先判负结束，避免残留的异步回合继续结算
+if (gameState.rafId) { cancelAnimationFrame(gameState.rafId); gameState.rafId = null; }
+if (typeof Net !== 'undefined' && Net.active) {
+Net.guestRoster = null; Net.waitingPick = false; Net.guestQueue = []; Net.hostBattleStarted = false;
+Net.send({ t:'panel', mode:'none' });
+}
+resetGame();                                   // 统一清场（会回到模式选择）
+if (typeof Net !== 'undefined' && Net.active) {
+enterOnlineSelection(Net.role);                // 保持连接，直接回到联机选人
+Net.setStatus(Net.peerGone ? '⚠️ 对手已退出 — 可重新邀请或直接退出' : '✅ 已重新开始，请重新选人');
+netRefreshStartButton();
+}
+}
+/* 战斗界面右下角「重新开始」：双方都要能看到、都能点。
+   抽成函数供房主（startBattle）与客机（bindGuestButtons）各调一次 ——
+   之前只在 startBattle 里绑定，客机端既没绑定也没显示。 */
+function setupRestartButton() {
+const rb = document.getElementById('restart-btn');
+if (!rb) return;
+rb.style.display = 'block';
+rb.onclick = netRequestRestart;   // onclick 赋值：重复调用不会叠加监听器
+}
 
 /* ===== 倍速 =====
    只缩放「等待时长」（sleep 与演出 setTimeout），不改动任何游戏逻辑，
@@ -1422,6 +1545,12 @@ const CHANGELOG = [
 '修复：联机建房后房主尚未选人，开始按钮就亮起「对手已就绪」—— 现改为必须自己选满 6 人且对手已提交阵容才可开局。',
 '优化：模式选择页三个卡片改为一行式紧凑排版，手机上可完整显示。',
 '新增：全局背景图 —— 竖屏用 Background.png、横屏用 Background2.png（与 index.html 同目录），主界面/选人/BP/战斗/结算统一生效。',
+'修复：确认弹窗嵌在 #battle-screen 内，战斗界面未打开时父元素 display:none 导致弹不出来 —— 联机 BP 申请与联机返回确认因此失效；现已移到全局层。',
+'修复：联机客机端不显示「正在行动」的蓝色高亮（该 class 不随状态快照同步）。',
+'联机：日志栏不随玩家2视角翻转，始终保持在屏幕下方。',
+'联机：阵营标签统一按各自视角显示「我方 / 敌方」，客机端日志自动翻转视角。',
+'联机：「重新开始」改为双方都能显示并发起，需【双方确认】才生效；重开后保持连接、各自回到选人界面。',
+'联机：新增退出提示 —— 一方退出（含直接关闭页面）时另一方收到通知；此后「重新开始」无需再等对方确认。',
 ] },
 { ver:'v1.4.9', items:[
 '五条悟重做：普攻固定为「苍」120%；被动改为「六眼·无下限」（友方施放技能时附加「视」；受击时获得护盾）；新增机制「视」。',
@@ -2423,26 +2552,9 @@ document.getElementById('btn-auto').onclick = toggleAuto;
 // 用 onclick 赋值：与 btn-normal / btn-skill 一致，避免每次开局重复叠加监听器
 document.getElementById('speed-btn').onclick = toggleSpeed;
 document.getElementById('btn-cancel').onclick = cancelTargetSelection;
-document.getElementById('restart-btn').onclick = () => {
-/* 用页面内确认弹窗而非原生 confirm() —— 移动 WebView 常屏蔽 confirm，
-   会让「重新开始」静默失效。确认后：结束对局 → 回到模式选择。 */
-showConfirmDialog('确定要结束当前对局并重新开始吗？', () => {
-/* 联机：清掉上一局的局内状态，方便直接再来一局（连接保持） */
-if (typeof Net !== 'undefined' && Net.active) {
-Net.guestRoster = null; Net.waitingPick = false; Net.guestQueue = []; Net.hostBattleStarted = false;
-Net.send({ t:'panel', mode:'none' });
-}
-/* 只有点「确定」才执行。界面切换全部交给 resetGame() ——
-   此前这里有几行 display 赋值漏在回调之外，导致一点按钮就立刻隐藏战斗界面（还没确认）。 */
-stopSkillCutin();
-gameState.phase = 'ended';   // 先判负结束，避免残留的异步回合继续结算
-if (gameState.rafId) { cancelAnimationFrame(gameState.rafId); gameState.rafId = null; }
-resetGame();
-});
-};
-// 进入战斗才显示这两个按钮
+// 进入战斗才显示这两个按钮（联机下双方都显示 —— 见 setupRestartButton）
 document.getElementById('speed-btn').style.display = 'block';
-document.getElementById('restart-btn').style.display = 'block';
+setupRestartButton();
 }
 /* ==================================================================
    统一工具层（“度量衡”）
@@ -5211,10 +5323,12 @@ return unit.side === 'player' ? '我方' : '敌方';
 }
 function getSideLabel(unit) {
 if (!unit) return '';
-/* 联机客机视角：自己操控的是 enemy 阵营，日志里的「我方/敌方」必须跟着视角走，
-   否则客机会看到"我方"挨打、其实那是自己打出去的伤害。 */
-if (typeof Net !== 'undefined' && Net.active && Net.role === 'guest') {
-return unit.side === NET_GUEST_SIDE ? '【我方】' : '【敌方】';
+/* 联机：双方都按【自己的视角】说「我方 / 敌方」。
+   房主操控 player 阵营 → player 是我方；客机操控 enemy 阵营 → enemy 是我方。
+   日志文本是房主生成的（带房主视角的标签），客机端接收时会再翻转一次（见 Net.flipLog）。 */
+if (typeof Net !== 'undefined' && Net.active) {
+if (Net.role === 'guest') return unit.side === NET_GUEST_SIDE ? '【我方】' : '【敌方】';
+if (Net.role === 'host')  return unit.side === 'player'        ? '【我方】' : '【敌方】';
 }
 if (gameMode === 'pvp') {
 return unit.side === 'player' ? '【玩家1】' : '【玩家2】';
