@@ -1586,7 +1586,25 @@ hostDoPick(idx) {
 const actor = gameState.currentActor;
 if (!actor || !gameState.waitingForTarget) return;
 const target = gameState.units[idx];
-if (!target || !isValidTarget(target, gameState.targetType, actor)) return;
+if (!target || !isValidTarget(target, gameState.targetType, actor)) {
+/* ★ 目标失效（在等待期间阵亡 / 被放逐 / 被虚化）时绝不能静默 return：
+   房主会一直停在"等待目标"，而客机那边既没有可点的目标、
+   「取消」又是灰的 —— 整局永久卡死。必须给出反馈并让客机能继续操作。 */
+const hasValid = gameState.units.some(u => isValidTarget(u, gameState.targetType, actor));
+if (!hasValid) {
+/* 一个合法目标都没有了（例如敌方最后一人已阵亡）→ 放弃本次选择，
+   退回技能选择态，让客机至少还能改选普攻或取消。 */
+gameState.waitingForTarget = false; gameState.pendingSkill = null; gameState.targetType = null;
+clearHighlights();
+log('已无可选目标，取消本次选择。', 'log-normal');
+showControlPanel(actor);
+return;
+}
+log('目标已失效，请重新选择。', 'log-normal');
+/* 还有别的合法目标 → 重发一次选目标面板，客机据此刷新可点目标 */
+this.send({ t:'panel', mode:'select', idx: idxOf(actor), ttype: gameState.targetType || 'enemy', btns:[] });
+return;
+}
 gameState.waitingForTarget = false;
 clearHighlights();
 /* 立刻通知客机清掉目标高亮 —— 不等结算流程自然推进到 hideControlPanel，
@@ -1724,9 +1742,13 @@ this.waitingPick = (o.mode === 'select');
 /* 记下面板属于哪个行动者：点按钮时一并回传，供房主校验是否过期 */
 this.panelIdx = (o.idx == null) ? -1 : Number(o.idx);
 /* 房主的权威面板回来了 → 清掉本地那层「已发送」置灰。
-   guestLocalAck 只是即时反馈，真正的可用状态以房主的面板为准（含 disabled）。 */
+   guestLocalAck 只是即时反馈，真正的可用状态以房主的面板为准（含 disabled）。
+   ★ 必须连 disabled 一起复位：guestLocalAck 把四个按钮全置灰防连点，
+     而 select 态不走下面的 btns 数组，"取消"就一直是 disabled ——
+     玩家2 进入选目标后无法取消，一旦选不到合法目标整局就卡死。
+     skill 态随后由 btns 数组按房主的裁决重新置灰，所以先复位不会放行本不该点的按钮。 */
 ['btn-normal','btn-skill','btn-skill2','btn-cancel'].forEach(id => {
-const b = document.getElementById(id); if (b) b.style.opacity = '';
+const b = document.getElementById(id); if (b) { b.style.opacity = ''; b.disabled = false; }
 });
 /* 已提交目标后收到 select → 房主周期性重发的陈旧面板，必须忽略，
    否则会把刚清掉的目标高亮又点亮一次（表现为边框闪烁）。 */
@@ -1835,6 +1857,21 @@ showControlPanel(unit);
 syncGuestPanel() {
 const a = gameState.currentActor;
 const waiting = !!(a && a.side === NET_GUEST_SIDE && !gameState.animating && !isAutoUnit(a));
+/* ★ 看门狗：本端正停在"等玩家2 出手"。这是唯一可能无限期卡住的状态
+   （房主不点就不会往下走），所以在这里做两件兜底：
+     ① 对局其实已经结束（有一方全灭）—— 任何非常规路径造成的漏判都在这里收尾；
+     ② 已进入选目标态，却一个合法目标都没有（例如敌方最后一人刚阵亡）——
+        放弃本次选择退回技能选择态，否则玩家2 永远等不到可点的目标。 */
+if (waiting) {
+if (typeof checkBattleEnd === 'function' && checkBattleEnd()) return;
+if (gameState.waitingForTarget && !gameState.units.some(u => isValidTarget(u, gameState.targetType, a))) {
+gameState.waitingForTarget = false; gameState.pendingSkill = null; gameState.targetType = null;
+clearHighlights();
+log('已无可选目标，取消本次选择。', 'log-normal');
+showControlPanel(a);
+return;
+}
+}
 const wantMode = waiting ? (gameState.waitingForTarget ? 'select' : 'skill') : 'none';
 const wantIdx = waiting ? idxOf(a) : -1;
 const lp = this._lastPanel;
