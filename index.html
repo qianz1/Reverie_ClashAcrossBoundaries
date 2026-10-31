@@ -55,7 +55,10 @@ body { font-family: 'Microsoft YaHei', sans-serif; background-color: #0a0a1a; ba
 #mode-confirm-btn:hover:not(:disabled) { transform: scale(1.05); box-shadow: 0 0 20px rgba(255,111,0,0.5); }
 #mode-confirm-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 @media (max-width: 820px) {
-#mode-select-screen { justify-content: flex-start; padding-top: 28px; }
+/* 手机上也整体垂直居中，与电脑一致。
+   用 safe center：内容一屏放得下时居中，放不下时自动退化为顶部对齐，
+   避免 flex 居中在溢出时把顶部内容裁掉（而 overflow 又滚不回去）。 */
+#mode-select-screen { justify-content: center; justify-content: safe center; padding-top: 20px; padding-bottom: 20px; }
 #mode-select-screen h1 { font-size: 22px; }
 .mode-subtitle { font-size: 14px; }
 .mode-intro { font-size: 12px; margin-bottom: 12px; }
@@ -1494,13 +1497,29 @@ if (!H) { this.guestQueue.push(o); this.drainGuest(); }
 /* ---------- 房主：执行客机指令 ---------- */
 hostDoAction(kind) {
 const actor = gameState.currentActor;
-if (!actor || actor.side !== NET_GUEST_SIDE) return;
+/* 指令到达时行动者可能已经换人（行动条推进 / 上一行动刚结束）。
+   原来这里直接 return，客机就永远停在「已发送」的置灰状态、按钮点不动，
+   表现为"卡住了"。改成把当前真实面板回传，让客机按钮恢复正确状态。 */
+if (!actor || actor.side !== NET_GUEST_SIDE) { this.send({ t:'panel', mode:'none' }); return; }
+/* ★ 'cancel' 必须单独处理。
+   原写法用三元判断取技能：kind 不是 'normal' 也不是 'skill2' 就落到 else →
+   取 actor.activeSkill，于是「取消」被当成【技能1】执行：
+   要么直接把技能放了，要么又进入选目标态 —— 客机面板一直停在「取消」，
+   点取消还是取消，玩家2 彻底卡住无法行动。 */
+if (kind === 'cancel') {
+gameState.waitingForTarget = false; gameState.pendingSkill = null; gameState.targetType = null;
+clearHighlights();
+showControlPanel(actor);   // 房主端会重新广播 mode:'skill'，客机回到普攻/技能/技能2
+return;
+}
 const skill = kind === 'normal' ? actor.normalSkill : (kind === 'skill2' ? actor.activeSkill2 : actor.activeSkill);
-if (!skill) return;
+if (!skill) { showControlPanel(actor); return; }
 gameState.waitingForTarget = false;
 if (isNoTargetSkill(skill)) { executeAction(actor, skill); return; }
-/* 需要选目标：房主本地进入等待态，并让客机高亮可选目标 */
+/* 需要选目标：房主本地进入等待态，并让客机高亮可选目标。
+   log 一句提示，否则客机端只剩一个「取消」按钮，玩家不知道该做什么。 */
 gameState.waitingForTarget = true; gameState.targetType = skill.target; gameState.pendingSkill = skill;
+log('请选择目标（可点「取消」重新选择行动）。', 'log-normal');
 this.send({ t:'panel', mode:'select', ttype: skill.target || 'enemy', btns:[] });
 },
 hostDoPick(idx) {
@@ -1811,6 +1830,8 @@ const CHANGELOG = [
 { ver:'v1.4.10', items:[
 '新增：联机对战模式 —— 两台设备各控一方，房主生成房间码，对手输入即连，自动选择最快的中继服务器。',
 '新增：全局背景图 —— 主界面、选人、BP、战斗、结算统一生效，竖屏与横屏自动适配不同画面。',
+'修复：联机时玩家2点「取消」会被误判为施放技能1，导致操作栏卡在仅剩「取消」的状态。',
+'优化：手机端主界面改为整体垂直居中，与电脑端一致。',
 ] },
 { ver:'v1.4.9', items:[
 '五条悟重做：普攻固定为「苍」120%；被动改为「六眼·无下限」（友方施放技能时附加「视」；受击时获得护盾）；新增机制「视」。',
@@ -3766,6 +3787,11 @@ return;
 if (selecting) {
 set('btn-normal', false); set('btn-skill', false); set('btn-skill2', false);
 set('btn-auto', true); set('btn-cancel', true);
+/* 联机下房主本地进入选目标态时也要同步客机 ——
+   否则客机停留在此前的面板上，按钮与实际可做的操作不一致。 */
+if (typeof Net !== 'undefined' && Net.active && Net.role === 'host') {
+Net.send({ t:'panel', mode:'select', ttype: gameState.targetType || 'enemy', btns:[] });
+}
 return;
 }
 set('btn-normal', true); set('btn-auto', true); set('btn-cancel', false);
