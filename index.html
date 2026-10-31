@@ -606,7 +606,7 @@ word-break: break-word; }
 <div id="net-overlay">
 <div id="net-card">
 <h2>🌐 联机对战</h2>
-<p class="net-tip">房主生成一个房间码发给对手，对手输入即可开打。默认会自动从多个公共服务器中选出最快的一个（优先国内节点）。右上角挂件实时显示延迟。</p>
+<p class="net-tip">房主生成一个房间码发给对手，对手输入即可开打。默认使用国内公共服务器，右上角挂件实时显示延迟。</p>
 <label class="net-label">房间码<input id="net-room" type="text" placeholder="留空点「创建房间」会自动生成" autocomplete="off" maxlength="12"></label>
 <label class="net-label">中继服务器（可选，留空自动选公共服务器）<input id="net-server" type="text" placeholder="自建填 wss://你的域名" autocomplete="off"></label>
 <div id="net-roomcode"><div class="rc-label">把这个房间码发给对手</div><div class="rc-val" id="net-roomcode-val"></div><button class="rc-copy" id="net-roomcode-copy" type="button">复制</button></div>
@@ -1049,16 +1049,12 @@ const RELAY_SDK_CANDIDATES = [
 'https://unpkg.com/mqtt@5.10.1/dist/mqtt.min.js',
 'https://cdn.jsdelivr.net/npm/mqtt@4.3.8/dist/mqtt.min.js',
 ];
-/* 公共 broker 候选：全部走 wss（TLS）—— 页面是 HTTPS 时，明文 ws 会被浏览器
-   按「混合内容」拦截，所以这里不能出现 ws:// 开头的地址。
-
-   排在前面的是 EMQX 的【国内接入点】（腾讯云上海），对国内延迟最低；
-   之前列表里全是境外节点（美国/德国/法国），国内往返常 400~1000ms。
-   实测数据来源：EMQX 官方对几个公共 broker 的对比评测。 */
+/* 公共 broker：只保留 EMQX 的【国内接入点】（腾讯云上海）。
+   之前列表里的境外节点（美国俄勒冈 / 德国法兰克福 / 法国）国内往返常 400~1000ms，
+   实测换成国内节点后稳定在 400ms 左右，故全部移除。
+   ★ 必须走 wss（TLS）：页面是 HTTPS 时，明文 ws 会被浏览器按「混合内容」拦截。 */
 const RELAY_BROKERS = [
-'wss://broker-cn.emqx.io:8084/mqtt',   // EMQX 国内接入点（腾讯云上海）—— 国内延迟最低
-'wss://broker.emqx.io:8084/mqtt',      // EMQX 全球接入点（AWS 俄勒冈）
-'wss://test.mosquitto.org:8081/mqtt',  // Mosquitto 社区（法国）
+'wss://broker-cn.emqx.io:8084/mqtt',   // EMQX 国内接入点（腾讯云上海）
 ];
 const RELAY_TOPIC_PREFIX = 'ygob-battle-v1/';  // 主题前缀，避免与公共 broker 上其它流量混在一起
 const NET_TICK_MS = 200;         // 状态快照广播间隔（行动条动画流畅度 vs 消息条数，5fps 足够观战）
@@ -1071,6 +1067,7 @@ const Net = {
 active:false, role:null, room:'', myId:'', broker:'',
 peerGone:false,        // 对手是否已退出（收到 bye 置位；之后重开不再需要双方确认）
 peerGoneNotified:false,// 本次连接是否已弹过「对手已退出」提示（防止重复打扰）
+hudNote:'',            // 需要让玩家看到的重要提示（联机面板关闭后只能靠挂件传达）
 catchUpCount:0,        // 追赶次数（联机面板上可看到，用于判断网络是否吃紧）
 rtt:null,              // 最近一次测得的往返延迟(ms)
 /* 最近一次发给客机的操作面板（原样保存，供 tick 周期性重发做自愈） */
@@ -1092,6 +1089,8 @@ _openTimer:null,
 
 setStatus(t) {
 this._lastStatus = t;                 // 记住原文，延迟读数变化时用它重渲染
+/* 普通状态更新视为"上一句提示已过期"，清掉挂件上的醒目备注 */
+if (this.hudNote && !/对手已退出/.test(String(t || ''))) this.hudNote = '';
 const el = document.getElementById('net-status'); if (el) el.textContent = t + this.latencyTag();
 this.renderHud();                     // 常驻挂件同步更新（面板关着也能看到）
 if (this.statusCb) this.statusCb(t);
@@ -1101,7 +1100,15 @@ if (this.statusCb) this.statusCb(t);
 renderHud() {
 const hud = document.getElementById('net-hud');
 if (!hud) return;
-if (!this.active || this.rtt == null) { hud.classList.remove('show'); return; }
+if (!this.active) { hud.classList.remove('show'); return; }
+/* 有重要提示时优先显示它 —— 联机面板关闭后，挂件是唯一能传达"对手已退出"的地方 */
+if (this.hudNote) {
+hud.classList.add('show');
+hud.classList.remove('good', 'mid', 'bad'); hud.classList.add('bad');
+hud.textContent = this.hudNote;
+return;
+}
+if (this.rtt == null) { hud.classList.remove('show'); return; }
 hud.classList.add('show');
 hud.classList.remove('good', 'mid', 'bad');
 hud.classList.add(this.rtt < 120 ? 'good' : (this.rtt < 400 ? 'mid' : 'bad'));
@@ -1388,12 +1395,18 @@ const to = setTimeout(() => finish(false), ms);
 /* 对手退出：给出明确提示，并解除「重开需双方确认」的限制 ——
    否则对局会卡死：一方已经不在，另一方却永远等不到确认。 */
 onPeerGone() {
-/* bye 可能重复到达（手动一次 + 遗嘱一次）；而且断开重连后还可能再来一次。
-   用 peerGoneNotified 保证【每次连接只弹一次】，否则玩家会反复被提示打断。 */
+this.peerGone = true;
+/* ★ 只有在【战斗中】才弹窗打断。
+   在选人界面 / 主界面弹这个框毫无意义 —— 那里本来就没有"正在进行的对局"可重开，
+   玩家刚进来就被一个"重新开始"的提示堵住，只会觉得莫名其妙。
+   非战斗场景下改用挂件提示（面板已关闭，状态栏看不到，挂件是唯一可见的位置）。 */
+const inBattle = (typeof gameState !== 'undefined' && gameState.phase === 'fighting');
+this.hudNote = '⚠️ 对手已退出';
+this.setStatus('⚠️ 对手已退出联机');
+if (!inBattle) { this.renderHud(); netRefreshStartButton(); return; }
+/* bye 可能重复到达（手动一次 + 遗嘱一次），且重开后还可能再来 —— 只弹一次 */
 if (this.peerGoneNotified) return;
 this.peerGoneNotified = true;
-this.peerGone = true;
-this.setStatus('⚠️ 对手已退出联机');
 showNoticeDialog('对手已退出联机。你可以直接「重新开始」，无需等待对方确认。');
 },
 
@@ -1436,8 +1449,13 @@ this.publishRaw(this.myTopic, JSON.stringify(obj), false);
 /* ---------- 消息分发 ---------- */
 handle(o) {
 const H = this.role === 'host';
-/* 收到任何非 bye 的消息都说明对手在线 —— 对手重连后自动解除「已退出」状态 */
-if (o.t !== 'bye') this.peerGone = false;
+/* 收到对手的实质性消息说明他还在线 —— 重连后自动解除「已退出」状态。
+   ★ ping / pong 只是心跳，不能当作"对手回来了"的证据：
+     对手断开的瞬间可能已发出若干心跳，用它们复位会让退出提示立刻消失，
+     甚至误判对手仍在（实际已掉线）。 */
+if (o.t !== 'bye' && o.t !== 'ping' && o.t !== 'pong') {
+if (this.peerGone) { this.peerGone = false; this.peerGoneNotified = false; this.hudNote = ''; netRefreshStartButton(); }
+}
 /* 对手退出：对方主动退出，或其页面/网络异常断开触发遗嘱 */
 if (o.t === 'bye') { this.onPeerGone(); return; }
 /* 延迟自测：收到 ping 立刻回 pong（带原时间戳）；收到 pong 计算往返。
@@ -1452,7 +1470,7 @@ else this.renderHud();
 return;
 }
 /* 重新开始：任一方都可发起，需双方确认；对手已退出时发起方单独执行 */
-if (o.t === 'restart') { netOnRestartRequest(); return; }
+if (o.t === 'restart') { netOnRestartRequest(o.from === 'rematch'); return; }
 if (o.t === 'restartAck') { netResetToSelection(); return; }
 /* 客机打招呼 → 房主据此确认对手已到（保留消息只能证明房间存在，不能证明人在） */
 if (H && o.t === 'hello') {
@@ -1512,7 +1530,15 @@ const gb = document.getElementById('start-battle-btn');
 if (gb) { gb.disabled = true; gb.textContent = '等待房主开始…'; }
 return;
 }
-if (!H) { this.guestQueue.push(o); this.drainGuest(); }
+/* ★ 结算直接在这里处理，【完全不进队列】。
+   客机是串行 await 消费队列的，对局结束时往往还有一条技能演出（cutin）正在播、
+   后面也压着若干条 —— 排队的话要等它们播完才弹结算，表现就是"比房主慢一两秒"。
+   结算是终局事件，高于一切演出：立刻清掉积压、马上渲染。 */
+if (!H) {
+if (o.t === 'over') { this.guestQueue.length = 0; this.applyOver(o); return; }
+this.guestQueue.push(o);
+this.drainGuest();
+}
 },
 
 /* ---------- 房主：执行客机指令 ---------- */
@@ -1601,7 +1627,7 @@ else if (o.t === 'cutin') { const u = gameState.units[o.idx]; if (u) await playS
 else if (o.t === 'st') this.applySnapshot(o);
 else if (o.t === 'panel') this.applyPanel(o);
 else if (o.t === 'init') this.applyInit(o);
-else if (o.t === 'over') { document.getElementById('result-title').textContent = o.text || '对局结束'; document.getElementById('result-screen').classList.add('show'); }
+else if (o.t === 'over') this.applyOver(o);
 } catch (e) { /* 单条播放失败不阻断后续 */ }
 }
 } finally {
@@ -1625,6 +1651,21 @@ if (lastCutin) this.guestQueue.push(lastCutin);
 if (lastSt) this.guestQueue.push(lastSt);            // 快照放最后，保证状态是最新的
 this.catchUpCount++;
 },
+/* 结算面板：房主把标题/样式/副标题一并广播，客机据此完整渲染。
+   表格数据用客机本地已同步的 gameState（快照持续同步，数值是最新的）。 */
+applyOver(o) {
+if (typeof renderResultTable === 'function') renderResultTable();
+const t = document.getElementById('result-title');
+if (t) { t.textContent = o.text || '对局结束'; t.className = 'result-title ' + (o.cls || ''); }
+const sub = document.getElementById('result-sub');
+if (sub) sub.textContent = o.sub || '联机对战 · 战斗数据统计';
+if (typeof gameState !== 'undefined') { gameState.phase = 'gameOver'; gameState.paused = true; }
+document.getElementById('battle-screen').style.display = 'none';
+document.getElementById('result-screen').classList.add('show');
+const rs = document.getElementById('result-screen'); if (rs) rs.scrollTop = 0;
+bindRematchButton();
+},
+
 applyInit(o) {
 gameState.units = []; gameState.playerTeam = []; gameState.enemyTeam = [];
 (o.roster || []).forEach((name, i) => { const u = createUnit(name, 'player', i); gameState.units.push(u); gameState.playerTeam.push(gameState.units.length - 1); });
@@ -1781,7 +1822,15 @@ sendInit() {
 if (!this.active || this.role !== 'host') return;
 this.send({ t:'init', roster:playerSelection.slice(), guest:enemySelection.slice(), barMax:gameState.actionBarMax });
 },
-sendOver(text) { if (this.active && this.role === 'host') this.send({ t:'over', text }); },
+/* 结算广播：
+   ① 先补一份最新快照 —— 最后一击的血量/死亡状态可能还没被客机收到，
+      不补的话客机表格里的数值会停在上一帧；
+   ② 标题的样式 class 与副标题一并带上，客机才能渲染出一模一样的面板。 */
+sendOver(text, cls) {
+if (!this.active || this.role !== 'host') return;
+this.send(this.snapshot());
+this.send({ t:'over', text, cls, sub:'联机对战 · 战斗数据统计' });
+},
 };
 /* 联机下「当前行动者归客机操控」：房主据此把操作面板转交给客机 */
 function netActorBelongsToGuest(unit) { return Net.active && Net.role === 'host' && unit && unit.side === NET_GUEST_SIDE; }
@@ -1835,27 +1884,46 @@ Net.send({ t:'restart' });
 Net.setStatus('⏳ 已申请重新开始，等待对手同意…');
 });
 }
-/* 收到对手的重开申请 */
-function netOnRestartRequest() {
-showConfirmDialog('对手申请重新开始本局对战，是否同意？', () => {
+/* 收到对手的重开申请。fromRematch 用来区分「战斗中重开」与「结算页再来一局」，
+   两者场景不同，问法也应不同 —— 否则玩家在结算页看到"重新开始本局"会困惑。 */
+function netOnRestartRequest(fromRematch) {
+showConfirmDialog(fromRematch ? '对手想再来一局，是否同意？' : '对手申请重新开始本局对战，是否同意？', () => {
 Net.send({ t:'restartAck' });
 netResetToSelection();
+});
+}
+/* 结算页「再来一局」：与战斗中的「重新开始」复用同一套 restart / restartAck 消息，
+   只是文案不同 —— 这里对局已经结束，不需要"确定要结束当前对局"的警告语气。
+   对手已退出时无需对方同意（没人能给确认，否则永远卡住）。 */
+function netRequestRematch() {
+const needFoe = (typeof Net !== 'undefined' && Net.active && !Net.peerGone);
+showConfirmDialog('再来一局？' + (needFoe ? '（需对手同意）' : ''), () => {
+if (!needFoe) { netResetToSelection(); return; }
+Net.send({ t:'restart', from:'rematch' });
+Net.setStatus('⏳ 已申请再来一局，等待对手同意…');
 });
 }
 /* 真正执行重开：结束对局 → 回到联机选人（连接保持） */
 function netResetToSelection() {
 stopSkillCutin();
 closeConfirmDialog(false);
+/* 结算页必须显式关掉 —— 客机端尤其如此：它自己不会走 resetGame 的关页逻辑，
+   不关的话会一直盖在选人界面上。 */
+document.getElementById('result-screen').classList.remove('show');
 gameState.phase = 'ended';   // 先判负结束，避免残留的异步回合继续结算
 if (gameState.rafId) { cancelAnimationFrame(gameState.rafId); gameState.rafId = null; }
 if (typeof Net !== 'undefined' && Net.active) {
 Net.guestRoster = null; Net.waitingPick = false; Net.guestQueue = []; Net.hostBattleStarted = false;
+/* 重开 = 新的一局，上一局的「对手已退出」不该带过来。
+   这里连接是保持的（不走 connect），所以必须显式复位 ——
+   否则回到选人界面仍沿用旧标记：状态栏一直挂警告、下一次 bye 还会照弹。 */
+Net.peerGone = false; Net.peerGoneNotified = false; Net.hudNote = '';
 Net.send({ t:'panel', mode:'none' });
 }
 resetGame();                                   // 统一清场（会回到模式选择）
 if (typeof Net !== 'undefined' && Net.active) {
 enterOnlineSelection(Net.role);                // 保持连接，直接回到联机选人
-Net.setStatus(Net.peerGone ? '⚠️ 对手已退出 — 可重新邀请或直接退出' : '✅ 已重新开始，请重新选人');
+Net.setStatus('✅ 已重新开始，请重新选人');
 netRefreshStartButton();
 }
 }
@@ -1895,7 +1963,7 @@ const CURRENT_VERSION = 'v1.4.10';
 const CURRENT_THEME   = '咒术·最强之战';   // 1.4.x 大主题：小版本沿用，不随每次调整变更
 const CHANGELOG = [
 { ver:'v1.4.10', items:[
-'新增：联机对战模式 —— 两台设备各控一方，房主生成房间码，对手输入即连，自动选择最快的中继服务器。',
+'新增：联机对战模式 —— 两台设备各控一方，房主生成房间码，对手输入即连。',
 '新增：全局背景图 —— 主界面、选人、BP、战斗、结算统一生效，竖屏与横屏自动适配不同画面。',
 ] },
 { ver:'v1.4.9', items:[
@@ -2789,6 +2857,8 @@ const btn = document.getElementById('start-battle-btn');
 if (!btn) return;
 const mineDone = playerSelection.length === 6;
 const foeDone = !!(Net.guestRoster && Net.guestRoster.length === 6);
+/* 对手已退出 → 别让房主一直干等"等待对手选人"，直接说清楚该怎么办 */
+if (Net.peerGone) { btn.disabled = true; btn.textContent = '⚠️ 对手已退出 — 请重新开始或退出联机'; return; }
 btn.disabled = !(mineDone && foeDone);
 if (!mineDone) btn.textContent = `我方已选 ${playerSelection.length}/6 - 继续选择`;
 else if (!foeDone) btn.textContent = '我方已就绪 — 等待对手选人…';
@@ -5841,9 +5911,29 @@ return true;
 }
 return false;
 }
+/* 「再来一局」按钮绑定：抽成函数，房主与客机各调一次。
+   ★ 客机端必须也绑 —— 它的结算页是收到 over 后自己渲染的，
+     从不执行 showResultScreen()，原先只有房主绑了，客机点了毫无反应。 */
+function bindRematchButton() {
+const btn = document.getElementById('btn-rematch');
+if (!btn || btn._bound) return;
+btn._bound = true;
+btn.addEventListener('click', () => {
+/* 联机：不能各点各的 —— 一方直接 resetGame() 会把自己踢回主界面并断掉联机，
+   另一方却还停在结算页。改为【申请制】：一方发起 → 另一方同意 →
+   双方一起回到联机选人界面（连接保持）。 */
+const online = (typeof Net !== 'undefined' && Net.active);
+if (!online) {
+document.getElementById('result-screen').classList.remove('show');
+resetGame();
+return;
+}
+netRequestRematch();
+});
+}
 function showResultScreen(resultText, resultClass) {
 renderResultTable();
-if (typeof Net !== 'undefined') Net.sendOver(String(resultText).replace(/<[^>]*>/g, ''));
+if (typeof Net !== 'undefined') Net.sendOver(String(resultText).replace(/<[^>]*>/g, ''), resultClass);
 const titleEl = document.getElementById('result-title');
 titleEl.textContent = resultText;
 titleEl.className = 'result-title ' + resultClass;
@@ -5853,13 +5943,7 @@ document.getElementById('overlay').classList.remove('show');
 const rs = document.getElementById('result-screen');
 rs.classList.add('show');
 rs.scrollTop = 0;
-if (!rs._bound) {
-document.getElementById('btn-rematch').addEventListener('click', () => {
-document.getElementById('result-screen').classList.remove('show');
-resetGame();
-});
-rs._bound = true;
-}
+bindRematchButton();
 }
 function fmt(n) { return (Number(n) || 0).toLocaleString('zh-CN'); }
 function renderResultTable() {
