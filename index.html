@@ -1075,6 +1075,10 @@ _lastPanel:null, _panelAge:0,
 /* 客机侧：当前面板所属的行动者下标（-1 = 无）。
    点按钮时一并回传，房主据此识别「画面还停在上一个角色」的过期点击。 */
 panelIdx:-1,
+/* 客机：本次目标选择是否已提交。
+   提交后房主通常已进入结算，但它周期性重发的 select 面板可能还在路上 ——
+   收到就会把可选目标再高亮一次（边框闪一下），故提交后一律忽略 select。 */
+pickedPending:false,
 ws:null,               // 自建 WS 中继的 socket（与 client 二选一）
 transport:null,        // 'ws' | 'mqtt'，决定 send/disconnect 走哪条路
 client:null, myTopic:'', peerTopic:'',
@@ -1235,7 +1239,7 @@ this.transport = null;
    同理清掉延迟读数与面板记录，避免沿用上一局的陈旧状态。 */
 this.peerGone = false; this.peerGoneNotified = false;
 this.rtt = null; this._rttSent = 0;
-this._lastPanel = null; this._panelAge = 0; this.panelIdx = -1;
+this._lastPanel = null; this._panelAge = 0; this.panelIdx = -1; this.pickedPending = false;
 this.guestQueue = []; this.guestDraining = false; this.waitingPick = false;
 this.catchUpCount = 0;
 if (this.isWsRelayUrl(this.customBroker)) return this.connectWs(cfg);
@@ -1585,6 +1589,9 @@ const target = gameState.units[idx];
 if (!target || !isValidTarget(target, gameState.targetType, actor)) return;
 gameState.waitingForTarget = false;
 clearHighlights();
+/* 立刻通知客机清掉目标高亮 —— 不等结算流程自然推进到 hideControlPanel，
+   否则这段时间里客机的高亮会一直挂着。 */
+this.send({ t:'panel', mode:'none' });
 executeAction(actor, gameState.pendingSkill, target);
 },
 
@@ -1709,10 +1716,15 @@ this.panelIdx = (o.idx == null) ? -1 : Number(o.idx);
 ['btn-normal','btn-skill','btn-skill2','btn-cancel'].forEach(id => {
 const b = document.getElementById(id); if (b) b.style.opacity = '';
 });
+/* 已提交目标后收到 select → 房主周期性重发的陈旧面板，必须忽略，
+   否则会把刚清掉的目标高亮又点亮一次（表现为边框闪烁）。 */
+if (o.mode === 'select' && this.pickedPending) return;
+/* 回到技能选择态 = 上一轮选目标结束，清掉残留高亮 */
+if (o.mode === 'skill') { this.pickedPending = false; clearHighlights(); }
 if (o.mode !== 'none') this.setStatus('✅ 对局进行中（你是玩家2 · 我方）');
 /* 客机的「自动」按钮不随面板模式隐藏 —— 托管是持续性偏好，
    不是某一步的操作项；轮到对方时也应能提前开关。 */
-if (o.mode === 'none') { set('btn-normal', false); set('btn-skill', false); set('btn-skill2', false); set('btn-cancel', false); set('btn-auto', true); clearHighlights(); return; }
+if (o.mode === 'none') { this.pickedPending = false; set('btn-normal', false); set('btn-skill', false); set('btn-skill2', false); set('btn-cancel', false); set('btn-auto', true); clearHighlights(); return; }
 if (o.mode === 'select') {
 set('btn-normal', false); set('btn-skill', false); set('btn-skill2', false); set('btn-cancel', true); set('btn-auto', true);
 const type = o.ttype || 'enemy';
@@ -1816,7 +1828,9 @@ const wantIdx = waiting ? idxOf(a) : -1;
 const lp = this._lastPanel;
 const mismatch = !lp || lp.mode !== wantMode || (Number(lp.idx == null ? -1 : lp.idx) !== wantIdx);
 if (mismatch) { this.sendPanelFor(waiting ? a : null); return; }
-if (++this._panelAge >= 5) { this._panelAge = 0; this.send(lp); }
+/* 周期性重发只针对「技能选择态」：
+   select 态重发会把客机刚清掉的目标高亮又点亮，造成边框闪烁。 */
+if (lp.mode !== 'select' && ++this._panelAge >= 5) { this._panelAge = 0; this.send(lp); }
 },
 sendInit() {
 if (!this.active || this.role !== 'host') return;
@@ -4048,6 +4062,7 @@ const target = gameState.units[idx];
 if (typeof Net !== 'undefined' && Net.active && Net.role === 'guest' && Net.waitingPick) {
 if (!isValidTarget(target, gameState.targetType, { side: NET_GUEST_SIDE })) { log('❌ 无效目标！', 'log-normal'); return; }
 Net.waitingPick = false; clearHighlights();
+Net.pickedPending = true;      // 已提交，后续迟到的 select 面板一律忽略
 Net.send({ t:'pick', idx });
 return;
 }
@@ -4055,6 +4070,8 @@ if (gameState.waitingForTarget) {
 const actor = gameState.currentActor;
 if (!isValidTarget(target, gameState.targetType, actor)) { log('❌ 无效目标！', 'log-normal'); return; }
 gameState.waitingForTarget = false; clearHighlights();
+/* 联机：房主选完目标也要同步给客机清高亮（与 hostDoPick 同口径） */
+if (typeof Net !== 'undefined' && Net.active && Net.role === 'host') Net.send({ t:'panel', mode:'none' });
 const el = document.getElementById(`unit-${idx}`); el.classList.add('selected-target'); await sleep(200); el.classList.remove('selected-target');
 await executeAction(actor, gameState.pendingSkill, target); return;
 }
