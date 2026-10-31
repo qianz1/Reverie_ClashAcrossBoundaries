@@ -591,7 +591,7 @@ word-break: break-word; }
 <div id="net-overlay">
 <div id="net-card">
 <h2>🌐 联机对战</h2>
-<p class="net-tip">房主生成一个房间码发给对手，对手输入即可开打。</p>
+<p class="net-tip">房主生成一个房间码发给对手，对手输入即可开打。连接后状态栏会显示实时延迟；若延迟偏高（红色），可在下方「中继服务器」填入更近的服务器地址。</p>
 <label class="net-label">房间码<input id="net-room" type="text" placeholder="留空点「创建房间」会自动生成" autocomplete="off" maxlength="12"></label>
 <label class="net-label">中继服务器（可选，连不上时才填）<input id="net-server" type="text" placeholder="留空自动选公共服务器" autocomplete="off"></label>
 <div id="net-roomcode"><div class="rc-label">把这个房间码发给对手</div><div class="rc-val" id="net-roomcode-val"></div><button class="rc-copy" id="net-roomcode-copy" type="button">复制</button></div>
@@ -1044,10 +1044,13 @@ const NET_TICK_MS = 200;         // 状态快照广播间隔（行动条动画�
 const NET_GUEST_SIDE = 'enemy';  // 客机固定操控敌方（玩家2）
 const RELAY_OPEN_TTL = 90000;    // 房主「在线」标记的有效期：超过这个时间没刷新就视为房间已不存在
 const RELAY_HELLO_BEACON = 15000; // 房主在线标记的心跳间隔
+const NET_CATCHUP_QUEUE = 12;    // 客机队列积压超过这个条数就启动追赶（丢弃可覆盖的中间消息）
 
 const Net = {
 active:false, role:null, room:'', myId:'', broker:'',
 peerGone:false,        // 对手是否已退出（收到 bye 置位；之后重开不再需要双方确认）
+catchUpCount:0,        // 追赶次数（联机面板上可看到，用于判断网络是否吃紧）
+rtt:null,              // 最近一次测得的往返延迟(ms)
 client:null, myTopic:'', peerTopic:'',
 entered:false,         // 是否已进过选人界面（对手断线重连时不再重复进入）
 guestRoster:null,      // 房主收到客机阵容后存放，开局时写入 enemySelection
@@ -1058,7 +1061,32 @@ waitingPick:false,     // 客机是否处于「选目标」态
 statusCb:null,
 _openTimer:null,
 
-setStatus(t) { const el = document.getElementById('net-status'); if (el) el.textContent = t; if (this.statusCb) this.statusCb(t); },
+setStatus(t) {
+this._lastStatus = t;                 // 记住原文，延迟读数变化时用它重渲染
+const el = document.getElementById('net-status'); if (el) el.textContent = t + this.latencyTag();
+if (this.statusCb) this.statusCb(t);
+},
+/* 「🟢 延迟 85ms」这类后缀；未测得则不显示 */
+latencyTag() {
+if (this.rtt == null) return '';
+const q = this.rtt < 120 ? '🟢' : (this.rtt < 400 ? '🟡' : '🔴');
+return `　${q} 延迟 ${this.rtt}ms` + (this.rtt >= 400 ? '（偏高，建议换中继服务器）' : '');
+},
+/* 延迟自测：本端发 ping → 对手回 pong → 计算往返。
+   只在客机侧主动发起（客机是"观战+操作"的一端，最需要知道自己的体感延迟）。 */
+startLatencyProbe() {
+if (this._rttTimer) return;
+const beat = () => {
+if (!this.active) return;
+if (this.role === 'guest') {
+this._rttSent = Date.now();
+this.send({ t:'ping' });
+}
+};
+beat();
+this._rttTimer = setInterval(beat, 3000);
+},
+stopLatencyProbe() { if (this._rttTimer) { clearInterval(this._rttTimer); this._rttTimer = null; } },
 
 /* ---------- SDK 加载 ---------- */
 async loadSDK() {
@@ -1128,6 +1156,7 @@ this.setStatus(`⏳ 正在寻找房间 ${this.room}…`);
 const found = await this.waitForHost(25000);
 if (!found) { try { this.client.end(true); } catch (e) {} this.client = null; this.setStatus(`❌ 未找到房间 ${this.room}，请确认房主已创建且房间码一致`); return false; }
 this.send({ t:'hello' });
+this.startLatencyProbe();
 this.setStatus(`✅ 已加入房间 ${this.room}，等待房主开始…`);
 }
 return true;
@@ -1199,6 +1228,7 @@ showNoticeDialog('对手已退出联机。你可以直接「重新开始」，�
 },
 
 disconnect() {
+try { this.stopLatencyProbe(); } catch (e) {}
 try { if (this._openTimer) { clearInterval(this._openTimer); this._openTimer = null; } } catch (e) {}
 if (this.client) {
 /* 主动退出时自己发一次 bye：让对手立刻收到提示，不用等 keepalive 超时才触发遗嘱。
@@ -1222,6 +1252,14 @@ const H = this.role === 'host';
 if (o.t !== 'bye') this.peerGone = false;
 /* 对手退出：对方主动退出，或其页面/网络异常断开触发遗嘱 */
 if (o.t === 'bye') { this.onPeerGone(); return; }
+/* 延迟自测：收到 ping 立刻回 pong（带原时间戳）；收到 pong 计算往返 */
+if (o.t === 'ping') { this.send({ t:'pong', ts:o.ts }); return; }
+if (o.t === 'pong' && this._rttSent) {
+this.rtt = Date.now() - this._rttSent; this._rttSent = 0;
+/* 用记住的原文重渲染，把新的延迟读数刷到状态栏上 */
+if (this._lastStatus) this.setStatus(this._lastStatus);
+return;
+}
 /* 重新开始：任一方都可发起，需双方确认；对手已退出时发起方单独执行 */
 if (o.t === 'restart') { netOnRestartRequest(); return; }
 if (o.t === 'restartAck') { netResetToSelection(); return; }
@@ -1319,12 +1357,25 @@ return String(text)
 .replace(/\u0001/g, '【敌方】');
 },
 
-/* ---------- 客机：串行消费事件队列 ---------- */
+/* ---------- 客机：串行消费事件队列 ----------
+   ★ 延迟的第一大来源是【队列积压雪崩】：
+   房主端在演出期间（cutin / 各种 sleep）仍在按 200ms 持续发快照，
+   而客机是串行 await 消费的 —— 一旦某条演出慢一点，后面的消息就全堆在队列里，
+   客机播的是几秒前的旧画面，越拖越落后，看起来就是"严重延迟"。
+   对策：积压超过阈值时进入【追赶模式】，丢弃可被覆盖的中间消息：
+     · st（快照）：后来的会完整覆盖前面的 → 只保留最新一条
+     · anim / ft：瞬时视觉，过期即无意义 → 直接丢
+     · cutin：不 await 播放，避免阻塞（保留最后一条补播一次，不至于完全看不到）
+     · log / panel / init / over：影响正确性或需用户操作，一律保留 */
 async drainGuest() {
 if (this.guestDraining) return;
 this.guestDraining = true;
+try {
 while (this.guestQueue.length > 0) {
+/* 追赶判定放在每轮循环开始时：消费过程中可能又涌入新消息 */
+if (this.guestQueue.length > NET_CATCHUP_QUEUE) this.catchUp();
 const o = this.guestQueue.shift();
+if (!o) break;
 try {
 if (o.t === 'log') log(this.flipLog(o.text), o.cls);
 else if (o.t === 'logs') (o.items || []).forEach(it => log(this.flipLog(it.text), it.cls));
@@ -1337,7 +1388,26 @@ else if (o.t === 'init') this.applyInit(o);
 else if (o.t === 'over') { document.getElementById('result-title').textContent = o.text || '对局结束'; document.getElementById('result-screen').classList.add('show'); }
 } catch (e) { /* 单条播放失败不阻断后续 */ }
 }
+} finally {
 this.guestDraining = false;
+/* 消费过程中可能又有新消息入队（此时 guestDraining 已被占用而没人消费） */
+if (this.guestQueue.length > 0) this.drainGuest();
+}
+},
+/* 追赶：把队列里"可被后来者覆盖"的消息丢掉，只留最新的 */
+catchUp() {
+const keep = [];
+let lastSt = null, lastCutin = null;
+for (const o of this.guestQueue) {
+if (o.t === 'st') { lastSt = o; continue; }          // 快照：只留最后一条
+if (o.t === 'anim' || o.t === 'ft') continue;        // 瞬时视觉：过期即无意义
+if (o.t === 'cutin') { lastCutin = o; continue; }    // 演出：只留最后一条补播
+keep.push(o);
+}
+this.guestQueue = keep;
+if (lastCutin) this.guestQueue.push(lastCutin);
+if (lastSt) this.guestQueue.push(lastSt);            // 快照放最后，保证状态是最新的
+this.catchUpCount++;
 },
 applyInit(o) {
 gameState.units = []; gameState.playerTeam = []; gameState.enemyTeam = [];
@@ -1373,8 +1443,14 @@ if (el) el.classList.toggle('acting', i === actIdx);
 gameState.units.forEach((u, i) => { if (u) refreshUnitView(i); });
 },
 applyPanel(o) {
-const set = (id, show) => { const b = document.getElementById(id); if (b) b.style.display = show ? 'inline-block' : 'none'; };
+const set = (id, show) => { const b = document.getElementById(id); if (b) { b.style.display = show ? 'inline-block' : 'none'; if (show) b.style.opacity = ''; } };
 this.waitingPick = (o.mode === 'select');
+/* 房主的权威面板回来了 → 清掉本地那层「已发送」置灰。
+   guestLocalAck 只是即时反馈，真正的可用状态以房主的面板为准（含 disabled）。 */
+['btn-normal','btn-skill','btn-skill2','btn-cancel'].forEach(id => {
+const b = document.getElementById(id); if (b) b.style.opacity = '';
+});
+if (o.mode !== 'none') this.setStatus('✅ 对局进行中（你是玩家2 · 我方）');
 /* 客机的「自动」按钮不随面板模式隐藏 —— 托管是持续性偏好，
    不是某一步的操作项；轮到对方时也应能提前开关。 */
 if (o.mode === 'none') { set('btn-normal', false); set('btn-skill', false); set('btn-skill2', false); set('btn-cancel', false); set('btn-auto', true); clearHighlights(); return; }
