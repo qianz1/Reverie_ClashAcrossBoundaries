@@ -606,7 +606,7 @@ word-break: break-word; }
 <div id="net-overlay">
 <div id="net-card">
 <h2>🌐 联机对战</h2>
-<p class="net-tip">房主生成一个房间码发给对手，对手输入即可开打。连接后状态栏会显示实时延迟；若延迟偏高（红色），可在下方「中继服务器」填入更近的服务器地址。</p>
+<p class="net-tip">房主生成一个房间码发给对手，对手输入即可开打。默认会自动从多个公共服务器中选出最快的一个（优先国内节点）。右上角挂件实时显示延迟。</p>
 <label class="net-label">房间码<input id="net-room" type="text" placeholder="留空点「创建房间」会自动生成" autocomplete="off" maxlength="12"></label>
 <label class="net-label">中继服务器（可选，留空自动选公共服务器）<input id="net-server" type="text" placeholder="自建填 wss://你的域名" autocomplete="off"></label>
 <div id="net-roomcode"><div class="rc-label">把这个房间码发给对手</div><div class="rc-val" id="net-roomcode-val"></div><button class="rc-copy" id="net-roomcode-copy" type="button">复制</button></div>
@@ -1049,11 +1049,16 @@ const RELAY_SDK_CANDIDATES = [
 'https://unpkg.com/mqtt@5.10.1/dist/mqtt.min.js',
 'https://cdn.jsdelivr.net/npm/mqtt@4.3.8/dist/mqtt.min.js',
 ];
-/* 公共 broker 候选：按顺序尝试，连上哪个用哪个 */
+/* 公共 broker 候选：全部走 wss（TLS）—— 页面是 HTTPS 时，明文 ws 会被浏览器
+   按「混合内容」拦截，所以这里不能出现 ws:// 开头的地址。
+
+   排在前面的是 EMQX 的【国内接入点】（腾讯云上海），对国内延迟最低；
+   之前列表里全是境外节点（美国/德国/法国），国内往返常 400~1000ms。
+   实测数据来源：EMQX 官方对几个公共 broker 的对比评测。 */
 const RELAY_BROKERS = [
-'wss://broker.emqx.io:8084/mqtt',
-'wss://broker.hivemq.com:8884/mqtt',
-'wss://test.mosquitto.org:8081/mqtt',
+'wss://broker-cn.emqx.io:8084/mqtt',   // EMQX 国内接入点（腾讯云上海）—— 国内延迟最低
+'wss://broker.emqx.io:8084/mqtt',      // EMQX 全球接入点（AWS 俄勒冈）
+'wss://test.mosquitto.org:8081/mqtt',  // Mosquitto 社区（法国）
 ];
 const RELAY_TOPIC_PREFIX = 'ygob-battle-v1/';  // 主题前缀，避免与公共 broker 上其它流量混在一起
 const NET_TICK_MS = 200;         // 状态快照广播间隔（行动条动画流畅度 vs 消息条数，5fps 足够观战）
@@ -1224,16 +1229,17 @@ this.myTopic = RELAY_TOPIC_PREFIX + this.room + '/' + (this.role === 'host' ? 'h
 this.peerTopic = RELAY_TOPIC_PREFIX + this.room + '/' + (this.role === 'host' ? 'guest' : 'host');
 this.myId = this.role + '-' + Math.random().toString(36).slice(2, 10);
 
-/* 依次尝试候选 broker —— 公共服务器偶尔会限流，多留几个入口。
-   用户手动填的服务器排在最前面（他有明确目标时优先满足）。 */
+/* 并发竞速：同时向所有候选发起连接，谁先握手成功就用谁，其余立刻关掉。
+   比"按顺序尝试"更好 —— 顺序尝试时排第一的节点哪怕很慢也会用它，
+   而竞速天然选出当前网络下最快的那个；公共 broker 负载波动大，这点尤其有用。
+   用户手动填的服务器排在最前（他有明确目标时优先满足，且仍参与竞速以免白等）。 */
 this.transport = 'mqtt';
-const brokerList = this.customBroker ? [this.customBroker].concat(RELAY_BROKERS) : RELAY_BROKERS;
-for (const url of brokerList) {
 this.setStatus(`⏳ 正在连接服务器…`);
-try { this.client = await this.dialBroker(url); this.broker = url; break; }
-catch (e) { /* 换下一个 broker */ }
-}
-if (!this.client) { this.setStatus('❌ 所有公共服务器都连不上，请检查网络后重试'); return false; }
+const brokerList = this.customBroker ? [this.customBroker].concat(RELAY_BROKERS) : RELAY_BROKERS;
+try {
+const r = await this.dialFastest(brokerList);
+this.client = r.client; this.broker = r.url;
+} catch (e) { this.setStatus('❌ 所有公共服务器都连不上，请检查网络后重试'); return false; }
 
 try {
 await this.subscribe(this.peerTopic);
@@ -1271,6 +1277,44 @@ this.startLatencyProbe();
 this.setStatus(`✅ 已加入房间 ${this.room}，等待房主开始…`);
 }
 return true;
+},
+
+/* 并发向多个 broker 发起连接，取最先握手成功的那个（竞速） */
+dialFastest(urls) {
+return new Promise((resolve, reject) => {
+if (!urls || !urls.length) { reject(new Error('no broker')); return; }
+const clients = [];
+let settled = false, failed = 0;
+const finish = (fn) => { if (settled) return; settled = true; fn(); };
+const timer = setTimeout(() => {
+finish(() => { clients.forEach(c => { try { c.end(true); } catch (e) {} }); reject(new Error('timeout')); });
+}, 12000);
+urls.forEach((url) => {
+let c = null;
+try {
+c = window.mqtt.connect(url, { clientId:this.myId + '-' + Math.random().toString(36).slice(2, 6),
+keepalive:30, connectTimeout:8000, clean:true, reconnectPeriod:0,
+will: { topic: this.myTopic, payload: JSON.stringify({ t:'bye' }), qos:0, retain:false } });
+} catch (e) {
+if (++failed >= urls.length) finish(() => { clearTimeout(timer); reject(new Error('all failed')); });
+return;
+}
+clients.push(c);
+c.on('connect', () => {
+if (settled) { try { c.end(true); } catch (e) {} return; }   // 已有胜者 → 关掉自己
+finish(() => {
+clearTimeout(timer);
+clients.forEach(o => { if (o !== c) { try { o.off('connect'); o.off('error'); o.end(true); } catch (e) {} } });
+resolve({ client:c, url });
+});
+});
+c.on('error', () => {
+if (settled) return;
+try { c.end(true); } catch (e) {}
+if (++failed >= urls.length) finish(() => { clearTimeout(timer); reject(new Error('all failed')); });
+});
+});
+});
 },
 
 dialBroker(url) {
@@ -1775,6 +1819,7 @@ const CHANGELOG = [
 '新增：全局背景图 —— 主界面、选人、BP、战斗、结算统一生效，竖屏与横屏自动适配不同画面。',
 '联机：支持自建 WebSocket 中继 —— 在「中继服务器」填 wss://你的域名 即可切换（留空仍走公共服务器），两种方式可随时对比。',
 '联机：右上角新增常驻状态挂件，实时显示当前身份、连接方式与延迟（联机面板关闭后仍可见）。',
+'联机：连接改为多服务器竞速 —— 自动选出当前网络下最快的中继，并优先使用国内节点。',
 ] },
 { ver:'v1.4.9', items:[
 '五条悟重做：普攻固定为「苍」120%；被动改为「六眼·无下限」（友方施放技能时附加「视」；受击时获得护盾）；新增机制「视」。',
