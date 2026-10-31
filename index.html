@@ -1068,6 +1068,9 @@ active:false, role:null, room:'', myId:'', broker:'',
 peerGone:false,        // 对手是否已退出（收到 bye 置位；之后重开不再需要双方确认）
 peerGoneNotified:false,// 本次连接是否已弹过「对手已退出」提示（防止重复打扰）
 hudNote:'',            // 需要让玩家看到的重要提示（联机面板关闭后只能靠挂件传达）
+/* 快照去重：上一次【实际发出去】的快照 JSON 串。tick 只与这一份比对，
+   保证判断与 wire 完全一致，避免摘要与发出内容有偏差。 */
+_lastSnapJson:null,
 catchUpCount:0,        // 追赶次数（联机面板上可看到，用于判断网络是否吃紧）
 rtt:null,              // 最近一次测得的往返延迟(ms)
 /* 最近一次发给客机的操作面板（原样保存，供 tick 周期性重发做自愈） */
@@ -1853,7 +1856,18 @@ if (!this.active || this.role !== 'host') return;
 if (gameState.phase !== 'fighting') return;
 if (now - this.lastTick < NET_TICK_MS) return;
 this.lastTick = now;
-this.send(this.snapshot());
+/* 快照去重：只有内容相对上一次真的变了才发。
+   双方都 idle 的回合消息量降到 0，队列不再被无害快照挤占，
+   真正重要的事件消息（技能/动画/面板）更不容易被挤掉；
+   动画被吞的根因正是积压超 12 条触发了丢旧保新。
+   比对的是发出去的 JSON 而非快照对象：血量、行动条、怒气、
+   状态/印记任一字段变化都会让字符串不同，绝不漏发。
+   完全相同则静默 return，客机只是少收一份冗余全量同步。 */
+const snap = this.snapshot();
+const snapJson = JSON.stringify(snap);
+if (this._lastSnapJson === snapJson) return;
+this._lastSnapJson = snapJson;
+this.send(snap);
 this.syncGuestPanel();
 },
 /* 主动生成「当前行动者」的面板（校验失败 / 跳过回合等场景调用） */
@@ -1904,7 +1918,11 @@ this.send({ t:'init', roster:playerSelection.slice(), guest:enemySelection.slice
    ② 标题的样式 class 与副标题一并带上，客机才能渲染出一模一样的面板。 */
 sendOver(text, cls) {
 if (!this.active || this.role !== 'host') return;
-this.send(this.snapshot());
+/* 结算前补发的最新快照也要登记：结算会改变血量/死亡状态，
+   这一份必然与上一次不同，登记后下次 tick 的首次比对才正确。 */
+const snap = this.snapshot();
+this._lastSnapJson = JSON.stringify(snap);
+this.send(snap);
 /* ★ 战绩数据必须单独带上。
    快照只同步血量/怒气/状态这类"战局状态"，从不同步 statsDamageDealt 等统计字段
    （每 200ms 全量同步 12×4 个统计数字纯属浪费）。但客机端这些字段永远是 0，
@@ -2047,9 +2065,12 @@ applySpeedBtn();
    数据结构：{ ver, theme?, items:[] }，ver 与主题一一对应。
    新增版本时往 CHANGELOG 数组**开头**加一条即可（渲染按数组顺序，最新的在最上面）。
    CURRENT_VERSION / CURRENT_THEME 同时驱动模式选择页底部那行文字。 */
-const CURRENT_VERSION = 'v1.4.10';
+const CURRENT_VERSION = 'v1.4.11';
 const CURRENT_THEME   = '咒术·最强之战';   // 1.4.x 大主题：小版本沿用，不随每次调整变更
 const CHANGELOG = [
+{ ver:'v1.4.11', items:[
+'优化：联机快照发送改为有变化才发，双方 idle 时段消息量显著下降，动画被吞的概率降低。',
+] },
 { ver:'v1.4.10', items:[
 '新增：联机对战模式 —— 两台设备各控一方，房主生成房间码，对手输入即连。',
 '新增：全局背景图 —— 主界面、选人、BP、战斗、结算统一生效，竖屏与横屏自动适配不同画面。',
