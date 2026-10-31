@@ -242,6 +242,11 @@ body { font-family: 'Microsoft YaHei', sans-serif; background-color: #0a0a1a; ba
 #battle-screen.flipped #battle-log { order: 9; }
 #battle-screen.flipped .unit.enemy { border-color: #2e7d32; }   /* 客机视角：enemy = 自己 → 绿 */
 #battle-screen.flipped .unit.player { border-color: #c62828; }
+/* 行动条圆点同步换色：己方（enemy 阵营）绿、对手红。
+   圆点的 class 是按 u.side 打的（enemy-dot / player-dot），
+   这里用同样的翻转思路覆盖边框色，不必改渲染逻辑、也不必让房主再广播一次。 */
+#battle-screen.flipped .action-dot.enemy-dot { border-color: #66bb6a; }
+#battle-screen.flipped .action-dot.player-dot { border-color: #ef5350; }
 .unit.dead { filter: grayscale(100%) brightness(0.3); pointer-events: none; }
 .unit.selected-target { box-shadow: 0 0 15px 5px #ffd700; transform: scale(1.1); }
 .unit.acting { box-shadow: 0 0 20px 8px #00e5ff; }
@@ -1540,17 +1545,6 @@ const CURRENT_THEME   = '咒术·最强之战';   // 1.4.x 大主题：小版本
 const CHANGELOG = [
 { ver:'v1.4.10', items:[
 '新增：联机对战模式（公共 MQTT over WebSocket 中继 · 房主权威广播）—— 两台设备各控一方，房主生成房间码，对手输入即连。',
-'联机：新增 BP 申请制 —— 任一方申请征召BP/同轮BP，另一方同意后双方进入 BP 界面；BP 过程房主权威同步，同轮暗选不泄露。',
-'联机：玩家2（客机）视角上下翻转，自己的阵容始终在下方且边框为绿色；战斗日志的「我方/敌方」同步按视角显示。',
-'修复：联机建房后房主尚未选人，开始按钮就亮起「对手已就绪」—— 现改为必须自己选满 6 人且对手已提交阵容才可开局。',
-'优化：模式选择页三个卡片改为一行式紧凑排版，手机上可完整显示。',
-'新增：全局背景图 —— 竖屏用 Background.png、横屏用 Background2.png（与 index.html 同目录），主界面/选人/BP/战斗/结算统一生效。',
-'修复：确认弹窗嵌在 #battle-screen 内，战斗界面未打开时父元素 display:none 导致弹不出来 —— 联机 BP 申请与联机返回确认因此失效；现已移到全局层。',
-'修复：联机客机端不显示「正在行动」的蓝色高亮（该 class 不随状态快照同步）。',
-'联机：日志栏不随玩家2视角翻转，始终保持在屏幕下方。',
-'联机：阵营标签统一按各自视角显示「我方 / 敌方」，客机端日志自动翻转视角。',
-'联机：「重新开始」改为双方都能显示并发起，需【双方确认】才生效；重开后保持连接、各自回到选人界面。',
-'联机：新增退出提示 —— 一方退出（含直接关闭页面）时另一方收到通知；此后「重新开始」无需再等对方确认。',
 ] },
 { ver:'v1.4.9', items:[
 '五条悟重做：普攻固定为「苍」120%；被动改为「六眼·无下限」（友方施放技能时附加「视」；受击时获得护盾）；新增机制「视」。',
