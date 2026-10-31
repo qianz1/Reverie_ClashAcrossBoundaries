@@ -12,33 +12,57 @@
 <style>
 /* ==================== 全局 ==================== */
 * { margin: 0; padding: 0; box-sizing: border-box; }
-body { font-family: 'Microsoft YaHei', sans-serif; background: #0a0a1a; color: #e0e0e0; overflow: hidden; height: 100vh; user-select: none; -webkit-tap-highlight-color: transparent; }
+/* ===== 全局背景图 =====
+   两张图放在 index.html【同一目录】下即可生效：
+     · Background.png  —— 竖版（手机竖屏）
+     · Background2.png —— 横版（电脑 / 平板横屏）
+   切换依据是屏幕方向，不是设备类型：手机横过来看也会用横版图。
+   图片不存在时自动退回纯色背景，不会报错或破版。
+   下面的 --bg-veil-* 是压暗遮罩：保证角色框、文字在图上仍然清晰可读；
+   觉得背景太暗/太花，改这几个 rgba 的最后一个数字（0=全透 1=全遮）。 */
+:root {
+--bg-img: url('Background.png');
+--bg-veil:        linear-gradient(135deg, rgba(10,10,46,.62) 0%, rgba(26,26,62,.56) 50%, rgba(10,10,46,.62) 100%);
+--bg-veil-bp:     linear-gradient(135deg, rgba(20,8,46,.66) 0%, rgba(37,18,67,.60) 50%, rgba(20,8,46,.66) 100%);
+/* 战斗界面元素多（血条/怒气条/buff图标），遮罩比主界面重一档，保证读数清晰 */
+--bg-veil-battle: linear-gradient(180deg, rgba(12,12,44,.74) 0%, rgba(26,26,46,.80) 100%);
+--bg-veil-result: linear-gradient(160deg, rgba(7,7,26,.78) 0%, rgba(20,20,58,.72) 55%, rgba(10,10,26,.82) 100%);
+}
+@media (orientation: landscape) {
+:root { --bg-img: url('Background2.png'); }
+}
+/* body 不滚动（overflow:hidden），各界面在自己的容器里滚 ——
+   所以直接把背景图挂在 body 上就是"固定背景"，无需 background-attachment:fixed
+   （后者在 iOS Safari 上有兼容问题）。 */
+body { font-family: 'Microsoft YaHei', sans-serif; background-color: #0a0a1a; background-image: var(--bg-img); background-size: cover; background-position: center center; background-repeat: no-repeat; color: #e0e0e0; overflow: hidden; height: 100vh; user-select: none; -webkit-tap-highlight-color: transparent; }
 #game-container { width: 100%; height: 100%; position: relative; }
 /* ==================== 模式选择界面 ==================== */
-#mode-select-screen { width: 100%; min-height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px; padding-bottom: 40px; background: linear-gradient(135deg, #0a0a2e 0%, #1a1a3e 50%, #0a0a2e 100%); overflow-y: auto; -webkit-overflow-scrolling: touch; }
+#mode-select-screen { width: 100%; min-height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px; padding-bottom: 40px; background: var(--bg-veil); overflow-y: auto; -webkit-overflow-scrolling: touch; }
 #mode-select-screen h1 { color: #ffd700; margin-bottom: 8px; font-size: 28px; text-align: center; }
 .mode-subtitle { color: #4fc3f7; font-size: 16px; margin-bottom: 8px; }
 .mode-intro { color: #888; font-size: 13px; margin-bottom: 24px; text-align: center; max-width: 500px; line-height: 1.6; }
-.mode-cards { display: flex; gap: 20px; flex-wrap: wrap; justify-content: center; margin-bottom: 30px; }
-.mode-card { width: 200px; padding: 24px 20px; background: #16213e; border: 2px solid #333; border-radius: 12px; cursor: pointer; transition: all 0.3s; text-align: center; }
-.mode-card:hover { border-color: #4fc3f7; transform: translateY(-4px); box-shadow: 0 8px 25px rgba(79,195,247,0.2); }
-.mode-card.selected { border-color: #00e676; background: #1b3a2e; box-shadow: 0 0 20px rgba(0,230,118,0.3); }
-.mode-icon { font-size: 48px; margin-bottom: 12px; }
-.mode-title { font-size: 18px; font-weight: bold; color: #fff; margin-bottom: 8px; }
-.mode-desc { font-size: 12px; color: #aaa; line-height: 1.5; }
+.mode-cards { display: flex; gap: 10px; flex-direction: column; align-items: center; margin-bottom: 18px; }
+/* 一行式紧凑卡片：图标缩到正常文字大小，与标题同行，
+   描述紧随其后 —— 手机上三个模式也能一屏放下。 */
+.mode-card { width: 100%; max-width: 340px; padding: 10px 12px; background: #16213e; border: 2px solid #333; border-radius: 10px; cursor: pointer; transition: all 0.2s; text-align: left; }
+.mode-card:hover { border-color: #4fc3f7; box-shadow: 0 4px 14px rgba(79,195,247,0.18); }
+.mode-card.selected { border-color: #00e676; background: #1b3a2e; box-shadow: 0 0 16px rgba(0,230,118,0.3); }
+.mode-card .mc-head { display: flex; align-items: center; gap: 8px; }
+.mode-icon { font-size: 16px; line-height: 1; }
+.mode-title { font-size: 15px; font-weight: bold; color: #fff; }
+.mode-desc { font-size: 11px; color: #aaa; line-height: 1.35; margin-top: 3px; }
 #mode-confirm-btn { padding: 12px 40px; font-size: 18px; background: linear-gradient(135deg, #ff6f00, #ff8f00); color: #fff; border: none; border-radius: 25px; cursor: pointer; transition: all 0.3s; position: sticky; bottom: 10px; z-index: 10; }
 #mode-confirm-btn:hover:not(:disabled) { transform: scale(1.05); box-shadow: 0 0 20px rgba(255,111,0,0.5); }
 #mode-confirm-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 @media (max-width: 820px) {
-#mode-select-screen { justify-content: flex-start; padding-top: 40px; }
+#mode-select-screen { justify-content: flex-start; padding-top: 28px; }
 #mode-select-screen h1 { font-size: 22px; }
 .mode-subtitle { font-size: 14px; }
-.mode-intro { font-size: 12px; margin-bottom: 16px; }
-.mode-cards { flex-direction: column; gap: 12px; margin-bottom: 20px; }
-.mode-card { width: 100%; max-width: 280px; padding: 18px 16px; }
-.mode-icon { font-size: 36px; margin-bottom: 8px; }
-.mode-title { font-size: 16px; }
-.mode-desc { font-size: 11px; }
+.mode-intro { font-size: 12px; margin-bottom: 12px; }
+.mode-cards { gap: 8px; margin-bottom: 14px; }
+.mode-card { max-width: 300px; padding: 9px 11px; }
+.mode-title { font-size: 14px; }
+.mode-desc { font-size: 10.5px; }
 #mode-confirm-btn { padding: 10px 32px; font-size: 16px; position: static; margin-top: 10px; }
 }
 #version-theme-line { display: flex; align-items: center; justify-content: center; gap: 14px; flex-wrap: wrap; margin-top: 14px; }
@@ -65,7 +89,7 @@ body { font-family: 'Microsoft YaHei', sans-serif; background: #0a0a1a; color: #
 #selection-mode-badge.pve { background: #1b3a2e; color: #69f0ae; border: 1px solid #2e7d32; }
 #selection-mode-badge.pvp { background: #1a237e; color: #82b1ff; border: 1px solid #1565c0; }
 /* ==================== 选人界面 ==================== */
-#selection-screen { width: 100%; height: 100%; padding: 20px; background: linear-gradient(135deg, #0a0a2e 0%, #1a1a3e 50%, #0a0a2e 100%); overflow-y: auto; display: none; }
+#selection-screen { width: 100%; height: 100%; padding: 20px; background: var(--bg-veil); overflow-y: auto; display: none; }
 #selection-screen h1 { text-align: center; color: #ffd700; margin-bottom: 10px; font-size: 24px; }
 .select-section { margin: 15px 0; }
 .select-section h2 { color: #4fc3f7; margin-bottom: 10px; font-size: 18px; }
@@ -196,7 +220,7 @@ body { font-family: 'Microsoft YaHei', sans-serif; background: #0a0a1a; color: #
 .hero-card .detail-btn { margin-top: 6px; padding: 5px 12px; font-size: 11px; background: #1a3a5c; color: #4fc3f7; border: 1px solid #4fc3f7; border-radius: 4px; cursor: pointer; touch-action: manipulation; }
 .hero-card .detail-btn:hover { background: #4fc3f7; color: #000; }
 /* ==================== 战斗界面 ==================== */
-#battle-screen { width: 100%; height: 100%; position: relative; background: linear-gradient(180deg, #0c0c2c 0%, #1a1a2e 100%); display: none; flex-direction: column; }
+#battle-screen { width: 100%; height: 100%; position: relative; background: var(--bg-veil-battle); display: none; flex-direction: column; }
 #enemy-area, #player-area { flex: 1 1 auto; display: flex; justify-content: center; align-items: center; gap: clamp(4px, 1.2vw, 14px); padding: clamp(2px, 0.5vh, 6px); overflow: hidden; flex-wrap: nowrap; min-height: 0; }
 /* 我方区域底部留白：给下移后的操作栏 / 日志栏让位，避免遮住最下面的角色框。
    clamp 上限取 190px ≈ 日志栏110 + 操作栏50 + 间距，保证任何视口都不遮挡。 */
@@ -204,6 +228,16 @@ body { font-family: 'Microsoft YaHei', sans-serif; background: #0a0a1a; color: #
 .unit-wrapper { position: relative; display: flex; flex-direction: column; align-items: center; }
 .unit { width: clamp(92px, 13vw, 150px); height: clamp(120px, 17vh, 190px); border-radius: 10px; border: 3px solid #555; display: block; cursor: pointer; transition: all 0.2s; position: relative; overflow: hidden; background: #1a1a3e; }
 .unit.enemy { border-color: #c62828; } .unit.player { border-color: #2e7d32; }
+/* ===== 联机：玩家2（客机）视角翻转 =====
+   客机操控的是 enemy 阵营，若不翻转，他自己的阵容会显示在屏幕上方，
+   而操作栏在下方 —— 选目标时视线来回跳。
+   翻转后：自己的阵容在下面、对手在上面，且自己的边框始终为绿色。
+   实现：只靠 flex order 交换两个区域与行动条的顺序，不动 DOM、不动战斗逻辑。 */
+#battle-screen.flipped #player-area { order: 1; padding-bottom: clamp(2px, 0.5vh, 6px); }
+#battle-screen.flipped #action-bar-container { order: 2; }
+#battle-screen.flipped #enemy-area { order: 3; padding-bottom: clamp(150px, 22vh, 190px); }
+#battle-screen.flipped .unit.enemy { border-color: #2e7d32; }   /* 客机视角：enemy = 自己 → 绿 */
+#battle-screen.flipped .unit.player { border-color: #c62828; }
 .unit.dead { filter: grayscale(100%) brightness(0.3); pointer-events: none; }
 .unit.selected-target { box-shadow: 0 0 15px 5px #ffd700; transform: scale(1.1); }
 .unit.acting { box-shadow: 0 0 20px 8px #00e5ff; }
@@ -250,7 +284,7 @@ body { font-family: 'Microsoft YaHei', sans-serif; background: #0a0a1a; color: #
 /* 「BP模式」入口：选人界面右上角，仅双人对战可见 */
 #bp-mode-btn { position: absolute; right: 14px; top: 12px; z-index: 10; padding: 8px 16px; font-size: 14px; background: linear-gradient(135deg, #6a1b9a, #8e24aa); color: #fff; border: 1px solid #ab47bc; border-radius: 18px; cursor: pointer; transition: all .3s; -webkit-tap-highlight-color: transparent; }
 #bp-mode-btn:hover { transform: scale(1.05); box-shadow: 0 0 18px rgba(171,71,188,.55); }
-#bp-screen { position: relative; width: 100%; height: 100%; padding: 16px; background: linear-gradient(135deg, #14082e 0%, #251243 50%, #14082e 100%); overflow-y: auto; display: none; }
+#bp-screen { position: relative; width: 100%; height: 100%; padding: 16px; background: var(--bg-veil-bp); overflow-y: auto; display: none; }
 #bp-screen h1 { text-align: center; color: #ffd700; margin: 4px 0 12px; font-size: 22px; }
 #bp-back-btn { position: absolute; left: 14px; top: 14px; z-index: 10; padding: 8px 14px; font-size: 14px; color: #4fc3f7; background: transparent; border: none; cursor: pointer; text-shadow: 0 0 8px rgba(79,195,247,.45); }
 #bp-back-btn:hover { color: #fff; }
@@ -462,12 +496,15 @@ word-break: break-word; }
 #speed-btn { left: 10px; bottom: 8px; font-size: 14px; }
 #restart-btn { right: 10px; bottom: 8px; font-size: 12px; padding: 6px 10px; }
 #player-area { padding-bottom: 52px; }   /* 给下移后的操作栏留位，避免遮住我方单位 */
+/* 翻转视角下，底部留白要落到 enemy-area（此时它在下方） */
+#battle-screen.flipped #player-area { padding-bottom: 6px; }
+#battle-screen.flipped #enemy-area { padding-bottom: 52px; }
 .action-btn { padding: 8px 14px; font-size: 12px; }
 .unit-name { font-size: 9px; }
 .unit-hp-text, .unit-shield-text, .unit-rage-text { font-size: 8px; }
 }
 /* ==================== 战后结算界面 ==================== */
-#result-screen { width: 100%; height: 100%; position: fixed; top: 0; left: 0; z-index: 600; display: none; flex-direction: column; background: linear-gradient(160deg, #07071a 0%, #14143a 55%, #0a0a1a 100%); overflow-y: auto; padding: 20px 14px 40px; }
+#result-screen { width: 100%; height: 100%; position: fixed; top: 0; left: 0; z-index: 600; display: none; flex-direction: column; background: var(--bg-veil-result); overflow-y: auto; padding: 20px 14px 40px; }
 #result-screen.show { display: flex; }
 .result-header { text-align: center; margin-bottom: 18px; flex-shrink: 0; }
 .result-title { font-size: 30px; font-weight: bold; color: #ffd700; text-shadow: 0 0 14px rgba(255,215,0,0.6); }
@@ -510,19 +547,16 @@ word-break: break-word; }
 <p class="mode-intro">本游戏提供两种对战模式，请根据需求选择：</p>
 <div class="mode-cards">
 <div class="mode-card" id="mode-pve" data-mode="pve">
-<div class="mode-icon">🤖</div>
-<div class="mode-title">人机对战</div>
+<div class="mc-head"><span class="mode-icon">🤖</span><span class="mode-title">人机对战</span></div>
 <div class="mode-desc">你控制我方阵容，敌方由AI自动操控</div>
 </div>
 <div class="mode-card" id="mode-pvp" data-mode="pvp">
-<div class="mode-icon">👥</div>
-<div class="mode-title">双人对战</div>
+<div class="mc-head"><span class="mode-icon">👥</span><span class="mode-title">双人对战</span></div>
 <div class="mode-desc">两名玩家轮流操控各自阵容，手动出招</div>
 </div>
 <div class="mode-card" id="mode-online" data-mode="online">
-<div class="mode-icon">🌐</div>
-<div class="mode-title">联机对战</div>
-<div class="mode-desc">两台设备各控一方，服务器中继互联（无需注册、不受 NAT 限制）</div>
+<div class="mc-head"><span class="mode-icon">🌐</span><span class="mode-title">联机对战</span></div>
+<div class="mode-desc">两台设备各控一方，房主生成房间码即可开打</div>
 </div>
 </div>
 <button id="mode-confirm-btn" disabled>确认选择</button>
@@ -545,7 +579,7 @@ word-break: break-word; }
 <div id="net-overlay">
 <div id="net-card">
 <h2>🌐 联机对战</h2>
-<p class="net-tip">数据经公共服务器<b>中继转发</b> —— 纯静态托管可用，<b>无需注册任何账号</b>，也不受手机网络 NAT 限制。房主生成一个房间码发给对手，对手输入即可开打。</p>
+<p class="net-tip">房主生成一个房间码发给对手，对手输入即可开打。</p>
 <label class="net-label">房间码<input id="net-room" type="text" placeholder="留空点「创建房间」会自动生成" autocomplete="off" maxlength="12"></label>
 <label class="net-label">中继服务器（可选，连不上时才填）<input id="net-server" type="text" placeholder="留空自动选公共服务器" autocomplete="off"></label>
 <div id="net-roomcode"><div class="rc-label">把这个房间码发给对手</div><div class="rc-val" id="net-roomcode-val"></div><button class="rc-copy" id="net-roomcode-copy" type="button">复制</button></div>
@@ -1158,19 +1192,45 @@ this.setStatus(`✅ 对手已加入（房间 ${this.room}）`);
    首次连上 → 进选人；之后再收到 hello（对手断线重连）→ 只补发战局状态。 */
 if (!this.entered) { this.entered = true; closeNetPanel(); enterOnlineSelection('host'); }
 else if (gameState.phase === 'fighting') this.sendInit();
-const btn = document.getElementById('start-battle-btn');
-if (btn) { btn.disabled = false; btn.textContent = '开始战斗（对手已就绪）'; }
+/* 只刷新按钮，不擅自 enable —— 房主自己还没选满时仍应保持禁用 */
+netRefreshStartButton();
 return;
 }
 if (H && o.t === 'roster') {
 this.guestRoster = o.names || [];
-this.setStatus('✅ 对手已就绪，可以开始战斗');
-const btn = document.getElementById('start-battle-btn');
-if (btn) { btn.disabled = false; btn.textContent = '开始战斗（对手已就绪）'; }
+this.setStatus('✅ 对手已提交阵容');
+netRefreshStartButton();
 return;
 }
 if (H && o.t === 'act') { this.hostDoAction(o.kind); return; }
 if (H && o.t === 'pick') { this.hostDoPick(o.idx); return; }
+/* ---- 联机 BP ---- */
+if (o.t === 'bpReq') { bpOnRequest(o.mode); return; }
+if (o.t === 'bpAck') { bpOnAck(o.mode); return; }
+if (o.t === 'bpEnter') { bpOnEnter(o.mode); return; }
+if (!H && o.t === 'bpView') { bpApplyView(o.view); return; }
+if (H && o.t === 'bpSel') {
+/* 客机的选择：房主做最终校验 —— 只接受轮到客机、且该英雄确实可选的选择 */
+const step = bpCurrentStep();
+if (step && step.side === 'p2' && bpIsPickable(o.name, step)) { bpState.pending = o.name; renderBp(); }
+else { bpState.pending = null; renderBp(); }
+bpBroadcastView();
+return;
+}
+if (H && o.t === 'bpConfirm') { bpConfirmPending(); bpBroadcastView(); return; }
+if (H && o.t === 'bpCancel') { bpCancelPending(); bpBroadcastView(); return; }
+if (!H && o.t === 'bpDone') {
+enemySelection = ['主角', ...(o.p2 || [])];
+playerSelection = ['主角', ...(o.p1 || [])];
+gameMode = 'pvp';
+bpState.active = false;
+document.getElementById('bp-screen').style.display = 'none';
+document.getElementById('selection-screen').style.display = 'block';
+this.setStatus('✅ BP 完成，等待房主开始…');
+const gb = document.getElementById('start-battle-btn');
+if (gb) { gb.disabled = true; gb.textContent = '等待房主开始…'; }
+return;
+}
 if (!H) { this.guestQueue.push(o); this.drainGuest(); }
 },
 
@@ -1225,6 +1285,7 @@ document.getElementById('selection-screen').style.display = 'none';
 document.getElementById('battle-screen').style.display = 'flex';
 document.getElementById('battle-log').innerHTML = '';
 renderUnits(); renderActionBarDots();
+applyNetViewFlip();
 this.bindGuestButtons();
 },
 applySnapshot(o) {
@@ -1355,7 +1416,12 @@ const CURRENT_VERSION = 'v1.4.10';
 const CURRENT_THEME   = '咒术·最强之战';   // 1.4.x 大主题：小版本沿用，不随每次调整变更
 const CHANGELOG = [
 { ver:'v1.4.10', items:[
-'新增：联机对战模式（公共 MQTT over WebSocket 中继 · 房主权威广播）—— 两台设备各控一方，纯静态托管可用、无需注册账号、不受手机网络 NAT 限制；房主生成房间码，对手输入即连。',
+'新增：联机对战模式（公共 MQTT over WebSocket 中继 · 房主权威广播）—— 两台设备各控一方，房主生成房间码，对手输入即连。',
+'联机：新增 BP 申请制 —— 任一方申请征召BP/同轮BP，另一方同意后双方进入 BP 界面；BP 过程房主权威同步，同轮暗选不泄露。',
+'联机：玩家2（客机）视角上下翻转，自己的阵容始终在下方且边框为绿色；战斗日志的「我方/敌方」同步按视角显示。',
+'修复：联机建房后房主尚未选人，开始按钮就亮起「对手已就绪」—— 现改为必须自己选满 6 人且对手已提交阵容才可开局。',
+'优化：模式选择页三个卡片改为一行式紧凑排版，手机上可完整显示。',
+'新增：全局背景图 —— 竖屏用 Background.png、横屏用 Background2.png（与 index.html 同目录），主界面/选人/BP/战斗/结算统一生效。',
 ] },
 { ver:'v1.4.9', items:[
 '五条悟重做：普攻固定为「苍」120%；被动改为「六眼·无下限」（友方施放技能时附加「视」；受击时获得护盾）；新增机制「视」。',
@@ -1512,16 +1578,21 @@ return;
 }
 resetGame();
 };
-/* BP 模式：入口 / 返回 / 搜索 / 开始（onclick 赋值，避免重复叠加监听） */
-document.getElementById('bp-mode-btn').onclick = openBpTypeMenu;
-document.getElementById('bp-type-draft').onclick = () => openBpScreen('draft');
-document.getElementById('bp-type-mirror').onclick = () => openBpScreen('mirror');
+/* BP 模式：入口 / 返回 / 搜索 / 开始（onclick 赋值，避免重复叠加监听）
+   联机下入口走「申请制」：点开模式选择 → 选模式 → 发给对方征询同意。 */
+document.getElementById('bp-mode-btn').onclick = () => {
+if (typeof Net !== 'undefined' && Net.active) openBpTypeMenu();
+else openBpTypeMenu();
+};
+/* 联机：选完模式后不是直接进 BP，而是发申请等对方同意 */
+document.getElementById('bp-type-draft').onclick = () => bpRequestOrEnter('draft');
+document.getElementById('bp-type-mirror').onclick = () => bpRequestOrEnter('mirror');
 document.getElementById('bp-type-cancel').onclick = closeBpTypeMenu;
 document.getElementById('bp-type-overlay').addEventListener('click', (e) => { if (e.target === document.getElementById('bp-type-overlay')) closeBpTypeMenu(); });
 document.getElementById('bp-back-btn').onclick = closeBpScreen;
 document.getElementById('bp-start-btn').onclick = startBpBattle;
-document.getElementById('bp-confirm-btn').onclick = bpConfirmPending;
-document.getElementById('bp-confirm-cancel').onclick = bpCancelPending;
+document.getElementById('bp-confirm-btn').onclick = () => bpConfirmOrCancel(true);
+document.getElementById('bp-confirm-cancel').onclick = () => bpConfirmOrCancel(false);
 document.getElementById('bp-search').addEventListener('input', renderBp);
 document.getElementById('speed-btn').onclick = toggleSpeed;
 document.getElementById('btn-cancel').onclick = cancelTargetSelection;
@@ -1641,8 +1712,10 @@ document.getElementById('selection-screen').style.display = 'block';
 const badge = document.getElementById('selection-mode-badge');
 badge.textContent = role === 'host' ? '🌐 联机（房主 · 我方）' : '🌐 联机（客机 · 玩家2）';
 badge.className = 'pvp';
-/* 联机暂不走 BP：双方各自选 6 人后开局，避免 BP 的轮流操作再叠加一层同步 */
-document.getElementById('bp-mode-btn').style.display = 'none';
+/* 联机下 BP 改为「申请制」：任一方申请、另一方同意后双方进入 BP 界面 */
+const bpBtn = document.getElementById('bp-mode-btn');
+bpBtn.style.display = 'block';
+bpBtn.textContent = '申请BP';
 playerSelection = ['主角']; enemySelection = ['主角'];
 if (role === 'host') {
 document.getElementById('enemy-selection-section').style.display = 'none';
@@ -1718,11 +1791,24 @@ mirror: { name:'同轮 BP', steps: BP_STEPS_MIRROR },
 /* bans：公开禁用池（双方合并，用于「已禁用的英雄不可再选」与展示）
    bansBy：分方记录 —— 双方允许禁用【同一个】英雄，因此不能只看合并池判断"是否已禁过"。 */
 /*   hidden / hiddenBan：同轮模式下本轮尚未亮出的暗选 / 暗禁 —— 对方看不到。 */
+/* netLocal：本端在联机 BP 中的身份 —— null=单机 / 'host'=房主(操控p1) / 'guest'=客机(操控p2)
+   房主是唯一权威：跑全部 BP 逻辑并把「客机可见视图」广播过去；
+   客机不跑逻辑，只渲染收到的视图，操作以指令回传房主执行。 */
 let bpState = { active:false, mode:'draft', step:0, progress:0, p1:[], p2:[], bans:[], bansBy:{ p1:[], p2:[] },
-hidden:{ p1:null, p2:null }, hiddenBan:{ p1:null, p2:null }, reveal:null };
+hidden:{ p1:null, p2:null }, hiddenBan:{ p1:null, p2:null }, reveal:null, pending:null, netLocal:null };
+let bpPendingReq = null;        // 已发出、等待对方答复的 BP 申请
 function resetBp(mode) {
 bpState = { active:false, mode: mode || 'draft', step:0, progress:0, p1:[], p2:[], bans:[], bansBy:{ p1:[], p2:[] },
-hidden:{ p1:null, p2:null }, hiddenBan:{ p1:null, p2:null }, reveal:null };
+hidden:{ p1:null, p2:null }, hiddenBan:{ p1:null, p2:null }, reveal:null, pending:null, netLocal: bpState.netLocal || null };
+}
+/* 本端在 BP 中操控哪一方：房主 = p1，客机 = p2 */
+function bpMySide() { return bpState.netLocal === 'guest' ? 'p2' : 'p1'; }
+/* 联机 BP 中，本端此刻是否可以操作（只有轮到自己那一方时才行） */
+function bpCanOperate() {
+const step = bpCurrentStep();
+if (!step) return false;
+if (!bpState.netLocal) return true;                 // 单机：永远可操作
+return step.side === bpMySide();
 }
 /* 当前模式的步骤表 / 当前步（全部走完则返回 null） */
 function bpSteps() { return (BP_MODE_META[bpState.mode] || BP_MODE_META.draft).steps; }
@@ -1739,11 +1825,19 @@ document.getElementById('bp-type-overlay').classList.remove('show');
 }
 function openBpScreen(mode) {
 resetBp(mode || 'draft'); bpState.active = true;
+/* 联机身份：进入时按 Net.role 固定下来（房主=p1，客机=p2） */
+if (typeof Net !== 'undefined' && Net.active) bpState.netLocal = Net.role;
+else bpState.netLocal = null;
 document.getElementById('bp-type-overlay').classList.remove('show');
 document.getElementById('selection-screen').style.display = 'none';
 document.getElementById('bp-screen').style.display = 'block';
 document.getElementById('bp-search').value = '';
+/* 联机：返回按钮会破坏双方的同步状态，直接隐藏；
+   「开始游戏」只有房主能点（客机点了也没用，阵容由房主统一下发）。 */
+const isGuest = bpState.netLocal === 'guest';
+document.getElementById('bp-back-btn').style.display = bpState.netLocal ? 'none' : 'block';
 renderBp();
+if (isGuest) { const sb = document.getElementById('bp-start-btn'); sb.disabled = true; sb.textContent = '等待房主开始…'; }
 }
 function closeBpScreen() {
 bpState.active = false;
@@ -1806,7 +1900,8 @@ const step = bpCurrentStep();
 /* 模式标签 */
 const tag = document.getElementById('bp-mode-tag');
 const meta = BP_MODE_META[bpState.mode] || BP_MODE_META.draft;
-tag.textContent = `${meta.name}${bpIsMirror() ? '（本轮选完统一亮出，英雄不独占）' : '（英雄独占）'}`;
+const meTag = bpState.netLocal ? ` · 你是${bpSideName(bpMySide())}` : '';
+tag.textContent = `${meta.name}${bpIsMirror() ? '（本轮选完统一亮出，英雄不独占）' : '（英雄独占）'}${meTag}`;
 /* 顶部双方头像槽：主角固定占位 + 5 个待选位
    同轮 BP：本轮已暗选的位置显示「已锁定」（不露名字，避免对方看到） */
 const renderSlots = (sideKey, list) => {
@@ -1820,8 +1915,11 @@ box.appendChild(d);
 add('主角', 'filled protagonist', '主角（自动锁定）');
 for (let i = 0; i < BP_PICK_TARGET; i++) {
 if (list[i]) { add(list[i], 'filled', list[i]); continue; }
-/* 暗选占位：只在这一方本轮已操作时显示，且不明示是谁 */
-if (bpIsMirror() && bpState.hidden[sideKey] && i === list.length) {
+/* 暗选占位：只在这一方本轮已操作时显示，且不明示是谁。
+   ★ 联机：只显示【自己方】的 —— 房主端若把客机的暗选也渲染出来，
+     就等于房主能提前看到对手本轮选了谁，同轮机制形同虚设。 */
+const showLocked = bpState.netLocal ? (sideKey === bpMySide()) : true;
+if (bpIsMirror() && showLocked && bpState.hidden[sideKey] && i === list.length) {
 add('🔒', 'locked', `${bpSideName(sideKey)}本轮已锁定（本轮结束后亮出）`); continue;
 }
 add('', '', '待选');
@@ -1840,6 +1938,7 @@ const remain = step.count - bpState.progress;
 let subText = `本阶段还需 ${remain} 个（第 ${bpState.step + 1}/${bpSteps().length} 步）`;
 /* 同轮 BP 的选人阶段：提示本轮结束才亮出 */
 if (bpIsMirror()) subText += isBan ? ' · 双方都禁完后统一亮出' : ` · 第 ${step.round} 轮，本轮双方选完后统一亮出`;
+if (bpState.netLocal && !bpCanOperate()) subText += ' · 等待对手操作…';
 sub.textContent = subText;
 } else {
 st.className = 'done'; st.textContent = 'BP 完成';
@@ -1874,7 +1973,7 @@ banBox.appendChild(d);
 });
 });
 if (bpState.bans.length === 0) {
-const locked = (bpState.hiddenBan.p1 ? 1 : 0) + (bpState.hiddenBan.p2 ? 1 : 0);
+const locked = bpState.hiddenBan[bpMySide()] ? 1 : 0;
 banBox.innerHTML = locked > 0
 ? `<span style="font-size:12px;color:#ffd700">本轮已锁定 ${locked} 个（双方禁完后统一亮出）</span>`
 : '<span style="font-size:12px;color:#616161">暂无</span>';
@@ -1888,7 +1987,8 @@ if (name === '主角') return;             // 主角自动锁定，不参与 BP
 if (search && !name.toLowerCase().includes(search)) return;
 const data = HERO_DATA[name];
 const stt = bpHeroState(name);
-const pickable = !!step && bpIsPickable(name, step);
+/* 联机：只有轮到【自己这一方】时卡片才可点；对方回合点了也没用（房主会拒绝） */
+const pickable = !!step && !!bpCanOperate() && bpIsPickable(name, step);
 const card = document.createElement('div');
 let cls = 'hero-card';
 if (stt === 'ban') cls += ' bp-banned';
@@ -1902,7 +2002,7 @@ card.className = cls;
 /* 角标：同轮模式下双方可能同时选中同一英雄，两个角标都要显示 */
 let mark = '';
 /* 自己本轮暗禁的英雄：给自己一个橙色「已禁」角标（未亮出，对方看不到） */
-if (bpIsMirror() && step && step.action === 'ban' && bpState.hiddenBan[step.side] === name) {
+if (bpIsMirror() && step && step.action === 'ban' && bpState.hiddenBan[bpMySide()] === name) {
 mark += '<span class="bp-own-ban">已禁</span>';
 }
 const isP1 = bpState.p1.includes(name), isP2 = bpState.p2.includes(name);
@@ -1930,16 +2030,91 @@ bar.classList.remove('show');
 bar.classList.remove('banning');
 cbtn.disabled = true;
 }
-/* 开始按钮 */
+/* 开始按钮：联机下只有房主能点（客机点了也没用 —— 阵容由房主统一下发） */
 const btn = document.getElementById('bp-start-btn');
-btn.disabled = !!step;
-btn.textContent = step ? 'BP 进行中…' : '点击开始游戏';
+const isGuest = bpState.netLocal === 'guest';
+btn.disabled = isGuest || !!step;
+btn.textContent = step ? 'BP 进行中…' : (isGuest ? '等待房主开始…' : '点击开始游戏');
 }
-/* 第一步：点卡片 → 进入待确认（高亮 + 显示确认条） */
+/* 第一步：点卡片 → 进入待确认（高亮 + 显示确认条）
+   联机客机：不本地落定，先把选择发给房主校验，等房主广播回来的视图再渲染 ——
+   本地抢先落定会出现「客机看到的高亮与房主实际状态不一致」。 */
 function bpSelectPending(name) {
 const step = bpCurrentStep();
-if (!step || !bpIsPickable(name, step)) return;
+if (!step || !bpCanOperate() || !bpIsPickable(name, step)) return;
+if (bpState.netLocal === 'guest') { Net.send({ t:'bpSel', name }); return; }
 bpState.pending = name;
+renderBp();
+if (bpState.netLocal === 'host') bpBroadcastView();
+}
+/* 第二步：确认 / 取消 —— 客机同样回传房主执行 */
+function bpConfirmOrCancel(confirmed) {
+if (bpState.netLocal === 'guest') { Net.send({ t: confirmed ? 'bpConfirm' : 'bpCancel' }); return; }
+if (confirmed) bpConfirmPending(); else bpCancelPending();
+}
+/* 房主：把「客机可见视图」广播过去。
+   同轮模式的暗选 / 暗禁必须过滤 —— 否则客机能看到房主本轮选了谁，同步机制就白做了。 */
+function bpBroadcastView() {
+if (typeof Net === 'undefined' || !Net.active || Net.role !== 'host') return;
+const step = bpCurrentStep();
+Net.send({ t:'bpView', view:{
+mode: bpState.mode, step: bpState.step, progress: bpState.progress,
+p1: bpState.p1.slice(), p2: bpState.p2.slice(),
+bans: bpState.bans.slice(), bansBy:{ p1:bpState.bansBy.p1.slice(), p2:bpState.bansBy.p2.slice() },
+/* 只给客机看他【自己】的暗选 / 暗禁；房主的置空 */
+hidden: { p1:null, p2: bpState.hidden.p2 },
+hiddenBan: { p1:null, p2: bpState.hiddenBan.p2 },
+reveal: bpState.reveal,
+/* pending 只在轮到客机时下发（房主自己的待确认不该出现在客机屏上） */
+pending: (step && step.side === 'p2') ? bpState.pending : null,
+} });
+}
+/* 联机：申请进入 BP（或单机直接进）。
+   任一方都可发起；对方用页面内确认弹窗答复，同意后双方一起进入 BP 界面。 */
+function bpRequestOrEnter(mode) {
+const online = (typeof Net !== 'undefined' && Net.active);
+if (!online) { openBpScreen(mode); return; }
+bpPendingReq = mode;
+closeBpTypeMenu();
+Net.send({ t:'bpReq', mode });
+Net.setStatus('⏳ 已发出 BP 申请，等待对手同意…');
+}
+/* 收到对方的 BP 申请 → 弹确认 */
+function bpOnRequest(mode) {
+const meta = (BP_MODE_META[mode] || BP_MODE_META.draft);
+const tip = mode === 'mirror' ? '（每轮双方各选1人，本轮选完统一亮出，英雄不独占）' : '（轮流禁用与选择，英雄独占）';
+showConfirmDialog(`对手申请进行【${meta.name}】${tip}，是否同意？`, () => {
+Net.send({ t:'bpAck', mode });
+/* 同意方自己也立刻进入 —— 房主侧在收到 ack 时进，这里由发起方统一广播更省事 */
+openBpScreen(mode);
+if (Net.role === 'host') { Net.send({ t:'bpEnter', mode }); bpBroadcastView(); }
+});
+}
+/* 收到同意 → 发起方进入，并让对方也进入（房主广播 bpEnter） */
+function bpOnAck(mode) {
+bpPendingReq = null;
+openBpScreen(mode);
+if (Net.role === 'host') { Net.send({ t:'bpEnter', mode }); bpBroadcastView(); }
+else Net.setStatus('✅ 对手已同意，进入 BP');
+}
+function bpOnEnter(mode) {
+bpPendingReq = null;
+/* 同意方在答复时就已经进过 BP 界面了（见 bpOnRequest），
+   这里再开一次会把刚建立的状态重置掉 —— 已在界面中就跳过。 */
+if (bpState.active && bpState.mode === mode) return;
+openBpScreen(mode);
+}
+/* 客机：用房主下发的视图覆盖本地状态并重绘 */
+function bpApplyView(v) {
+if (!v) return;
+Object.assign(bpState, {
+mode:v.mode, step:v.step, progress:v.progress,
+p1:v.p1 || [], p2:v.p2 || [], bans:v.bans || [],
+bansBy:{ p1:(v.bansBy && v.bansBy.p1) || [], p2:(v.bansBy && v.bansBy.p2) || [] },
+hidden:{ p1:null, p2:(v.hidden && v.hidden.p2) || null },
+hiddenBan:{ p1:null, p2:(v.hiddenBan && v.hiddenBan.p2) || null },
+reveal:v.reveal || null, pending:v.pending || null,
+});
 renderBp();
 }
 /* 第二步：点「确认」→ 真正写入；点「取消」→ 清空待确认 */
@@ -1965,8 +2140,9 @@ bpFlushRound(step.round);
 bpState.step = nextIdx; bpState.progress = 0;
 }
 renderBp();
+bpBroadcastView();
 }
-function bpCancelPending() { bpState.pending = null; renderBp(); }
+function bpCancelPending() { bpState.pending = null; renderBp(); bpBroadcastView(); }
 function bpHeroClick(name) {
 const step = bpCurrentStep();
 if (!step || !bpIsPickable(name, step)) return;
@@ -1987,6 +2163,11 @@ if (bpState.p1.length !== BP_PICK_TARGET || bpState.p2.length !== BP_PICK_TARGET
 playerSelection = ['主角', ...bpState.p1];
 enemySelection  = ['主角', ...bpState.p2];
 gameMode = 'pvp';
+/* 联机：把 BP 结果下发给客机（客机操控 p2 = enemySelection），
+   客机收到后只更新阵容，等房主的 startBattle → sendInit 进入战斗。 */
+if (typeof Net !== 'undefined' && Net.active && Net.role === 'host') {
+Net.send({ t:'bpDone', p1: bpState.p1.slice(), p2: bpState.p2.slice() });
+}
 bpState.active = false;
 document.getElementById('bp-screen').style.display = 'none';
 startBattle();
@@ -2123,7 +2304,24 @@ if (cnt) cnt.textContent = selection.length;
 if (stt) stt.textContent = selection.join(', ');
 }
 function setupSearch() { document.getElementById('player-search').addEventListener('input', () => renderHeroGrid('player')); document.getElementById('enemy-search').addEventListener('input', () => renderHeroGrid('enemy')); }
+/* 联机（房主侧）开始按钮的统一刷新。
+   ★ 关键点：对手连上 / 对手提交阵容，都【不等于】可以开局 ——
+     房主自己还没选满 6 人时按钮必须保持禁用。此前在这两处直接 enable，
+     于是房主刚进选人界面（1/6）就看到亮起的「开始战斗（对手已就绪）」，
+     点下去会因为 enemySelection 不足而静默失败。 */
+function netRefreshStartButton() {
+const btn = document.getElementById('start-battle-btn');
+if (!btn) return;
+const mineDone = playerSelection.length === 6;
+const foeDone = !!(Net.guestRoster && Net.guestRoster.length === 6);
+btn.disabled = !(mineDone && foeDone);
+if (!mineDone) btn.textContent = `我方已选 ${playerSelection.length}/6 - 继续选择`;
+else if (!foeDone) btn.textContent = '我方已就绪 — 等待对手选人…';
+else btn.textContent = '开始战斗！';
+}
 function checkStartButton() {
+/* 联机：房主侧走专属刷新（要同时看自己与对手的进度），客机侧沿用原逻辑 */
+if (typeof Net !== 'undefined' && Net.active && Net.role === 'host') { netRefreshStartButton(); return; }
 const btn = document.getElementById('start-battle-btn');
 if (gameMode === 'pvp') {
 const isPlayer1Done = playerSelection.length === 6;
@@ -2799,6 +2997,14 @@ extraSkills:d.extraSkills || null, passiveSkill:d.passive || null, shield:0, ban
 statsDamageDealt:0, statsDamageTaken:0, statsHealDone:0, statsRestoreDone:0, statsShieldDone:0,
 buquUsed:false };
 }
+/* 联机下客机（玩家2）的视角翻转：自己的阵容在下方、自己的边框为绿色。
+   双人对战（同一设备轮流操作）不翻转 —— 那样反而不方便两人共看一屏。 */
+function applyNetViewFlip() {
+const screen = document.getElementById('battle-screen');
+if (!screen) return;
+const flip = !!(typeof Net !== 'undefined' && Net.active && Net.role === 'guest');
+screen.classList.toggle('flipped', flip);
+}
 function renderUnits() {
 const enemyArea = document.getElementById('enemy-area'); const playerArea = document.getElementById('player-area');
 enemyArea.innerHTML = ''; playerArea.innerHTML = '';
@@ -2807,6 +3013,7 @@ gameState.playerTeam.forEach(idx => playerArea.appendChild(createUnitElement(idx
 // 元素插入 DOM 后再统一刷新一次：否则 createUnitElement 内的首次刷新
 // 会因为 getElementById 还取不到节点而跳过，阵亡单位的 buff 容器就漏掉了隐藏
 gameState.units.forEach((u, idx) => updateBuffDisplay(idx));
+applyNetViewFlip();
 }
 function createUnitElement(idx) {
 const u = gameState.units[idx]; const wrapper = document.createElement('div'); wrapper.className = 'unit-wrapper';
@@ -5004,6 +5211,11 @@ return unit.side === 'player' ? '我方' : '敌方';
 }
 function getSideLabel(unit) {
 if (!unit) return '';
+/* 联机客机视角：自己操控的是 enemy 阵营，日志里的「我方/敌方」必须跟着视角走，
+   否则客机会看到"我方"挨打、其实那是自己打出去的伤害。 */
+if (typeof Net !== 'undefined' && Net.active && Net.role === 'guest') {
+return unit.side === NET_GUEST_SIDE ? '【我方】' : '【敌方】';
+}
 if (gameMode === 'pvp') {
 return unit.side === 'player' ? '【玩家1】' : '【玩家2】';
 } else {
