@@ -286,6 +286,21 @@ body { font-family: 'Microsoft YaHei', sans-serif; background-color: #0a0a1a; ba
 /* 重新开始：右下角 */
 #restart-btn { position: absolute; right: 14px; bottom: 128px; z-index: 101; padding: 7px 14px; font-size: 13px; color: #ef5350; background: rgba(0,0,0,.55); border: 1px solid #ef535066; border-radius: 8px; cursor: pointer; -webkit-tap-highlight-color: transparent; }
 #restart-btn:hover { background: #ef5350; color: #fff; }
+/* 联机状态 HUD：常驻右上角。
+   联机面板（#net-overlay）连上后就关掉了，状态栏跟着一起消失 ——
+   于是"实时延迟"这个读数在真正对战时根本看不到。
+   这里做一个独立的小挂件，跨界面常驻，不随面板开关。 */
+#net-hud { position: fixed; top: 8px; right: 8px; z-index: 300; display: none;
+padding: 4px 10px; font-size: 11px; line-height: 1.4; border-radius: 10px;
+color: #cfe8ff; background: rgba(6,10,26,.72); border: 1px solid rgba(79,195,247,.35);
+pointer-events: none; white-space: nowrap; backdrop-filter: blur(3px); }
+#net-hud.show { display: block; }
+#net-hud .nh-role { color: #ffd700; }
+#net-hud .nh-lat { font-weight: bold; }
+#net-hud .nh-lat.good { color: #69f0ae; }
+#net-hud .nh-lat.mid  { color: #ffd54f; }
+#net-hud .nh-lat.bad  { color: #ef5350; }
+
 /* 选人界面返回上一级 */
 #back-btn { position: absolute; left: 14px; top: 14px; z-index: 10; padding: 8px 14px; font-size: 14px; color: #4fc3f7; background: transparent; border: none; cursor: pointer; text-shadow: 0 0 8px rgba(79,195,247,.45); -webkit-tap-highlight-color: transparent; }
 #back-btn:hover { color: #fff; }
@@ -593,7 +608,7 @@ word-break: break-word; }
 <h2>🌐 联机对战</h2>
 <p class="net-tip">房主生成一个房间码发给对手，对手输入即可开打。连接后状态栏会显示实时延迟；若延迟偏高（红色），可在下方「中继服务器」填入更近的服务器地址。</p>
 <label class="net-label">房间码<input id="net-room" type="text" placeholder="留空点「创建房间」会自动生成" autocomplete="off" maxlength="12"></label>
-<label class="net-label">中继服务器（可选，连不上时才填）<input id="net-server" type="text" placeholder="留空自动选公共服务器" autocomplete="off"></label>
+<label class="net-label">中继服务器（可选，留空自动选公共服务器）<input id="net-server" type="text" placeholder="自建填 wss://你的域名" autocomplete="off"></label>
 <div id="net-roomcode"><div class="rc-label">把这个房间码发给对手</div><div class="rc-val" id="net-roomcode-val"></div><button class="rc-copy" id="net-roomcode-copy" type="button">复制</button></div>
 <div id="net-status">房主点「创建房间」，对手输入房间码后点「加入房间」</div>
 <div class="net-btns">
@@ -726,6 +741,7 @@ word-break: break-word; }
 </div>
 </div>
 </div>
+<div id="net-hud"></div>
 <!-- 全局确认弹窗：必须放在 #battle-screen【之外】。
      此前它嵌在 battle-screen 里，而战斗界面未打开时 battle-screen 是 display:none ——
      父元素隐藏会让子元素即使 display:flex 也不可见。
@@ -1051,6 +1067,8 @@ active:false, role:null, room:'', myId:'', broker:'',
 peerGone:false,        // 对手是否已退出（收到 bye 置位；之后重开不再需要双方确认）
 catchUpCount:0,        // 追赶次数（联机面板上可看到，用于判断网络是否吃紧）
 rtt:null,              // 最近一次测得的往返延迟(ms)
+ws:null,               // 自建 WS 中继的 socket（与 client 二选一）
+transport:null,        // 'ws' | 'mqtt'，决定 send/disconnect 走哪条路
 client:null, myTopic:'', peerTopic:'',
 entered:false,         // 是否已进过选人界面（对手断线重连时不再重复进入）
 guestRoster:null,      // 房主收到客机阵容后存放，开局时写入 enemySelection
@@ -1064,24 +1082,43 @@ _openTimer:null,
 setStatus(t) {
 this._lastStatus = t;                 // 记住原文，延迟读数变化时用它重渲染
 const el = document.getElementById('net-status'); if (el) el.textContent = t + this.latencyTag();
+this.renderHud();                     // 常驻挂件同步更新（面板关着也能看到）
 if (this.statusCb) this.statusCb(t);
+},
+/* 右上角常驻挂件：显示「身份 · 传输方式 · 延迟」。
+   联机面板一旦关闭，#net-status 就不可见了，这里是唯一能持续观察延迟的地方。 */
+renderHud() {
+const hud = document.getElementById('net-hud');
+if (!hud) return;
+if (!this.active) { hud.classList.remove('show'); return; }
+hud.classList.add('show');
+const role = this.role === 'host' ? '房主' : '玩家2';
+const mode = this.transport === 'ws' ? 'WS中继' : (this.transport === 'mqtt' ? 'MQTT' : '联机');
+let lat = '';
+let cls = '';
+if (this.rtt != null) { cls = this.rtt < 120 ? 'good' : (this.rtt < 400 ? 'mid' : 'bad'); lat = ` · ${this.rtt}ms`; }
+hud.innerHTML = `<span class="nh-role">${role}</span> · ${mode}<span class="nh-lat ${cls}">${lat}</span>`;
 },
 /* 「🟢 延迟 85ms」这类后缀；未测得则不显示 */
 latencyTag() {
-if (this.rtt == null) return '';
+const parts = [];
+if (this.transport) parts.push(this.transport === 'ws' ? 'WS中继' : 'MQTT');
+if (this.rtt != null) {
 const q = this.rtt < 120 ? '🟢' : (this.rtt < 400 ? '🟡' : '🔴');
-return `　${q} 延迟 ${this.rtt}ms` + (this.rtt >= 400 ? '（偏高，建议换中继服务器）' : '');
+parts.push(`${q} 延迟 ${this.rtt}ms` + (this.rtt >= 400 ? '（偏高）' : ''));
+}
+return parts.length ? '　' + parts.join(' · ') : '';
 },
 /* 延迟自测：本端发 ping → 对手回 pong → 计算往返。
-   只在客机侧主动发起（客机是"观战+操作"的一端，最需要知道自己的体感延迟）。 */
+   两侧都测 —— 房主也要看自己的读数，否则没法判断"到底是谁的网络差"。
+   两边各按自己的节奏发，用 ts 区分归属，避免互相干扰。
+   MQTT 下行由房主发起；WS 中继两端都主动发（该模式下客机也可能收不到房主的 ping）。 */
 startLatencyProbe() {
 if (this._rttTimer) return;
 const beat = () => {
 if (!this.active) return;
-if (this.role === 'guest') {
 this._rttSent = Date.now();
-this.send({ t:'ping' });
-}
+this.send({ t:'ping', ts:this._rttSent });
 };
 beat();
 this._rttTimer = setInterval(beat, 3000);
@@ -1104,9 +1141,80 @@ return false;
    双方各自连上同一个 broker，房主往「自己的主题」发、订阅「客机主题」，反之亦然。
    房间是否存在，靠房主发在自己主题上的一条【保留消息】(retain) 来判断：
    客机一订阅就能立刻收到 —— 比"盲等对方先说话"可靠得多。 */
+/* 传输方式判定：
+   · 自定义地址里含 /mqtt（或 mqtts）→ MQTT broker（公共 broker 都是这种）
+   · 其它 wss://…            → 自建 WebSocket 中继（Cloudflare Worker + DO）
+   留空则走公共 MQTT。两种实现共用同一套上层消息协议，可随时切换对比。 */
+isWsRelayUrl(u) {
+const v = String(u || '').trim();
+if (!/^wss?:\/\//i.test(v)) return false;
+return !/\/mqtt(\/?$|[/?])/i.test(v) && !/^mqtts?:/i.test(v);
+},
+
+/* ---------- 自建 WebSocket 中继（Cloudflare Worker + Durable Object） ----------
+   服务器负责按房间码配对两端并原样转发，不解析游戏内容。
+   与 MQTT 路径的差异只在"怎么把字节送出去"，上层消息格式完全一致。
+   优势：socket 关闭时服务端能立刻感知 → 对手退出通知更及时可靠。 */
+async connectWs(cfg) {
+const base = this.customBroker.replace(/\/+$/, '');
+const url = `${base}/?room=${encodeURIComponent(this.room)}&role=${this.role}`;
+this.setStatus('⏳ 正在连接中继服务器…');
+const ws = await new Promise((resolve, reject) => {
+let sock = null;
+const to = setTimeout(() => { try { sock && sock.close(); } catch (e) {} reject(new Error('连接超时')); }, 12000);
+try { sock = new WebSocket(url); } catch (e) { clearTimeout(to); reject(e); return; }
+sock.onopen = () => { clearTimeout(to); resolve(sock); };
+sock.onerror = () => { clearTimeout(to); reject(new Error('连接失败')); };
+});
+this.ws = ws;
+this.active = true;
+ws.onmessage = (ev) => {
+let o = null; try { o = JSON.parse(String(ev.data)); } catch (e) { return; }
+if (!o || !o.t) return;
+if (o.t === 'joined') { this.onWsJoined(o); return; }
+if (o.t === 'peer') { this.onWsPeer(); return; }
+this.handle(o);
+};
+ws.onclose = () => {
+/* 服务端已挂，不会再有 bye 过来；这里只负责标记本端失效 */
+if (this.active) { this.active = false; this.setStatus('❌ 与中继服务器的连接已断开'); }
+};
+/* 等服务端回 joined 再继续：它告知本端身份与对手是否已在 */
+const ok = await this.waitWsJoined(12000);
+if (!ok) { try { ws.close(); } catch (e) {} this.ws = null; this.active = false; this.setStatus('❌ 房间配对失败，请重试'); return false; }
+this.transport = 'ws';
+this.startLatencyProbe();   // 两侧都测：房主也要看到自己的读数
+if (this.role === 'host') this.setStatus(`✅ 房间已创建（${this.room}），等待对手加入…`);
+else this.setStatus(`✅ 已加入房间 ${this.room}，等待房主开始…`);
+return true;
+},
+waitWsJoined(ms) {
+return new Promise((resolve) => {
+this._joinResolve = resolve;
+setTimeout(() => { if (this._joinResolve) { this._joinResolve = null; resolve(false); } }, ms);
+});
+},
+/* 服务端确认身份：客机要等对手到齐才发 hello（与 MQTT 路径的行为保持一致） */
+onWsJoined(o) {
+if (o.role && o.role !== this.role) this.role = o.role;   // 以服务端登记的身份为准
+if (this.role === 'guest') {
+if (o.peer) { this.send({ t:'hello' }); }
+else this.setStatus(`⏳ 已加入房间 ${this.room}，等待房主…`);
+}
+if (this._joinResolve) { const r = this._joinResolve; this._joinResolve = null; r(true); }
+},
+/* 两端到齐 */
+onWsPeer() {
+if (this.role === 'guest') { this.send({ t:'hello' }); this.startLatencyProbe(); }
+},
+
 async connect(cfg) {
 this.room = String((cfg.room || '').trim()).toUpperCase();
 if (!this.room) { this.setStatus('❌ 请先填写或生成房间码'); return false; }
+this.role = cfg.role;
+this.customBroker = String((cfg.broker || '').trim());
+this.transport = null;
+if (this.isWsRelayUrl(this.customBroker)) return this.connectWs(cfg);
 this.setStatus('⏳ 正在加载通讯组件…');
 const okSdk = await this.loadSDK();
 if (!okSdk) { this.setStatus('❌ 通讯组件加载失败（检查网络或改用其它 CDN）'); return false; }
@@ -1118,6 +1226,7 @@ this.myId = this.role + '-' + Math.random().toString(36).slice(2, 10);
 
 /* 依次尝试候选 broker —— 公共服务器偶尔会限流，多留几个入口。
    用户手动填的服务器排在最前面（他有明确目标时优先满足）。 */
+this.transport = 'mqtt';
 const brokerList = this.customBroker ? [this.customBroker].concat(RELAY_BROKERS) : RELAY_BROKERS;
 for (const url of brokerList) {
 this.setStatus(`⏳ 正在连接服务器…`);
@@ -1143,11 +1252,13 @@ this.handle(obj);
    而 send() 有 active 前置检查；晚置位会让这条 hello 被静默吞掉，
    结果是客机显示"已加入"、房主却永远停在"等待对手加入"。 */
 this.active = true;
+this.renderHud();
 
 if (this.role === 'host') {
 /* 房主：发出在线标记（retain，客机一订阅就能看到），并周期性刷新 */
 this.publishOpen(true);
 this._openTimer = setInterval(() => this.publishOpen(false), RELAY_HELLO_BEACON);
+this.startLatencyProbe();
 this.setStatus(`✅ 房间已创建（${this.room}），等待对手加入…`);
 } else {
 /* 客机：等房主的在线标记。连上了 broker 但没人建房才叫「房间不存在」，
@@ -1230,6 +1341,14 @@ showNoticeDialog('对手已退出联机。你可以直接「重新开始」，�
 disconnect() {
 try { this.stopLatencyProbe(); } catch (e) {}
 try { if (this._openTimer) { clearInterval(this._openTimer); this._openTimer = null; } } catch (e) {}
+if (this.transport === 'ws') {
+/* WS 中继：服务端能直接看到 socket 关闭并代发 bye，这里不用自己发 */
+try { if (this.ws) this.ws.close(); } catch (e) {}
+this.ws = null;
+this.active = false; this.role = null; this.entered = false; this.transport = null;
+this.renderHud();
+return;
+}
 if (this.client) {
 /* 主动退出时自己发一次 bye：让对手立刻收到提示，不用等 keepalive 超时才触发遗嘱。
    （正常 end() 不会触发 will，所以必须手动发。） */
@@ -1237,11 +1356,18 @@ try { if (this.active) this.publishRaw(this.myTopic, JSON.stringify({ t:'bye' })
 try { if (this.role === 'host') this.publishRaw(this.myTopic, '', true); } catch (e) {}
 try { this.client.end(true); } catch (e) {}
 }
-this.active = false; this.role = null; this.client = null; this.entered = false;
+this.active = false; this.role = null; this.client = null; this.entered = false; this.transport = null;
+this.renderHud();
 },
 
 send(obj) {
-if (!this.active || !this.client) return;
+if (!this.active) return;
+if (this.transport === 'ws') {
+if (!this.ws || this.ws.readyState !== 1) return;
+try { this.ws.send(JSON.stringify(obj)); } catch (e) {}
+return;
+}
+if (!this.client) return;
 this.publishRaw(this.myTopic, JSON.stringify(obj), false);
 },
 
@@ -1252,12 +1378,15 @@ const H = this.role === 'host';
 if (o.t !== 'bye') this.peerGone = false;
 /* 对手退出：对方主动退出，或其页面/网络异常断开触发遗嘱 */
 if (o.t === 'bye') { this.onPeerGone(); return; }
-/* 延迟自测：收到 ping 立刻回 pong（带原时间戳）；收到 pong 计算往返 */
+/* 延迟自测：收到 ping 立刻回 pong（带原时间戳）；收到 pong 计算往返。
+   ★ 用 ts 匹配：两边同时在测，收到的 pong 可能是自己 ping 的回音、也可能是对手
+      ping 过来被回传的那条。不校验 ts 会把别人的往返记成自己的，读数完全失真。 */
 if (o.t === 'ping') { this.send({ t:'pong', ts:o.ts }); return; }
-if (o.t === 'pong' && this._rttSent) {
+if (o.t === 'pong' && o.ts && this._rttSent && Number(o.ts) === this._rttSent) {
 this.rtt = Date.now() - this._rttSent; this._rttSent = 0;
 /* 用记住的原文重渲染，把新的延迟读数刷到状态栏上 */
 if (this._lastStatus) this.setStatus(this._lastStatus);
+else this.renderHud();
 return;
 }
 /* 重新开始：任一方都可发起，需双方确认；对手已退出时发起方单独执行 */
@@ -1644,6 +1773,8 @@ const CHANGELOG = [
 { ver:'v1.4.10', items:[
 '新增：联机对战模式（公共 MQTT over WebSocket 中继 · 房主权威广播）—— 两台设备各控一方，房主生成房间码，对手输入即连。',
 '新增：全局背景图 —— 主界面、选人、BP、战斗、结算统一生效，竖屏与横屏自动适配不同画面。',
+'联机：支持自建 WebSocket 中继 —— 在「中继服务器」填 wss://你的域名 即可切换（留空仍走公共服务器），两种方式可随时对比。',
+'联机：右上角新增常驻状态挂件，实时显示当前身份、连接方式与延迟（联机面板关闭后仍可见）。',
 ] },
 { ver:'v1.4.9', items:[
 '五条悟重做：普攻固定为「苍」120%；被动改为「六眼·无下限」（友方施放技能时附加「视」；受击时获得护盾）；新增机制「视」。',
