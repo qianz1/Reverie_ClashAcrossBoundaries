@@ -1070,8 +1070,14 @@ const NET_CATCHUP_QUEUE = 12;    // 客机队列积压超过这个条数就启�
 const Net = {
 active:false, role:null, room:'', myId:'', broker:'',
 peerGone:false,        // 对手是否已退出（收到 bye 置位；之后重开不再需要双方确认）
+peerGoneNotified:false,// 本次连接是否已弹过「对手已退出」提示（防止重复打扰）
 catchUpCount:0,        // 追赶次数（联机面板上可看到，用于判断网络是否吃紧）
 rtt:null,              // 最近一次测得的往返延迟(ms)
+/* 最近一次发给客机的操作面板（原样保存，供 tick 周期性重发做自愈） */
+_lastPanel:null, _panelAge:0,
+/* 客机侧：当前面板所属的行动者下标（-1 = 无）。
+   点按钮时一并回传，房主据此识别「画面还停在上一个角色」的过期点击。 */
+panelIdx:-1,
 ws:null,               // 自建 WS 中继的 socket（与 client 二选一）
 transport:null,        // 'ws' | 'mqtt'，决定 send/disconnect 走哪条路
 client:null, myTopic:'', peerTopic:'',
@@ -1216,6 +1222,15 @@ if (!this.room) { this.setStatus('❌ 请先填写或生成房间码'); return f
 this.role = cfg.role;
 this.customBroker = String((cfg.broker || '').trim());
 this.transport = null;
+/* ★ 开新一局联机时必须把上一局的残留清干净。
+   尤其是 peerGone —— 它一旦置位就一直为 true，
+   于是之后每次进选人界面都会再弹一次"对手已退出"、状态栏也一直挂着警告。
+   同理清掉延迟读数与面板记录，避免沿用上一局的陈旧状态。 */
+this.peerGone = false; this.peerGoneNotified = false;
+this.rtt = null; this._rttSent = 0;
+this._lastPanel = null; this._panelAge = 0; this.panelIdx = -1;
+this.guestQueue = []; this.guestDraining = false; this.waitingPick = false;
+this.catchUpCount = 0;
 if (this.isWsRelayUrl(this.customBroker)) return this.connectWs(cfg);
 this.setStatus('⏳ 正在加载通讯组件…');
 const okSdk = await this.loadSDK();
@@ -1373,7 +1388,10 @@ const to = setTimeout(() => finish(false), ms);
 /* 对手退出：给出明确提示，并解除「重开需双方确认」的限制 ——
    否则对局会卡死：一方已经不在，另一方却永远等不到确认。 */
 onPeerGone() {
-if (this.peerGone) return;      // bye 可能重复到达（手动一次 + 遗嘱一次）
+/* bye 可能重复到达（手动一次 + 遗嘱一次）；而且断开重连后还可能再来一次。
+   用 peerGoneNotified 保证【每次连接只弹一次】，否则玩家会反复被提示打断。 */
+if (this.peerGoneNotified) return;
+this.peerGoneNotified = true;
 this.peerGone = true;
 this.setStatus('⚠️ 对手已退出联机');
 showNoticeDialog('对手已退出联机。你可以直接「重新开始」，无需等待对方确认。');
@@ -1403,6 +1421,9 @@ this.renderHud();
 
 send(obj) {
 if (!this.active) return;
+/* 面板消息统一登记 —— 供 tick 周期性重发做自愈（见 syncGuestPanel）。
+   记在这里，任何新增的发送点都不会漏掉。 */
+if (obj && obj.t === 'panel') { this._lastPanel = obj; this._panelAge = 0; }
 if (this.transport === 'ws') {
 if (!this.ws || this.ws.readyState !== 1) return;
 try { this.ws.send(JSON.stringify(obj)); } catch (e) {}
@@ -1451,7 +1472,7 @@ this.setStatus('✅ 对手已提交阵容');
 netRefreshStartButton();
 return;
 }
-if (H && o.t === 'act') { this.hostDoAction(o.kind); return; }
+if (H && o.t === 'act') { this.hostDoAction(o.kind, o.idx); return; }
 if (H && o.t === 'pick') { this.hostDoPick(o.idx); return; }
 /* 客机的自动偏好：写进房主这边（战斗逻辑只跑在房主端，客机本地改无效） */
 if (H && o.t === 'auto') {
@@ -1495,8 +1516,17 @@ if (!H) { this.guestQueue.push(o); this.drainGuest(); }
 },
 
 /* ---------- 房主：执行客机指令 ---------- */
-hostDoAction(kind) {
+hostDoAction(kind, idx) {
 const actor = gameState.currentActor;
+/* ★ 过期面板保护：客机回传的 idx 与当前行动者不符，说明它画面还停在
+   上一个角色（面板刷新消息迟到或丢失），此时绝不能执行 ——
+   否则就是"按着上一个角色的技能名，放出当前角色的技能"。
+   拒绝执行并重发一次正确面板，客机画面随即自愈。 */
+if (idx != null && Number(idx) >= 0 && actor && Number(idx) !== idxOf(actor)) {
+this.send({ t:'panel', mode:'none' });
+this.sendPanelFor(actor);
+return;
+}
 /* 指令到达时行动者可能已经换人（行动条推进 / 上一行动刚结束）。
    原来这里直接 return，客机就永远停在「已发送」的置灰状态、按钮点不动，
    表现为"卡住了"。改成把当前真实面板回传，让客机按钮恢复正确状态。 */
@@ -1631,6 +1661,8 @@ gameState.units.forEach((u, i) => { if (u) refreshUnitView(i); });
 applyPanel(o) {
 const set = (id, show) => { const b = document.getElementById(id); if (b) { b.style.display = show ? 'inline-block' : 'none'; if (show) b.style.opacity = ''; } };
 this.waitingPick = (o.mode === 'select');
+/* 记下面板属于哪个行动者：点按钮时一并回传，供房主校验是否过期 */
+this.panelIdx = (o.idx == null) ? -1 : Number(o.idx);
 /* 房主的权威面板回来了 → 清掉本地那层「已发送」置灰。
    guestLocalAck 只是即时反馈，真正的可用状态以房主的面板为准（含 disabled）。 */
 ['btn-normal','btn-skill','btn-skill2','btn-cancel'].forEach(id => {
@@ -1653,10 +1685,23 @@ return;
 set('btn-normal', true); set('btn-skill', true); set('btn-skill2', true); set('btn-cancel', false);
 (o.btns || []).forEach(b => { const el = document.getElementById(b.id); if (!el) return; el.style.display = b.show ? 'inline-block' : 'none'; el.disabled = !!b.dis; el.textContent = b.text; });
 },
+/* 客机点按钮后立刻给出本地反馈：置灰防连点 + 提示"已发送"。
+   指令要绕一圈到房主、房主算完再广播回来，这段空窗期客机画面毫无变化，
+   很容易被当成"点了没反应 / 卡了"。先本地响应，房主的权威 panel 回来时再校正。
+   ★ 同时把面板所属行动者的 idx 一并回传，房主据此识别过期面板。 */
+guestLocalAck() {
+['btn-normal','btn-skill','btn-skill2','btn-cancel'].forEach(id => {
+const b = document.getElementById(id);
+if (!b) return;
+b.disabled = true;                 // 置灰防连点（重复指令会让房主重复结算一次行动）
+b.style.opacity = '0.45';
+});
+this.setStatus('⏳ 已发送操作，等待房主结算…');
+},
 bindGuestButtons() {
-document.getElementById('btn-normal').onclick = () => this.send({ t:'act', kind:'normal' });
-document.getElementById('btn-skill').onclick  = () => this.send({ t:'act', kind:'skill' });
-document.getElementById('btn-skill2').onclick = () => this.send({ t:'act', kind:'skill2' });
+document.getElementById('btn-normal').onclick = () => { this.guestLocalAck(); this.send({ t:'act', kind:'normal', idx:this.panelIdx }); };
+document.getElementById('btn-skill').onclick  = () => { this.guestLocalAck(); this.send({ t:'act', kind:'skill',  idx:this.panelIdx }); };
+document.getElementById('btn-skill2').onclick = () => { this.guestLocalAck(); this.send({ t:'act', kind:'skill2', idx:this.panelIdx }); };
 document.getElementById('btn-cancel').onclick = () => { this.waitingPick = false; clearHighlights(); this.send({ t:'act', kind:'cancel' }); };
 /* 自动：客机【也要有】—— 玩家2 同样需要能托管自己那一方。
    （此前这里写的是"联机下不提供托管"并把按钮藏了，于是房主一点自动，
@@ -1709,6 +1754,28 @@ if (gameState.phase !== 'fighting') return;
 if (now - this.lastTick < NET_TICK_MS) return;
 this.lastTick = now;
 this.send(this.snapshot());
+this.syncGuestPanel();
+},
+/* 主动生成「当前行动者」的面板（校验失败 / 跳过回合等场景调用） */
+sendPanelFor(unit) {
+if (!unit) { this.send({ t:'panel', mode:'none' }); return; }
+if (gameState.waitingForTarget) { this.send({ t:'panel', mode:'select', idx: idxOf(unit), ttype: gameState.targetType || 'enemy', btns:[] }); return; }
+showControlPanel(unit);
+},
+/* 面板自愈：每 tick 核对一次。
+   客机操作栏完全依赖房主广播的 panel 消息，丢一条就永远停在旧画面
+   （症状：上一个角色的技能名还在，点下去却放出当前角色的技能）。
+   ① 期望状态与已发面板不一致 → 立刻重新生成；
+   ② 一致但已过约 1 秒 → 原样重发一次，兜住偶发丢包。 */
+syncGuestPanel() {
+const a = gameState.currentActor;
+const waiting = !!(a && a.side === NET_GUEST_SIDE && !gameState.animating && !isAutoUnit(a));
+const wantMode = waiting ? (gameState.waitingForTarget ? 'select' : 'skill') : 'none';
+const wantIdx = waiting ? idxOf(a) : -1;
+const lp = this._lastPanel;
+const mismatch = !lp || lp.mode !== wantMode || (Number(lp.idx == null ? -1 : lp.idx) !== wantIdx);
+if (mismatch) { this.sendPanelFor(waiting ? a : null); return; }
+if (++this._panelAge >= 5) { this._panelAge = 0; this.send(lp); }
 },
 sendInit() {
 if (!this.active || this.role !== 'host') return;
@@ -1830,8 +1897,6 @@ const CHANGELOG = [
 { ver:'v1.4.10', items:[
 '新增：联机对战模式 —— 两台设备各控一方，房主生成房间码，对手输入即连，自动选择最快的中继服务器。',
 '新增：全局背景图 —— 主界面、选人、BP、战斗、结算统一生效，竖屏与横屏自动适配不同画面。',
-'修复：联机时玩家2点「取消」会被误判为施放技能1，导致操作栏卡在仅剩「取消」的状态。',
-'优化：手机端主界面改为整体垂直居中，与电脑端一致。',
 ] },
 { ver:'v1.4.9', items:[
 '五条悟重做：普攻固定为「苍」120%；被动改为「六眼·无下限」（友方施放技能时附加「视」；受击时获得护盾）；新增机制「视」。',
@@ -3629,6 +3694,9 @@ log(`${getSideLabel(unit)}${unit.name} 的回合被跳过！`, 'log-buff');
 refreshUnit(unit);
 setActionValue(unit, 0); updateActionBarDots();
 gameState.currentCastSkill = null; gameState.currentCaster = null;
+/* 联机：被跳过的若是客机方单位，必须显式清掉它的操作栏 ——
+   否则客机画面仍停留在上一个角色的技能名上，点下去放的是别人的技能。 */
+if (typeof Net !== 'undefined' && Net.active && Net.role === 'host' && unit.side === NET_GUEST_SIDE) Net.send({ t:'panel', mode:'none' });
 if (checkBattleEnd()) { gameState.animating = false; return; }
 gameState.paused = false; gameState.animating = false; gameState.currentActor = null; gameState.vayneKillThisTurn = false;
 return;
@@ -3685,6 +3753,8 @@ unit.pendingSkip = true;
 refreshUnit(unit);
 setActionValue(unit, 0); updateActionBarDots();
 gameState.currentCastSkill = null; gameState.currentCaster = null;
+/* 同上：客机方单位被跳过时也要清掉操作栏 */
+if (typeof Net !== 'undefined' && Net.active && Net.role === 'host' && unit.side === NET_GUEST_SIDE) Net.send({ t:'panel', mode:'none' });
 if (checkBattleEnd()) { gameState.animating = false; return; }
 gameState.paused = false; gameState.animating = false; gameState.currentActor = null; gameState.vayneKillThisTurn = false;
 return;
@@ -3778,7 +3848,7 @@ const reason = getSkillBlockReason(unit, skill);
 const dis = (Number(unit.rage) || 0) < cost || !!reason;
 return { id, show:true, text: reason ? `${label}（不可用）` : `${label}(${unit.rage}/${cost})`, dis };
 };
-Net.send({ t:'panel', mode:'skill', ttype:'enemy',
+Net.send({ t:'panel', mode:'skill', ttype:'enemy', idx: idxOf(unit), name: unit.name,
 btns:[ { id:'btn-normal', show:true, text:'普攻', dis:false },
 mk('btn-skill', unit.activeSkill, unit.activeSkill ? unit.activeSkill.name : '技能'),
 mk('btn-skill2', unit.activeSkill2, unit.activeSkill2 ? unit.activeSkill2.name : '技能2') ] });
