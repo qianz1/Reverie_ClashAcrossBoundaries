@@ -295,6 +295,25 @@ body { font-family: 'Microsoft YaHei', sans-serif; background: #0a0a1a; color: #
 #bp-confirm-bar.banning #bp-confirm-btn { background: linear-gradient(135deg, #c62828, #e53935); }
 #bp-confirm-cancel { padding: 8px 20px; font-size: 15px; background: transparent; color: #9e9e9e; border: 1px solid #555; border-radius: 18px; cursor: pointer; }
 #bp-confirm-cancel:hover { color: #fff; border-color: #888; }
+/* ===== 联机设置面板 ===== */
+#net-overlay { display: none; position: fixed; inset: 0; z-index: 240; background: rgba(0,0,0,.75); align-items: center; justify-content: center; }
+#net-overlay.show { display: flex; }
+#net-card { width: min(94vw, 460px); max-height: 90vh; overflow-y: auto; background: linear-gradient(135deg, #101a3a, #1c2b57); border: 2px solid #4fc3f7; border-radius: 16px; padding: 18px 16px; box-shadow: 0 0 30px rgba(79,195,247,.35); }
+#net-card h2 { text-align: center; color: #ffd700; font-size: 19px; margin: 0 0 10px; }
+.net-tip { font-size: 12px; color: #b0bec5; line-height: 1.6; margin: 0 0 12px; }
+.net-tip b { color: #4fc3f7; }
+.net-label { display: block; font-size: 12px; color: #90a4ae; margin-bottom: 8px; }
+.net-label input { display: block; width: 100%; margin-top: 4px; padding: 9px 10px; font-size: 13px; background: rgba(255,255,255,.07); border: 1px solid #455a64; border-radius: 8px; color: #fff; box-sizing: border-box; }
+#net-status { font-size: 12px; color: #ffd700; text-align: center; margin: 10px 0; min-height: 16px; line-height: 1.5; }
+/* 房间码：大字展示，方便口头 / 聊天窗口告诉对手 */
+#net-roomcode { display: none; margin: 10px 0; padding: 10px; text-align: center; background: rgba(79,195,247,.12); border: 1px dashed #4fc3f7; border-radius: 10px; }
+#net-roomcode.show { display: block; }
+#net-roomcode .rc-label { font-size: 11px; color: #90a4ae; }
+#net-roomcode .rc-val { font-size: 26px; font-weight: bold; color: #ffd700; letter-spacing: 4px; margin: 4px 0; font-family: monospace; }
+#net-roomcode .rc-copy { font-size: 11px; padding: 4px 12px; border: 1px solid #4fc3f7; background: transparent; color: #4fc3f7; border-radius: 12px; cursor: pointer; }
+.net-btns { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+.net-btns button { padding: 9px 16px; font-size: 13px; border: none; border-radius: 16px; cursor: pointer; background: #4fc3f7; color: #0a1929; font-weight: bold; }
+.net-btns button.net-cancel { background: transparent; color: #90a4ae; border: 1px solid #546e7a; }
 /* 待确认的卡片：金色描边高亮 */
 .hero-card.bp-pending { border-color: #ffd700; box-shadow: 0 0 14px rgba(255,215,0,.55); transform: scale(1.03); }
 /* 同轮 BP：对方已选的英雄【仍可选】—— 取消 bp-picked 的禁用，但保留角标 */
@@ -500,6 +519,11 @@ word-break: break-word; }
 <div class="mode-title">双人对战</div>
 <div class="mode-desc">两名玩家轮流操控各自阵容，手动出招</div>
 </div>
+<div class="mode-card" id="mode-online" data-mode="online">
+<div class="mode-icon">🌐</div>
+<div class="mode-title">联机对战</div>
+<div class="mode-desc">两台设备各控一方，点对点直连（无需注册、无需内网穿透）</div>
+</div>
 </div>
 <button id="mode-confirm-btn" disabled>确认选择</button>
 <div id="version-theme-line">
@@ -515,6 +539,22 @@ word-break: break-word; }
 <span id="changelog-close">&times;</span>
 </div>
 <div id="changelog-body"></div>
+</div>
+</div>
+<!-- 联机设置面板 -->
+<div id="net-overlay">
+<div id="net-card">
+<h2>🌐 联机对战</h2>
+<p class="net-tip">基于 <b>PeerJS</b> 的点对点直连 —— 纯静态托管可用，<b>无需注册任何账号</b>，也不用内网穿透。房主创建一个房间码发给对手，对手输入即可开打。</p>
+<label class="net-label">房间码<input id="net-room" type="text" placeholder="留空点「创建房间」会自动生成" autocomplete="off" maxlength="12"></label>
+<label class="net-label">信令服务器（可选）<input id="net-server" type="text" placeholder="留空用官方公共服务器" autocomplete="off"></label>
+<div id="net-roomcode"><div class="rc-label">把这个房间码发给对手</div><div class="rc-val" id="net-roomcode-val"></div><button class="rc-copy" id="net-roomcode-copy" type="button">复制</button></div>
+<div id="net-status">房主点「创建房间」，对手输入房间码后点「加入房间」</div>
+<div class="net-btns">
+<button id="net-create" type="button">创建房间</button>
+<button id="net-join" type="button">加入房间</button>
+<button id="net-cancel" type="button" class="net-cancel">返回</button>
+</div>
 </div>
 </div>
 <div id="selection-screen">
@@ -742,7 +782,7 @@ mechanics: [
 normal: { name:"炎影", type:"single", dmgRate:1.0, target:"enemy", effect:"rageDown" },
 skill: { name:"梦山狐影", cost:4, type:"buff", target:"ally", selfEffect:"foxGuard" },
 descNormal: "对敌方目标造成 <span class='dmg'>100%</span> 伤害，有 <span class='buff'>50%概率</span> 使目标减 <span class='buff'>1点怒气</span>。",
-descSkill: "使攻击最高的友方单位和血量最低的友方单位获得 <span class='m-mark'>狐守</span>（场上至多同时存在2个友方单位拥有狐守），持续2回合。然后自身获得 <span class='m-mark'>狐佑</span>，持续2回合。",
+descSkill: "使攻击最高的友方单位和血量最低的友方单位获得 <span class='m-mark'>狐守</span>（我方至多同时存在2个单位拥有狐守），持续2回合。然后自身获得 <span class='m-mark'>狐佑</span>，持续2回合。",
 mechanics: [
 { type:'mark', name:'狐守', desc:'增益印记：提升20%最终免伤率；拥有印记的友方所受伤害由白藏主代为承受，不可叠加。' },
 { type:'mark', name:'狐佑', desc:'增益印记：提升自身25%最终免伤率，不可叠加。' }
@@ -771,7 +811,7 @@ normal: { name:"焚天", type:"single", dmgRate:1.2, target:"enemy" },
 skill: { name:"天火怒焱", cost:4, type:"aoe", dmgRate:0, target:"enemy", effect:"dispelAndPush", selfEffect:"guiWangZiTai", requireNoMark:"鬼王姿态" },
 opening: 'jiutunMarks',
 passive: { name:"红莲",
-desc:"自身免疫控制，<span class='m-mark'>大妖之力</span>的最终伤害率翻倍，自身治疗减免 <span class='debuff'>30%</span>。先机：使友方全体获得 <span class='m-mark'>大妖之力</span>。" },
+desc:"自身免疫控制，自身治疗减免 <span class='debuff'>30%</span>。先机：使友方全体获得 <span class='m-mark'>大妖之力</span>。" },
 descNormal: "对敌方目标造成 <span class='dmg'>120%</span> 伤害。（强化<span class='k'>烈焰焚天</span>：对敌方目标造成 <span class='dmg'>200%</span> 伤害，<span class='dmg'>溅射40%</span> 给其余敌方）",
 descSkill: "驱散敌方全体随机1个增益状态，击退敌方全体行动条 <span class='buff'>40%</span>，然后自身获得 <span class='m-mark'>鬼王姿态</span>（持续2回合）。仅在无<span class='m-mark'>鬼王姿态</span>时可施放此技能。",
 mechanics: [
@@ -868,11 +908,12 @@ normal: { name:"水无垠", type:"single", dmgRate:1.0, target:"enemy", selfEffe
    主动部分写在 castDesc，详情页自动拼成「被动…【施放】…」。 */
 /* pickTarget:true —— 「buff」型默认作用于自身/全体、不选目标；
    心净明只作用于【单个友方】，故显式声明需要玩家/AI 指定目标。 */
-skill:  { name:"心净明", cost:4, type:"buff", target:"ally", selfEffect:"xinJingMingCast", pickTarget: true },
+/* 【施放】部分带 1 回合冷却（被动部分不受冷却影响 —— 那是行动阶段的自动结算） */
+skill:  { name:"心净明", cost:4, type:"buff", target:"ally", selfEffect:"xinJingMingCast", pickTarget: true, cooldown: 1 },
 skill2: { name:"万法皆空", cost:4, type:"buff", target:"ally", selfEffect:"wanFaJieKong", cooldown: 3 },   // cooldown 字面量 = WANFA_DURATION
 passive: { name:"心净明", boundSkill:'心净明',
 desc:"行动阶段时，重新分配友方总生命，使得友方生命百分比相同。" },
-castDesc: "消耗 <span class='buff'>4点怒气</span>，移除友方目标的所有减益状态和印记，使其<span class='buff'>+30%行动条</span>。若未能移除，则改为使其<span class='buff'>+100%行动条</span>。",
+castDesc: "消耗 <span class='buff'>4点怒气</span>，移除友方目标的所有减益状态和印记，使其<span class='buff'>+30%行动条</span>。若未能移除，则改为使其<span class='buff'>+100%行动条</span>。技能冷却时间：一回合。",
 descNormal: "对敌方目标造成 <span class='dmg'>100%</span> 伤害，并移除自身所有减益状态和印记。",
 descSkill: "行动阶段时，重新分配友方总生命，使得友方生命百分比相同。",
 descSkill2: "扣除全体友方 <span class='dmg'>50%当前生命值</span>，使全体友方获得各自 <span class='buff'>50%最大生命值</span> 的护盾。使全体友方获得 <span class='m-mark'>万法</span>，持续三回合。三个回合后，<span class='m-note'>翻转</span>全体友方的生命值，并清除全体友方的护盾。技能冷却时间：三回合。",
@@ -885,7 +926,7 @@ normal: { name:"解·捌", type:"single", dmgRate:1.0, target:"enemy", sukunaFor
 skill: { name:"灶", cost:2, type:"single", dmgRate:1.2, trueRate:0.6, fixedMaxHpRate: 0.08, target:"enemy" },
 skill2: { name:"伏魔神龛", cost:4, type:"aoe", trueRate:0.9, fixedMaxHpRate: 0.1, target:"enemy", selfEffect:"fuMo", canExecute:true },   // 0.1 = SUKUNA_FIXED_MAXHP_RATE
 passive: { name:"斩击反转", onDamaged:'sukunaRestore',
-desc:"两面宿傩的普攻在<span class='k'>「解」</span>与<span class='k'>「捌」</span>之间切换，施放普攻后切换一次，初始为<span class='k'>解</span>。受到伤害后，<span class='restore'>恢复</span>自身 <span class='heal'>5%</span>最大生命值的生命值。" },
+desc:"两面宿傩的普攻在<span class='k'>「解」</span>与<span class='k'>「捌」</span>之间切换，施放普攻后切换一次，初始为<span class='k'>解</span>。受到伤害后，<span class='restore'>恢复</span>自身 <span class='heal'>6%</span>最大生命值的生命值。" },
 descNormal: "<span class='k'>解</span>：对敌方目标造成两段 <span class='dmg'>63%</span> 的伤害（强化：额外造成 <span class='true-dmg'>63%真实伤害</span>）。<br><span class='k'>捌</span>：对敌方目标造成攻击 <span class='true-dmg'>120%的真实伤害</span>与 <span class='fixed-dmg'>10%目标最大生命值的固定伤害</span>（强化：若造成伤害过程中或结束后目标生命值低于 <span class='dmg'>10%</span>，则直接<span class='m-note'>斩杀</span>目标）。",
 descSkill: "对敌方目标造成 <span class='dmg'>120%</span>伤害、<span class='true-dmg'>60%真实伤害</span>与 <span class='fixed-dmg'>8%目标最大生命值的固定伤害</span>。",
 descSkill2: "分别对敌方全体造成 <span class='true-dmg'>90%真实伤害</span>与 <span class='fixed-dmg'>10%目标最大生命值的固定伤害</span>，若造成伤害过程中或结束后目标生命值低于 <span class='dmg'>10%</span>，则直接<span class='m-note'>斩杀</span>目标。使自身获得 <span class='m-mark'>伏魔</span>（持续2回合）。",
@@ -894,23 +935,368 @@ mechanics: [
 { type:'note', name:'斩杀', desc:'达成斩杀条件时，目标立即死亡。' },
 { type:'note', name:'固定伤害', desc:'造成固定数值的伤害，不受任何影响，无视护盾。' } ] },
 "五条悟": { atk:1010, def:300, hp:3800, spd:181, critRate:0.15, critDmg:1.8, color:'#40c4ff', tag:'攻击',
-normal: { name:"苍·赫", type:"single", dmgRate:1.2, target:"enemy", gojoForm:"ao" },
-skill: { name:"茈", cost:2, type:"aoe", trueRate:0.45, fixedMaxHpRate:0.05, target:"enemy" },
-skill2: { name:"无量空处", cost:4, type:"aoe", trueRate:0.75, fixedMaxHpRate:0.08, target:"enemy", effect:"hunLuan" },
-passive: { name:"无下限",
-desc:"五条悟的普攻在<span class='k'>「苍」</span>与<span class='k'>「赫」</span>之间切换，施放普攻后切换一次，初始为<span class='k'>苍</span>。受到攻击时，自身获得 <span class='buff'>8%最大生命值</span>的护盾（每个单位回合限一次）。" },
-descNormal: "<span class='k'>苍</span>：对敌方目标造成 <span class='dmg'>120%</span>伤害，并使其附加 <span class='m-state'>苍</span>（持续2回合）。<br><span class='k'>赫</span>：对敌方目标造成 <span class='dmg'>200%</span>伤害。",
-descSkill: "对敌方全体造成 <span class='true-dmg'>45%真实伤害</span>与 <span class='fixed-dmg'>5%目标最大生命值的固定伤害</span>。",
-descSkill2: "对敌方全体造成 <span class='true-dmg'>75%真实伤害</span>与 <span class='fixed-dmg'>8%目标最大生命值的固定伤害</span>，每个目标有 <span class='buff'>40%</span>概率被附加 <span class='m-state'>混乱</span>（持续1回合）。",
+normal: { name:"苍", type:"single", dmgRate:1.2, target:"enemy" },
+skill: { name:"无量空处", cost:4, type:"aoe", trueRate:0.75, fixedMaxHpRate:0.08, target:"enemy", effect:"hunLuan" },
+passive: { name:"六眼·无下限",
+desc:"友方单位施放技能时，对随机敌方目标附加 <span class='m-mark'>视</span>。受到攻击时，自身获得 <span class='buff'>8%最大生命值</span>的护盾（每个单位回合限一次）。" },
+descNormal: "对敌方目标造成 <span class='dmg'>120%</span> 伤害。",
+descSkill: "对敌方全体造成 <span class='true-dmg'>75%真实伤害</span>与 <span class='fixed-dmg'>8%目标最大生命值的固定伤害</span>，每个目标有 <span class='buff'>40%</span>概率被附加 <span class='m-state'>混乱</span>（持续1回合）。",
 mechanics: [
-{ type:'state', name:'苍', desc:'减益状态：携带者-10%速度，若受到施加者五条悟的攻击，则移除该状态，额外受到五条悟40%伤害。不可叠加。' },
+{ type:'mark', name:'视', desc:'减益印记：任意单位行动后，五条悟会对携带者造成 <span class="dmg">40%</span> 伤害（不可转移），对携带者造成 <span class="dmg">3次</span>伤害后移除。场上最多 <span class="dmg">3个</span>敌方单位携带此印记。随施放者阵亡清空。不可叠加。' },
 { type:'state', name:'混乱', desc:'减益状态：控制效果，携带者行动阶段时，改为对场上随机目标普攻。不可叠加。' },
 { type:'note', name:'护盾', desc:'优先于生命值承受伤害。' } ] }
 };
 let gameMode = 'pve'; // 'pve' 人机对战 | 'pvp' 双人对战
 // 注：已移除 actingUnit / battleLog / selectedTarget 三个从未被读取的僵尸字段
-let gameState = { phase:'modeSelect', units:[], playerTeam:[], enemyTeam:[], actionBarMax:0, paused:false, autoMode:false, animating:false, waitingForTarget:false, targetType:null, pendingSkill:null, currentActor:null, lastTimestamp:0, rafId:null, snowballSnapshot:null, vayneKillThisTurn:false, damageLogTotal:0, damageLogSide:null, shouShiFiring:false, shouShiTurnCount:0, wuXianXiaTurnCount:0, pendingCasts:[], needFlushAfterActionable:false, damageLogFallen:[] };
+let gameState = { phase:'modeSelect', units:[], playerTeam:[], enemyTeam:[], actionBarMax:0, paused:false, autoMode:false, animating:false, waitingForTarget:false, targetType:null, pendingSkill:null, currentActor:null, lastTimestamp:0, rafId:null, snowballSnapshot:null, vayneKillThisTurn:false, damageLogTotal:0, damageLogSide:null, shouShiFiring:false, shouShiTurnCount:0, wuXianXiaTurnCount:0, pendingCasts:[], needFlushAfterActionable:false, damageLogFallen:[], actionHookBusy:false };
 let playerSelection = ['主角']; let enemySelection = ['主角'];
+/* ============================================================================
+   联机对战（PeerJS 点对点 · 房主权威广播）
+   ---------------------------------------------------------------------------
+   为什么是「房主权威」而不是严格锁步：
+     战斗里有 12 处 Math.random（暴击、混乱、视的随机目标、同速抢先手…），
+     要让两台机器各自演算出完全一致的结果，必须把它们全部换成可复现 PRNG，
+     并且两边的调用次数【逐次】对齐 —— 任何一处多调/少调一次就会静默分叉，
+     且极难排查。因此这里改为：
+       · 房主（host）跑全部逻辑与随机，是唯一事实来源；
+       · 客机（guest）不跑逻辑，只接收「演出事件 + 状态快照」并本地重放；
+       · 客机的操作以指令形式回传房主，由房主执行。
+   代价是客机操作多一个网络往返（点对点通常 <100ms，可接受）。
+
+   为什么选 PeerJS（而不是自建 WebSocket / 第三方 IM）：
+     · 自建中继需要长期在线的公网入口，还要自己解决端口映射、内网穿透、HTTPS 证书；
+     · PeerJS 的公共服务器只做【信令】（帮两台设备互相找到对方），
+       连上之后数据走浏览器 DataChannel 直连，不经过服务器，延迟更低；
+     · 最关键：纯静态托管就能用，且【不需要注册任何账号】——
+       房主生成一个房间码，对手输入即连，开箱即用。
+   已知取舍：公共信令服务器由社区免费提供，理论上可能不稳定或限流；
+     若日后要长期稳定使用，可自建 PeerServer 或换回 IM 中继（接口已隔离在 Net 内部）。
+   ============================================================================ */
+/* SDK 多候选：jsDelivr 与 unpkg 各留一条，任一可用即可（浏览器端 bundle 挂载 window.Peer） */
+const PEER_SDK_CANDIDATES = [
+'https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js',
+'https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js',
+'https://cdn.jsdelivr.net/npm/peerjs@1.5.2/dist/peerjs.min.js',
+];
+const PEER_ID_PREFIX = 'ygob-room-';   // 房间码 → PeerID 的前缀，避免与公共服务器上其它应用撞名
+const NET_TICK_MS = 200;         // 状态快照广播间隔（行动条动画流畅度 vs 消息条数，5fps 足够观战）
+const NET_GUEST_SIDE = 'enemy';  // 客机固定操控敌方（玩家2）
+
+const Net = {
+active:false, role:null, room:'', myId:'', server:'',
+peer:null, conn:null, Peer:null,
+entered:false,         // 是否已进过选人界面（对手断线重连时不再重复进入）
+guestRoster:null,      // 房主收到客机阵容后存放，开局时写入 enemySelection
+hostBattleStarted:false,
+lastTick:0,
+guestQueue:[], guestDraining:false,
+waitingPick:false,     // 客机是否处于「选目标」态
+statusCb:null,
+
+setStatus(t) { const el = document.getElementById('net-status'); if (el) el.textContent = t; if (this.statusCb) this.statusCb(t); },
+
+/* ---------- SDK 加载 ---------- */
+async loadSDK() {
+if (window.Peer) return true;
+for (const url of PEER_SDK_CANDIDATES) {
+try {
+await new Promise((res, rej) => { const sc = document.createElement('script'); sc.src = url; sc.onload = res; sc.onerror = () => rej(new Error('load fail')); document.head.appendChild(sc); });
+if (window.Peer) return true;
+} catch (e) { /* 换下一个源 */ }
+}
+return false;
+},
+
+/* ---------- 连接：role = 'host' | 'guest' ----------
+   房间码即 PeerID：房主用固定 ID「ygob-room-<房间码>」注册到公共信令服务器，
+   客机拿同一串 ID 去连。信令服务器只负责牵线，连上后数据走 DataChannel 直连。 */
+async connect(cfg) {
+this.room = String((cfg.room || '').trim()).toUpperCase();
+if (!this.room) { this.setStatus('❌ 请先填写或生成房间码'); return false; }
+this.setStatus('⏳ 正在加载通讯组件…');
+const ok = await this.loadSDK();
+if (!ok) { this.setStatus('❌ 通讯组件加载失败（检查网络或改用其它 CDN）'); return false; }
+this.Peer = window.Peer;
+this.server = String((cfg.server || '').trim());
+this.role = cfg.role;
+try {
+this.setStatus('⏳ 正在连接…');
+if (cfg.role === 'host') {
+this.peer = await this.createPeer(PEER_ID_PREFIX + this.room, true);
+/* 房主：等客机连进来。on('connection') 可能触发多次（对手重连），
+   每次都以最新的一条连接为准；若已开局则立刻给重连方补发一次初始状态。 */
+this.peer.on('connection', (c) => {
+this.attachConn(c);
+this.setStatus(`✅ 对手已加入（房间 ${this.room}）`);
+/* 用显式标志判断「是否已进过选人」，而不是看面板是否开着 ——
+   后者依赖 UI 时序，一旦路径有变就会漏掉进选人。
+   首次连上 → 进选人；之后再有连接（对手断线重连）→ 只补发战局状态。 */
+if (!this.entered) { this.entered = true; closeNetPanel(); enterOnlineSelection('host'); }
+else if (gameState.phase === 'fighting') this.sendInit();
+const btn = document.getElementById('start-battle-btn');
+if (btn) { btn.disabled = false; btn.textContent = '开始战斗（对手已就绪）'; }
+if (gameState.phase === 'fighting') this.sendInit();
+});
+this.setStatus(`✅ 房间已创建，等待对手加入…`);
+} else {
+/* 客机：自己用随机 ID 上线，再主动连房主。
+   房主可能还没点「创建房间」→ 连不上时按 2s 间隔重试最多 15 次（约 30s）。 */
+this.peer = await this.createPeer(null, false);
+let lastErr = '';
+for (let i = 0; i < 15; i++) {
+this.setStatus(`⏳ 正在连接房间 ${this.room}…（第 ${i + 1} 次）`);
+try { this.conn = await this.dialHost(PEER_ID_PREFIX + this.room); break; }
+catch (e) {
+lastErr = (e && e.type) || (e && e.message) || String(e);
+if (lastErr !== 'peer-unavailable') break;   // 其它错误重试也没用
+await new Promise(r => setTimeout(r, 2000));
+}
+}
+if (!this.conn) {
+this.setStatus(lastErr === 'peer-unavailable'
+? `❌ 未找到房间 ${this.room}，请确认房主已创建且房间码一致`
+: `❌ 连接失败：${lastErr}`);
+return false;
+}
+this.attachConn(this.conn);
+this.setStatus(`✅ 已加入房间 ${this.room}，等待房主开始…`);
+}
+this.active = true;
+return true;
+} catch (e) {
+this.setStatus('❌ 连接失败：' + (e && e.message ? e.message : e));
+return false;
+}
+},
+
+/* 信令服务器配置：留空则用 PeerJS 官方公共服务器。
+   国内访问官方服务器偶尔偏慢，可在这里填自建或其它公共 PeerServer。
+   支持写法：域名 / 域名:端口；默认按 HTTPS + 默认路径连接。 */
+peerOptions() {
+const raw = this.server;
+if (!raw) return {};
+let h = raw.replace(/^https?:\/\//, '').replace(/\/+$/, '');
+let port = 443;
+const m = h.match(/^(.*):(\d+)$/);
+if (m) { h = m[1]; port = Number(m[2]); }
+return { host:h, port, path:'/', secure: port !== 80 };
+},
+
+/* 创建 Peer 实例并等它拿到 ID。
+   房主侧 ID 被占用（同码重复建房）会报 unavailable → 转成友好提示。 */
+createPeer(id, hostRole) {
+return new Promise((resolve, reject) => {
+let peer = null;
+const opt = this.peerOptions();
+try { peer = id ? new this.Peer(id, opt) : new this.Peer(opt); }
+catch (e) { reject(e); return; }
+let settled = false;
+peer.on('open', () => { if (settled) return; settled = true; resolve(peer); });
+peer.on('error', (err) => {
+if (settled) { this.onPeerError(err); return; }
+settled = true;
+const t = err && err.type;
+if (hostRole && t === 'unavailable') reject(new Error('该房间码已被占用，请换一个'));
+else reject(err);
+});
+/* 兜底超时：公共信令服务器无响应时不要让界面一直转圈 */
+setTimeout(() => { if (!settled) { settled = true; reject(new Error('连接信令服务器超时')); } }, 15000);
+});
+},
+
+/* 客机主动拨号：包装成 Promise，便于重试 */
+dialHost(peerId) {
+return new Promise((resolve, reject) => {
+const c = this.peer.connect(peerId, { reliable:true });
+let done = false;
+c.on('open', () => { if (done) return; done = true; resolve(c); });
+c.on('error', (e) => { if (done) return; done = true; reject(e); });
+setTimeout(() => { if (!done) { done = true; try { c.close(); } catch (e) {} reject({ type:'peer-unavailable' }); } }, 8000);
+});
+},
+
+/* 绑定一条数据连接：收消息 + 断线提醒。房主重连时会再次调用，覆盖旧连接。 */
+attachConn(c) {
+this.conn = c;
+c.on('data', (obj) => {
+if (!obj || !obj.t) return;
+/* 房主只听客机指令；客机只听房主广播 —— 避免自己发的消息被自己处理 */
+const fromGuest = obj.t === 'act' || obj.t === 'pick' || obj.t === 'roster';
+if (this.role === 'host' ? fromGuest : !fromGuest) this.handle(obj);
+});
+c.on('close', () => { if (this.active) this.setStatus('⚠️ 对手已断开连接'); });
+c.on('error', (e) => this.onPeerError(e));
+},
+
+onPeerError(e) {
+const t = (e && e.type) || '';
+const msg = { 'peer-unavailable':'对手不在线（房间码可能不对）',
+'network':'网络中断', 'server-error':'信令服务器出错',
+'socket-error':'信令连接出错', 'socket-closed':'信令连接已关闭' }[t];
+this.setStatus('⚠️ ' + (msg || ('连接异常：' + (t || e))));
+},
+
+/* 断开：退出 / 重开时调用，避免残留占用房间码 */
+disconnect() {
+try { if (this.conn) this.conn.close(); } catch (e) {}
+try { if (this.peer) this.peer.destroy(); } catch (e) {}
+this.active = false; this.role = null; this.conn = null; this.peer = null; this.entered = false;
+},
+
+send(obj) {
+if (!this.active || !this.conn) return;
+try { this.conn.send(obj); } catch (e) { /* 单条失败不影响对局 */ }
+},
+
+/* ---------- 消息分发 ---------- */
+handle(o) {
+const H = this.role === 'host';
+if (H && o.t === 'roster') {
+this.guestRoster = o.names || [];
+this.setStatus('✅ 对手已就绪，可以开始战斗');
+const btn = document.getElementById('start-battle-btn');
+if (btn) { btn.disabled = false; btn.textContent = '开始战斗（对手已就绪）'; }
+return;
+}
+if (H && o.t === 'act') { this.hostDoAction(o.kind); return; }
+if (H && o.t === 'pick') { this.hostDoPick(o.idx); return; }
+if (!H) { this.guestQueue.push(o); this.drainGuest(); }
+},
+
+/* ---------- 房主：执行客机指令 ---------- */
+hostDoAction(kind) {
+const actor = gameState.currentActor;
+if (!actor || actor.side !== NET_GUEST_SIDE) return;
+const skill = kind === 'normal' ? actor.normalSkill : (kind === 'skill2' ? actor.activeSkill2 : actor.activeSkill);
+if (!skill) return;
+gameState.waitingForTarget = false;
+if (isNoTargetSkill(skill)) { executeAction(actor, skill); return; }
+/* 需要选目标：房主本地进入等待态，并让客机高亮可选目标 */
+gameState.waitingForTarget = true; gameState.targetType = skill.target; gameState.pendingSkill = skill;
+this.send({ t:'panel', mode:'select', ttype: skill.target || 'enemy', btns:[] });
+},
+hostDoPick(idx) {
+const actor = gameState.currentActor;
+if (!actor || !gameState.waitingForTarget) return;
+const target = gameState.units[idx];
+if (!target || !isValidTarget(target, gameState.targetType, actor)) return;
+gameState.waitingForTarget = false;
+clearHighlights();
+executeAction(actor, gameState.pendingSkill, target);
+},
+
+/* ---------- 客机：串行消费事件队列 ---------- */
+async drainGuest() {
+if (this.guestDraining) return;
+this.guestDraining = true;
+while (this.guestQueue.length > 0) {
+const o = this.guestQueue.shift();
+try {
+if (o.t === 'log') log(o.text, o.cls);
+else if (o.t === 'logs') (o.items || []).forEach(it => log(it.text, it.cls));
+else if (o.t === 'ft') { const u = gameState.units[o.idx]; if (u) showFloatingText(u, o.text, o.cls); }
+else if (o.t === 'cutin') { const u = gameState.units[o.idx]; if (u) await playSkillCutin(u, o.name, !!o.nm); }
+else if (o.t === 'st') this.applySnapshot(o);
+else if (o.t === 'panel') this.applyPanel(o);
+else if (o.t === 'init') this.applyInit(o);
+else if (o.t === 'over') { document.getElementById('result-title').textContent = o.text || '对局结束'; document.getElementById('result-screen').classList.add('show'); }
+} catch (e) { /* 单条播放失败不阻断后续 */ }
+}
+this.guestDraining = false;
+},
+applyInit(o) {
+gameState.units = []; gameState.playerTeam = []; gameState.enemyTeam = [];
+(o.roster || []).forEach((name, i) => { const u = createUnit(name, 'player', i); gameState.units.push(u); gameState.playerTeam.push(gameState.units.length - 1); });
+(o.guest || []).forEach((name, i) => { const u = createUnit(name, 'enemy', i); gameState.units.push(u); gameState.enemyTeam.push(gameState.units.length - 1); });
+gameState.actionBarMax = o.barMax || 1;
+gameState.phase = 'fighting';
+document.getElementById('selection-screen').style.display = 'none';
+document.getElementById('battle-screen').style.display = 'flex';
+document.getElementById('battle-log').innerHTML = '';
+renderUnits(); renderActionBarDots();
+this.bindGuestButtons();
+},
+applySnapshot(o) {
+const us = o.us || [];
+us.forEach((d, i) => {
+const u = gameState.units[i]; if (!u) return;
+u.hp = d.hp; u.shield = d.sh; u.rage = d.rg; u.alive = d.al; u.banished = d.bn; u.intangible = d.it;
+u.actionValue = (o.bars && o.bars[i] != null) ? o.bars[i] : u.actionValue;
+u.states = (d.st || []).map(x => ({ type:x[0], duration:x[1] }));
+u.marks = (d.mk || []).map(x => ({ type:x[0], duration:x[1], stacks:x[2] || 1 }));
+});
+renderActionBarDots();
+gameState.units.forEach((u, i) => { if (u) refreshUnitView(i); });
+},
+applyPanel(o) {
+const set = (id, show) => { const b = document.getElementById(id); if (b) b.style.display = show ? 'inline-block' : 'none'; };
+this.waitingPick = (o.mode === 'select');
+if (o.mode === 'none') { set('btn-normal', false); set('btn-skill', false); set('btn-skill2', false); set('btn-cancel', false); clearHighlights(); return; }
+if (o.mode === 'select') {
+set('btn-normal', false); set('btn-skill', false); set('btn-skill2', false); set('btn-cancel', true);
+const type = o.ttype || 'enemy';
+gameState.targetType = type;
+/* isValidTarget 需要一个 actor 来比对阵营，客机端没有真实行动者 ——
+   用「阵营 = 客机方」的虚拟行动者即可（客机固定操控 NET_GUEST_SIDE）。 */
+const fakeActor = { side: NET_GUEST_SIDE };
+gameState.units.forEach((u, idx) => { const el = document.getElementById(`unit-${idx}`); if (!el) return; if (isValidTarget(u, type, fakeActor)) el.style.boxShadow = '0 0 10px 3px #ffd700'; });
+return;
+}
+set('btn-normal', true); set('btn-skill', true); set('btn-skill2', true); set('btn-cancel', false);
+(o.btns || []).forEach(b => { const el = document.getElementById(b.id); if (!el) return; el.style.display = b.show ? 'inline-block' : 'none'; el.disabled = !!b.dis; el.textContent = b.text; });
+},
+bindGuestButtons() {
+document.getElementById('btn-normal').onclick = () => this.send({ t:'act', kind:'normal' });
+document.getElementById('btn-skill').onclick  = () => this.send({ t:'act', kind:'skill' });
+document.getElementById('btn-skill2').onclick = () => this.send({ t:'act', kind:'skill2' });
+document.getElementById('btn-cancel').onclick = () => { this.waitingPick = false; clearHighlights(); this.send({ t:'act', kind:'cancel' }); };
+document.getElementById('btn-auto').style.display = 'none';   // 联机下不提供托管
+},
+
+/* ---------- 房主侧插桩：广播演出与状态 ---------- */
+/* 日志批量发送：一次行动会连打好几条日志，逐条发容易被服务商的发送频率限制卡住。
+   这里按 120ms 窗口攒批，客机端再按序回放，观感与逐条完全一致。 */
+onLog(text, cls) {
+if (!this.active || this.role !== 'host') return;
+this._logBuf = this._logBuf || [];
+this._logBuf.push({ text:String(text).replace(/<[^>]*>/g, ''), cls:cls || '' });
+if (this._logTimer) return;
+this._logTimer = setTimeout(() => {
+const items = this._logBuf || []; this._logBuf = []; this._logTimer = null;
+if (items.length) this.send({ t:'logs', items });
+}, 120);
+},
+onFloat(idx, text, cls) { if (this.active && this.role === 'host') this.send({ t:'ft', idx, text:String(text), cls:cls || '' }); },
+onCutin(idx, name, isNormal) { if (this.active && this.role === 'host') this.send({ t:'cutin', idx, name, nm:!!isNormal }); },
+snapshot() {
+return {
+t:'st',
+bars: gameState.units.map(u => Math.round(Number(u.actionValue) || 0)),
+us: gameState.units.map(u => ({
+hp: Math.round(u.hp), sh: Math.round(Number(u.shield) || 0), rg: u.rage,
+al: !!u.alive, bn: !!u.banished, it: !!u.intangible,
+st: (u.states || []).map(s => [s.type, s.duration]),
+mk: (u.marks || []).map(m => [m.type, m.duration, m.stacks || 1]),
+})),
+};
+},
+tick(now) {
+if (!this.active || this.role !== 'host') return;
+if (gameState.phase !== 'fighting') return;
+if (now - this.lastTick < NET_TICK_MS) return;
+this.lastTick = now;
+this.send(this.snapshot());
+},
+sendInit() {
+if (!this.active || this.role !== 'host') return;
+this.send({ t:'init', roster:playerSelection.slice(), guest:enemySelection.slice(), barMax:gameState.actionBarMax });
+},
+sendOver(text) { if (this.active && this.role === 'host') this.send({ t:'over', text }); },
+};
+/* 联机下「当前行动者归客机操控」：房主据此把操作面板转交给客机 */
+function netActorBelongsToGuest(unit) { return Net.active && Net.role === 'host' && unit && unit.side === NET_GUEST_SIDE; }
+function netIsGuestControlled() { return Net.active && Net.role === 'guest'; }
+
 /* ===== 自定义确认弹窗 =====
    showConfirmDialog(text, onConfirm)：点击「确定」才执行 onConfirm。
    背景 / 「取消」均不执行。用页面内弹窗而非原生 confirm()。 */
@@ -954,9 +1340,20 @@ applySpeedBtn();
    数据结构：{ ver, theme?, items:[] }，ver 与主题一一对应。
    新增版本时往 CHANGELOG 数组**开头**加一条即可（渲染按数组顺序，最新的在最上面）。
    CURRENT_VERSION / CURRENT_THEME 同时驱动模式选择页底部那行文字。 */
-const CURRENT_VERSION = 'v1.4.8';
+const CURRENT_VERSION = 'v1.4.10';
 const CURRENT_THEME   = '咒术·最强之战';   // 1.4.x 大主题：小版本沿用，不随每次调整变更
 const CHANGELOG = [
+{ ver:'v1.4.10', items:[
+'新增：联机对战模式（PeerJS 点对点 · 房主权威广播）—— 两台设备各控一方，纯静态托管可用、无需注册账号；房主生成房间码，对手输入即连。',
+] },
+{ ver:'v1.4.9', items:[
+'五条悟重做：普攻固定为「苍」120%；被动改为「六眼·无下限」（友方施放技能时附加「视」；受击时获得护盾）；新增机制「视」。',
+'两面宿傩：被动「斩击反转」恢复量 5% → 6%。',
+'禅心云外镜：「心净明」施放增加 1 回合冷却。',
+'鬼王酒吞童子：被动「红莲」移除「自身大妖之力伤害翻倍」。',
+'调整：「视」优先附加给尚未携带「视」的敌方单位；取消持续时间，改为造成3次伤害后移除；场上最多3个敌方单位携带，随施放者阵亡清空；伤害不可转移。',
+'修复：白藏主「狐守」的清空范围误为全场，敌方白藏主施放技能会抹掉我方队友的狐守（同类问题：「大妖之力」/「视」的阵亡清空亦然）。',
+] },
 { ver:'v1.4.8', items:[
 '流光追月神「绮罗舞」与「流光」调整。',
 '两面宿傩：强化「捌」斩杀线 30% → 10%；「伏魔神龛」真实伤害 80% → 90%，并新增斩杀；斩杀时机改为「造成伤害过程中或结束后」。',
@@ -977,7 +1374,7 @@ const CHANGELOG = [
 '修复：「混乱」未走控制效果入口，免疫控制无法免疫混乱。',
 '修正：「混乱」描述补充「控制效果」，并将「行动时」明确为「行动阶段时」（回合外行动不受影响）。',
 '修复：白藏主已有「狐佑」时再次施放技能不刷新持续时间（且本回合即开始递减），导致狐佑提前消失。',
-'调整：白藏主「梦山狐影」改为施放时先清空场上狐守再重新授予，并刷新技能描述。',
+'调整：白藏主「梦山狐影」改为施放时先清空我方狐守再重新授予，并刷新技能描述。',
 '修复：镰鼬「牵绊」、纲手「百豪」在已携带时不刷新持续时间（同狐佑）。',
 '镰鼬：攻击 600 → 500。',
 ] },
@@ -1082,6 +1479,12 @@ speedBtnDisplay(false);   // 倍速 / 重开：进入战斗才显示
 applySpeedBtn();          // 初始化按钮文字
 /* 选人界面返回上一级：PVP 第二玩家阶段 → 回到玩家1阶段；否则 → 回到模式选择 */
 document.getElementById('back-btn').onclick = () => {
+/* 联机：返回即退出联机 —— 必须销毁 Peer，否则房间码会被这个页面一直占着，
+   之后无论自己还是别人都再也建不了/连不进同码的房间。 */
+if (typeof Net !== 'undefined' && Net.active) {
+showConfirmDialog('返回将断开联机连接，确定吗？', () => { Net.disconnect(); resetGame(); });
+return;
+}
 const playerSection = document.getElementById('player-selection-section');
 const inPvpStage2 = gameMode === 'pvp' && playerSection && playerSection.style.display === 'none';
 if (inPvpStage2) {
@@ -1115,6 +1518,11 @@ document.getElementById('restart-btn').onclick = () => {
 /* 用页面内确认弹窗而非原生 confirm() —— 移动 WebView 常屏蔽 confirm，
    会让「重新开始」静默失效。确认后：结束对局 → 回到模式选择。 */
 showConfirmDialog('确定要结束当前对局并重新开始吗？', () => {
+/* 联机：清掉上一局的局内状态，方便直接再来一局（连接保持） */
+if (typeof Net !== 'undefined' && Net.active) {
+Net.guestRoster = null; Net.waitingPick = false; Net.guestQueue = []; Net.hostBattleStarted = false;
+Net.send({ t:'panel', mode:'none' });
+}
 /* 只有点「确定」才执行。界面切换全部交给 resetGame() ——
    此前这里有几行 display 赋值漏在回调之外，导致一点按钮就立刻隐藏战斗界面（还没确认）。 */
 stopSkillCutin();
@@ -1127,7 +1535,7 @@ resetGame();
 function initSelection() {
 renderHeroGrid('player'); renderHeroGrid('enemy'); setupSearch(); setupTutorialButton();
 document.getElementById('start-battle-btn').addEventListener('click', startBattle);
-initDetailOverlay(); initModeSelect();
+initDetailOverlay(); initModeSelect(); initNetPanel();
 }
 function initModeSelect() {
 const modeScreen = document.getElementById('mode-select-screen');
@@ -1143,6 +1551,8 @@ confirmBtn.disabled = false;
 });
 confirmBtn.addEventListener('click', () => {
 if (!gameMode) return;
+/* 联机对战：先连上服务器，再进选人界面 */
+if (gameMode === 'online') { openNetPanel(); return; }
 modeScreen.style.display = 'none';
 document.getElementById('selection-screen').style.display = 'block';
 // 更新模式徽章
@@ -1168,6 +1578,85 @@ checkStartButton();
 renderHeroGrid('player');
 renderHeroGrid('enemy');
 });
+}
+/* ==================== 联机面板控制 ====================
+   房间码只有 6 位、一次一用，不存 localStorage —— 每次开局都是新码，
+   也省去"上次残留的旧码连到了别人的房间"这种困惑。 */
+function openNetPanel() {
+const ov = document.getElementById('net-overlay');
+document.getElementById('net-room').value = '';
+document.getElementById('net-roomcode').classList.remove('show');
+document.getElementById('net-server').value = localStorage.getItem('net_server') || '';
+document.getElementById('net-status').textContent = '房主点「创建房间」，对手输入房间码后点「加入房间」';
+ov.classList.add('show');
+}
+function closeNetPanel() { document.getElementById('net-overlay').classList.remove('show'); }
+/* 生成 6 位房间码：去掉 0/O/1/I 这类容易念错记混的字符 */
+function genRoomCode() {
+const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+let out = '';
+for (let i = 0; i < 6; i++) out += chars[Math.floor(Math.random() * chars.length)];
+return out;
+}
+/* 房主创建成功 → 把房间码大字展示出来，方便念给对手或复制到聊天窗口 */
+function showRoomCode(code) {
+const box = document.getElementById('net-roomcode');
+const val = document.getElementById('net-roomcode-val');
+if (!box || !val) return;
+val.textContent = code;
+box.classList.add('show');
+}
+async function netConnect(role) {
+let room = document.getElementById('net-room').value.trim().toUpperCase();
+if (role === 'host' && !room) { room = genRoomCode(); document.getElementById('net-room').value = room; }
+if (!room) { Net.setStatus('❌ 请输入房主给你的房间码'); return; }
+const btn = document.getElementById(role === 'host' ? 'net-create' : 'net-join');
+if (btn) btn.disabled = true;
+const server = document.getElementById('net-server').value.trim();
+localStorage.setItem('net_server', server);
+const ok = await Net.connect({ room, role, server });
+if (btn) btn.disabled = false;
+if (!ok) return;
+if (role === 'host') showRoomCode(Net.room);   // 留在面板上展示房间码，等对手加入
+else { closeNetPanel(); enterOnlineSelection(role); }
+}
+/* 连接成功 → 进选人界面：房主留玩家1阶段，客机直接切到玩家2选人 */
+function enterOnlineSelection(role) {
+gameMode = 'pvp';                       // 复用双人对战的选人/战斗流程
+document.getElementById('mode-select-screen').style.display = 'none';
+document.getElementById('selection-screen').style.display = 'block';
+const badge = document.getElementById('selection-mode-badge');
+badge.textContent = role === 'host' ? '🌐 联机（房主 · 我方）' : '🌐 联机（客机 · 玩家2）';
+badge.className = 'pvp';
+/* 联机暂不走 BP：双方各自选 6 人后开局，避免 BP 的轮流操作再叠加一层同步 */
+document.getElementById('bp-mode-btn').style.display = 'none';
+playerSelection = ['主角']; enemySelection = ['主角'];
+if (role === 'host') {
+document.getElementById('enemy-selection-section').style.display = 'none';
+renderHeroGrid('player');
+checkStartButton();
+} else {
+switchToPlayer2Selection();
+}
+}
+function initNetPanel() {
+document.getElementById('net-create').onclick = () => netConnect('host');
+document.getElementById('net-join').onclick = () => netConnect('guest');
+/* 取消：若已经建好房间（在等对手），要把 Peer 销毁掉，
+   否则房间码会一直被这个页面占着，对手之后就再也连不进来了。 */
+document.getElementById('net-cancel').onclick = () => {
+if (Net.active && Net.role === 'host') Net.disconnect();
+closeNetPanel();
+};
+document.getElementById('net-overlay').addEventListener('click', (e) => { if (e.target.id === 'net-overlay') closeNetPanel(); });
+/* 复制房间码：优先用剪贴板 API，失败（http 环境 / 权限）时退回选中文本提示手抄 */
+document.getElementById('net-roomcode-copy').onclick = async () => {
+const code = document.getElementById('net-roomcode-val').textContent || '';
+const btn = document.getElementById('net-roomcode-copy');
+const done = (t) => { btn.textContent = t; setTimeout(() => { btn.textContent = '复制'; }, 1500); };
+try { await navigator.clipboard.writeText(code); done('已复制 ✓'); }
+catch (e) { done('请手动抄'); }
+};
 }
 function getHeroList() { return Object.keys(HERO_DATA); }
 /* ==================== BP 模式 ====================
@@ -1665,6 +2154,19 @@ renderSectionTitle('enemy', 'player2');
 async function startBattle() {
 stopSkillCutin();          // 开局前清掉可能残留的演出遮罩
 closeConfirmDialog(false); // 清掉可能残留的确认弹窗
+/* ---- 联机：客机提交阵容并等待；房主确认双方就绪后才真正开局 ---- */
+if (typeof Net !== 'undefined' && Net.active) {
+if (Net.role === 'guest') {
+if (enemySelection.length < 6) { Net.setStatus('⚠️ 请先选满 6 人（必选主角）'); return; }
+Net.send({ t:'roster', names: enemySelection.slice() });
+Net.setStatus('✅ 阵容已提交，等待房主开始…');
+const gb = document.getElementById('start-battle-btn');
+if (gb) { gb.disabled = true; gb.textContent = '等待房主开始…'; }
+return;
+}
+if (Net.guestRoster && Net.guestRoster.length === 6) enemySelection = Net.guestRoster.slice();
+if (enemySelection.length < 6) { Net.setStatus('⏳ 等待对手选人…'); return; }
+}
 if (gameMode === 'pvp' && enemySelection.length < 6) {
 // 双人对战：第一玩家选完后，轮到第二玩家选人
 // 判断条件：玩家1已选满但玩家2还没选满（enemySelection刚好6人时才算完成）
@@ -1690,6 +2192,8 @@ renderUnits(); renderActionBarDots();
 document.getElementById('battle-log').innerHTML = '';
 if (gameMode === 'pvp') { log('⚔️ 双人对战开始！玩家1 vs 玩家2', 'log-skill'); }
 else { log('⚔️ 战斗开始！', 'log-skill'); }
+/* 联机：把双方阵容与行动条上限同步给客机（客机据此建本地只读单位并渲染） */
+if (typeof Net !== 'undefined' && Net.active && Net.role === 'host') { Net.sendInit(); Net.setStatus('✅ 对局进行中（你是房主 · 我方）'); }
 /* 开局站位：必须在「先机」之前结算。
    站位只由初始速度面板决定，不受先机影响 —— 否则先机一旦涉及速度修正，
    开局站位就随先机漂移，变得不可预测。 */
@@ -1712,6 +2216,11 @@ document.getElementById('restart-btn').onclick = () => {
 /* 用页面内确认弹窗而非原生 confirm() —— 移动 WebView 常屏蔽 confirm，
    会让「重新开始」静默失效。确认后：结束对局 → 回到模式选择。 */
 showConfirmDialog('确定要结束当前对局并重新开始吗？', () => {
+/* 联机：清掉上一局的局内状态，方便直接再来一局（连接保持） */
+if (typeof Net !== 'undefined' && Net.active) {
+Net.guestRoster = null; Net.waitingPick = false; Net.guestQueue = []; Net.hostBattleStarted = false;
+Net.send({ t:'panel', mode:'none' });
+}
 /* 只有点「确定」才执行。界面切换全部交给 resetGame() ——
    此前这里有几行 display 赋值漏在回调之外，导致一点按钮就立刻隐藏战斗界面（还没确认）。 */
 stopSkillCutin();
@@ -1992,12 +2501,12 @@ function getMark(unit, type) { return unit ? (unit.marks || []).find(m => m.type
    描述写了却没登记，就会出现"重复获得不但不刷新、反而叠起层数"的怪象（狐佑踩过这个坑）。
    已登记：雷压 / 狐守 / 狐佑 / 大妖之力 / 鬼王姿态 / 流光 / 守势 / 长星锁 / 万法 / 伏魔
    （风行、狂风、神威、宿影阵、照君、超凡邪力、雀之印、龙之舞 均为可叠层，勿登记） */
-const NO_STACK_MARKS = new Set(['雷压', '狐守', '狐佑', '大妖之力', '鬼王姿态', '流光', '守势', '长星锁', '万法', '伏魔']);
+const NO_STACK_MARKS = new Set(['雷压', '狐守', '狐佑', '大妖之力', '鬼王姿态', '流光', '守势', '长星锁', '万法', '伏魔', '视']);
 /* 不可叠加的【状态】：状态本身没有层数语义（addState 不叠层，只刷新时长），
    这里登记是为了与印记侧口径一致，且在显示层做兜底 —— 万一某处给状态塞了 stacks 也不会显示 ×N。
    登记依据同印记侧：描述里写了「不可叠加」。目前全体状态本就都不叠层，
    已登记：苍 / 混乱 / 眩晕 / 牵绊 / 百豪。 */
-const NO_STACK_STATES = new Set(['苍', '混乱', '眩晕', '牵绊', '百豪']);
+const NO_STACK_STATES = new Set(['混乱', '眩晕', '牵绊', '百豪']);
 function addMark(unit, type, opts = {}) {
 /* ignoreBanish：仅用于【技能内被动效果】的自动结算（如鬼金羊攒宿影阵）。
    这类效果不需要角色本体施放，因此不受【无法行动】约束 —— 即便被放逐也照常结算。
@@ -2069,7 +2578,7 @@ function getRule(unit, type) { return unit ? (unit.rules || []).find(r => r.type
    新增任何状态/印记都必须在这里登记极性，否则驱散、移除、虚化免疫会漏判。
    ================================================ */
 const STATE_POLARITY = { '眩晕':'debuff', '牵绊':'buff', '百豪':'buff',
-'苍':'debuff', '混乱':'debuff' };       // 五条悟的两个减益状态
+'混乱':'debuff' };
 const MARK_POLARITY  = {
 '神威':'debuff',                                  // 减益印记（唯一）
 '风行':'buff', '狂风':'buff', '龙之舞':'buff', '雷压':'buff',
@@ -2077,7 +2586,8 @@ const MARK_POLARITY  = {
 '大妖之力':'buff', '鬼王姿态':'buff',
 '守势':'buff', '宿影阵':'buff',          // 心友犬神 / 鬼金羊 的增益印记
 '雀之印':'debuff', '长星锁':'debuff',   // 心友犬神 / 鬼金羊 的减益印记
-'伏魔':'buff', '万法':'buff'              // 两面宿傩「伏魔」/ 禅心云外镜「万法」增益印记
+'伏魔':'buff', '万法':'buff',              // 两面宿傩「伏魔」/ 禅心云外镜「万法」增益印记
+'视':'debuff'                                // 五条悟「视」减益印记（无层数语义，重复附加只刷新时长）
 };
 function getPolarity(type) { return STATE_POLARITY[type] || MARK_POLARITY[type] || null; }
 function isDebuff(type) { return getPolarity(type) === 'debuff'; }
@@ -2143,13 +2653,7 @@ unit[key] = (Number(unit[key]) || 0) + amount;
 function getEffectiveNormalSkill(unit) {
 const base = unit && unit.normalSkill;
 if (!base) return base;
-/* 五条悟普攻「苍·赫」：苍 = 120% 伤害并附加「苍」；赫 = 200% 伤害。
-   与宿傩同走动态普攻，由 unit.gojoForm 决定当前形态。 */
-if (unit.name === '五条悟') {
-const isAo = unit.gojoForm !== 'ha';   // 初始/缺省为苍
-return { ...base, name: isAo ? '苍' : '赫', dmgRate: isAo ? GOJO_AO_RATE : GOJO_HA_RATE,
-gojoForm: isAo ? 'ao' : 'ha', effect: isAo ? 'cang' : null };
-}
+/* 五条悟普攻「苍」：固定 120% 伤害，不再有「苍 / 赫」形态切换（重做后已移除「赫」与「苍」状态）。 */
 /* 鬼王酒吞童子普攻「焚天 / 烈焰焚天」：由「鬼王姿态」决定是否强化。
    未持有姿态 = 焚天（120%）；持有 = 烈焰焚天（200% + 溅射 40%）。 */
 if (unit.name === '鬼王酒吞童子') {
@@ -2255,7 +2759,6 @@ const zhaojun = getMark(unit, '照君');
 if (zhaojun) spd += 5 * (zhaojun.stacks || 1);             // 照君：+5 速度/层（最多5层）
 if (hasMark(unit, '雷压')) spd = Math.floor(spd * 1.3);    // 雷压：+30% 速度，不可叠加
 if (hasMark(unit, '万法')) spd = Math.floor(spd * (1 + WANFA_SPD_RATE));  // 万法：+10% 速度，不可叠加
-if (hasState(unit, '苍')) spd = Math.floor(spd * (1 - GOJO_CANG_SPD_RATE));  // 苍：-10% 速度（减益状态）
 return spd;
 }
 
@@ -2279,7 +2782,7 @@ if (d.skill2) markSkill(d.skill2, 'active');
 // 注：已移除 windWalkStacks / galeWindStacks / dragonDanceStacks / thunderPressActive /
 //     protectTargets / snapshotHp / darkStacks 等从未被读取的僵尸字段，叠层一律以 marks 为准
 return { name, side, pos, atk:d.atk, def:d.def, maxHp:d.hp, hp:d.hp, spd:d.spd, critRate:d.critRate, critDmg:d.critDmg, finalDmgRate:1.0, finalDmgReduction:0, healBonus:1.0, healReduction:0, rage:2, actionValue:0, alive:true, states:[], marks:[], rules:[], color:d.color, normalSkill:d.normal, activeSkill:d.skill, activeSkill2:d.skill2 || null,
-extraSkills:d.extraSkills || null, passiveSkill:d.passive || null, shield:0, banishedBy:null, pendingSnapshot:false, intangible:false, banished:false, banishedActionValue:0, pendingActionBonus:0, sukunaForm:'jie', gojoForm:'ao', skillCooldown:0, wanfaTurnsLeft:0,
+extraSkills:d.extraSkills || null, passiveSkill:d.passive || null, shield:0, banishedBy:null, pendingSnapshot:false, intangible:false, banished:false, banishedActionValue:0, pendingActionBonus:0, sukunaForm:'jie', skillCooldown:0, skillCooldowns:{}, wanfaTurnsLeft:0,
 statsDamageDealt:0, statsDamageTaken:0, statsHealDone:0, statsRestoreDone:0, statsShieldDone:0,
 buquUsed:false };
 }
@@ -2437,6 +2940,7 @@ if (gameState.phase !== 'fighting') return;
 const rawDt = timestamp - gameState.lastTimestamp; gameState.lastTimestamp = timestamp;
 const dt = Math.min(Math.max(rawDt, 0), MAX_FRAME_DT);
 if (!gameState.paused && !gameState.animating) updateActionValues(dt);
+if (typeof Net !== 'undefined') Net.tick(timestamp);
 /* 驱散 / 移除解除了「无法行动」→ 下一帧立刻补放排队的施放（如满层的宿影阵）。
    放在这里是因为 dispelStates / removeEffects 是同步函数，无法就地 await。 */
 if (gameState.needFlushAfterActionable && !gameState.paused && !gameState.animating) {
@@ -2574,7 +3078,12 @@ return;
 // ── ① 回合开始 ──────────────────────────────────────────
 /* 技能冷却（禅心云外镜「万法皆空」）：自身回合开始递减，归零后方可再次施放。
    放在长星锁早退之后 —— 被长星锁跳过的是「完整回合」，冷却也不该推进。 */
-if (Number(unit.skillCooldown) > 0) unit.skillCooldown--;
+if (Number(unit.skillCooldown) > 0) unit.skillCooldown--;   // 兼容旧字段
+/* 技能冷却【按技能名】分槽递减：
+   禅心云外镜的「心净明」与「万法皆空」各有独立冷却，
+   若共用一个字段，施放其中一个会把另一个也锁住。 */
+const cds = unit.skillCooldowns || (unit.skillCooldowns = {});
+Object.keys(cds).forEach(k => { if (cds[k] > 0) cds[k]--; });
 /* 「万法皆空」翻转倒计时：施放后第 2 个回合开始时结算（= 两个回合后）。 */
 if (Number(unit.wanfaTurnsLeft) > 0) {
 unit.wanfaTurnsLeft--;
@@ -2645,6 +3154,22 @@ else { if (unit.side === 'enemy') await sleep(1000); await executeAutoAction(uni
    ② 目标选择态：只留「自动」与「取消」（防止误触技能后被迫放出去） */
 function showControlPanel(unit, selecting = false) {
 const set = (id, show) => { const b = document.getElementById(id); if (b) b.style.display = show ? 'inline-block' : 'none'; };
+/* 联机：轮到客机方行动时，房主本地不显示面板，改为把按钮状态广播给客机 */
+if (typeof Net !== 'undefined' && Net.active && Net.role === 'host' && unit && unit.side === NET_GUEST_SIDE && !selecting) {
+hideControlPanel();
+const mk = (id, skill, label) => {
+if (!skill) return { id, show:false, text:'', dis:true };
+const cost = Number(skill.cost) || 0;
+const reason = getSkillBlockReason(unit, skill);
+const dis = (Number(unit.rage) || 0) < cost || !!reason;
+return { id, show:true, text: reason ? `${label}（不可用）` : `${label}(${unit.rage}/${cost})`, dis };
+};
+Net.send({ t:'panel', mode:'skill', ttype:'enemy',
+btns:[ { id:'btn-normal', show:true, text:'普攻', dis:false },
+mk('btn-skill', unit.activeSkill, unit.activeSkill ? unit.activeSkill.name : '技能'),
+mk('btn-skill2', unit.activeSkill2, unit.activeSkill2 ? unit.activeSkill2.name : '技能2') ] });
+return;
+}
 if (selecting) {
 set('btn-normal', false); set('btn-skill', false); set('btn-skill2', false);
 set('btn-auto', true); set('btn-cancel', true);
@@ -2667,6 +3192,7 @@ const blockReason = unit.activeSkill ? getSkillBlockReason(unit, unit.activeSkil
 setupSkillBtn('btn-skill', unit.activeSkill, unit.activeSkill ? unit.activeSkill.name : '技能');
 setupSkillBtn('btn-skill2', unit.activeSkill2, unit.activeSkill2 ? unit.activeSkill2.name : '技能2');
 document.getElementById('btn-normal').disabled = false;
+if (typeof Net !== 'undefined' && Net.active && Net.role === 'host') Net.send({ t:'panel', mode:'none' });
 // 注：已取消双人对战的「玩家1 / 玩家2 的回合」弹出提示 ——
 // 技能演出（Cut-in）已能清楚表明当前是谁在行动，额外弹窗反而挡视野。
 }
@@ -2676,6 +3202,7 @@ document.getElementById('btn-skill').style.display = 'none';
 document.getElementById('btn-skill2').style.display = 'none';
 document.getElementById('btn-cancel').style.display = 'none';
 gameState.waitingForTarget = false; clearHighlights();
+if (typeof Net !== 'undefined' && Net.active && Net.role === 'host') Net.send({ t:'panel', mode:'none' });
 }
 function toggleAuto() {
 gameState.autoMode = !gameState.autoMode; const btn = document.getElementById('btn-auto');
@@ -2721,6 +3248,13 @@ if (isValidTarget(u, targetType, actor)) el.style.boxShadow = '0 0 10px 3px #ffd
 function clearHighlights() { gameState.units.forEach((u, idx) => { const el = document.getElementById(`unit-${idx}`); if (el) el.style.boxShadow = ''; }); }
 async function onUnitClick(idx) {
 const target = gameState.units[idx];
+/* 联机客机：处于选目标态时，点击单位只回传目标序号，由房主执行 */
+if (typeof Net !== 'undefined' && Net.active && Net.role === 'guest' && Net.waitingPick) {
+if (!isValidTarget(target, gameState.targetType, { side: NET_GUEST_SIDE })) { log('❌ 无效目标！', 'log-normal'); return; }
+Net.waitingPick = false; clearHighlights();
+Net.send({ t:'pick', idx });
+return;
+}
 if (gameState.waitingForTarget) {
 const actor = gameState.currentActor;
 if (!isValidTarget(target, gameState.targetType, actor)) { log('❌ 无效目标！', 'log-normal'); return; }
@@ -2751,9 +3285,12 @@ function getSkillBlockReason(unit, skill) {
 if (!unit || !skill) return null;
 // 神威·虚化：敌方已有单位处于放逐中时无法施放
 if (skill.type === 'banish' && gameState.units.some(u => u.alive && u.banished && u.side !== unit.side)) return '敌方放逐存在，无法施放此技能！';
-// 技能冷却（禅心云外镜「万法皆空」）：自身回合开始时递减，归零前不可施放
-const cd = Number(unit.skillCooldown) || 0;
-if (skill.cooldown && cd > 0) return `技能冷却中，还需 ${cd} 回合！`;
+/* 技能冷却：按【技能名】独立计（心净明 1 回合 / 万法皆空 3 回合互不干扰）。
+   自身回合开始时递减，归零前不可施放。 */
+if (skill.cooldown) {
+const cd = Number((unit.skillCooldowns || {})[skill.name]) || 0;
+if (cd > 0) return `技能冷却中，还需 ${cd} 回合！`;
+}
 // 「仅在无某印记时可施放」（鬼王酒吞童子「天火怒焱」要求无「鬼王姿态」）
 if (skill.requireNoMark && hasMark(unit, skill.requireNoMark)) return `已处于「${skill.requireNoMark}」，无法施放此技能！`;
 return null;
@@ -2843,6 +3380,8 @@ gameState.currentCastSkill = skill; gameState.currentCaster = unit;
 await playSkillCutin(unit, skill.name, false, true);   // 触发式施放：与主动施放同为完整时长
 log(`${getSideLabel(unit)}${unit.name} 施放了 ${skill.name}！`, 'log-skill');
 await runSkillBranch(unit, skill, target);
+/* 回合外施放同样算「行动」：① 可能附加「视」；② 触发「视」的伤害结算。 */
+await afterAnyUnitAction(unit, skill);
 gameState.currentCastSkill = savedSkill; gameState.currentCaster = savedCaster;
 gameState.animating = savedAnimating;
 }
@@ -2931,7 +3470,10 @@ log(`${getSideLabel(unit)}${unit.name} 使用了 ${skill.name}！`, isNormal ? '
 await runSkillBranch(unit, skill, forcedTarget);
 /* 技能冷却统一入口：任何带 cooldown 的技能施放后都会进入冷却，
    不必各自在 selfEffect 里重复设置（万法皆空里的那处保留也无害，两者一致）。 */
-if (skill.cooldown) unit.skillCooldown = Number(skill.cooldown) || 0;
+if (skill.cooldown) {
+unit.skillCooldowns = unit.skillCooldowns || {};
+unit.skillCooldowns[skill.name] = Number(skill.cooldown) || 0;
+}
 /* 两面宿傩被动：普攻在「解」与「捌」之间切换，**施放普攻之后**切换一次（初始为「解」）。
    放在普攻结算后、endTurn 之前 —— 第一回合打出「解」，本回合结束后才变成「捌」，
    下回合打出「捌」，再切回「解」。施放主动技（伏魔神龛）不切换。 */
@@ -2939,15 +3481,10 @@ if (unit.name === '两面宿傩' && isNormal) {
 unit.sukunaForm = unit.sukunaForm === 'jie' ? 'ba' : 'jie';
 log(`🔄 ${getSideLabel(unit)}${unit.name} 切换普攻形态 → ${unit.sukunaForm === 'jie' ? '解' : '捌'}`, 'log-buff');
 }
-/* 五条悟被动「无下限」：普攻在「苍」与「赫」之间切换，**施放普攻之后**切换一次（初始为「苍」）。
-   与两面宿傩同一时机 —— 第一回合打出「苍」，打完才变「赫」，下回合打出「赫」再切回「苍」。
-   施放主动技（茈 / 无量空处）不切换。 */
-if (unit.name === '五条悟' && isNormal) {
-unit.gojoForm = unit.gojoForm === 'ao' ? 'ha' : 'ao';
-log(`🔄 ${getSideLabel(unit)}${unit.name} 切换普攻形态 → ${unit.gojoForm === 'ao' ? '苍' : '赫'}`, 'log-buff');
-refreshUnit(unit);
-}
 el?.classList.remove('attack-anim'); el?.classList.remove('acting');
+/* 行动后统一钩子：① 施放技能 → 五条悟附加「视」；② 结算「视」的 40% 伤害。
+   放在 endTurn 之前 —— 此时仍处在该单位的行动期间。 */
+await afterAnyUnitAction(unit, skill);
 if (!isExtra) await endTurn(unit);   // 额外技能在他人回合触发，不能结束回合
 }
 // 参数顺序遵循全局约定：(施法者, 伤害包, 目标)
@@ -3068,13 +3605,7 @@ if ((unit.states || []).some(s => s.type === '百豪')) atk += Math.floor(atk * 
 // ④ 最终伤害率（纯加法，顺序无关）
 if (has('龙之舞')) finalDmgRate += 0.15 * stacksOf('龙之舞');
 if (has('雷压')) { finalDmgRate += 0.2; critRate += 0.3; }
-if (has('大妖之力')) {
-const lossPct = clamp01(1 - ((Number(unit.hp) || 0) / (Number(unit.maxHp) || 1)));
-/* 鬼王酒吞童子被动「红莲」：自身「大妖之力」的【最终伤害率】翻倍。
-   只加倍这一项 —— 大妖之力的【最终免伤率】部分不翻倍（见 getEffectiveDefStats）。 */
-const mult = (unit.name === '鬼王酒吞童子' && isPassiveActive(unit)) ? DAEMON_POWER_SELF_MULT : 1;
-finalDmgRate += lossPct * mult;
-}
+if (has('大妖之力')) finalDmgRate += clamp01(1 - ((Number(unit.hp) || 0) / (Number(unit.maxHp) || 1)));
 return { atk, critRate, critDmg, finalDmgRate };
 }
 // 守方防御 / 最终免伤的统一入口
@@ -3131,9 +3662,23 @@ clearAllEffects(unit);
 /* 鬼王酒吞童子阵亡 → 其赋予的「大妖之力」随施放者【全体清空】。
    印记本身挂在别人身上，自身的 clearAllEffects 清不到，必须在这里单独处理。 */
 if (unit.name === '鬼王酒吞童子') {
-const cleared = gameState.units.filter(u => removeMarkIfHas(u, '大妖之力'));
+/* ★ 只清【同一阵营】：双方各有一只鬼吞时，其中一只阵亡不应抹掉另一方的「大妖之力」。 */
+const cleared = gameState.units.filter(u => u.side === unit.side && removeMarkIfHas(u, '大妖之力'));
 cleared.forEach(u => refreshUnit(u));
 if (cleared.length > 0) log(`💀 ${getSideLabel(unit)}鬼王酒吞童子 阵亡，全体的「大妖之力」随之消散！`, 'log-buff');
+}
+/* 五条悟阵亡 → 其附加的「视」随施放者【全体清空】。
+   印记挂在敌方身上，自身的 clearAllEffects 清不到，必须在这里单独处理。 */
+if (unit.name === '五条悟') {
+/* ★ 只清【该施放者自己附加的】：印记上记了 applierSide，
+   双方各有一个五条悟时，其中一个阵亡不应抹掉另一个附加的「视」。 */
+const cleared = gameState.units.filter(u => {
+const mk = getMark(u, '视');
+if (!mk) return false;
+return !mk.applierSide || mk.applierSide === unit.side;
+}).filter(u => removeMarkIfHas(u, '视'));
+cleared.forEach(u => refreshUnit(u));
+if (cleared.length > 0) log(`💀 ${getSideLabel(unit)}五条悟 阵亡，其附加的「视」随之消散！`, 'log-buff');
 }
 log(`💀 ${getSideLabel(unit)}${unit.name} 被击败了！`, 'log-death');
 refreshUnit(unit);
@@ -3308,7 +3853,9 @@ showFloatingText(target, '免疫', 'floating-miss'); return;
    真正的转移放在护盾结算之后。 */
 let finalTarget = target;
 let foxGuardBearer = null;
-if (hasMark(target, '狐守') && attacker.side !== target.side) {
+/* noTransfer：本次伤害【不可转移】，白藏主「狐守」代伤不生效。
+   目前只有五条悟「视」的伤害带此标记（描述明确写了「不可转移」）。 */
+if (!result.noTransfer && hasMark(target, '狐守') && attacker.side !== target.side) {
 const baizang = getAliveAllies(target).find(u => u.name === '白藏主');
 if (baizang && target !== baizang) foxGuardBearer = baizang;
 }
@@ -3327,7 +3874,7 @@ finalTarget.shield = (Number(finalTarget.shield) || 0) + shieldGain;
 /* 计入结算面板的「护盾」统计：被动获得的护盾同样要算，
    此前漏了这行导致五条悟的盾在结算面板里显示为 0。 */
 addStat(finalTarget, 'statsShieldDone', shieldGain);
-log(`${getSideLabel(finalTarget)}五条悟 的「无下限」生效，获得 ${shieldGain} 点护盾！${WUXIANXIA_MAX_PER_TURN > 1 ? `（本回合第${gameState.wuXianXiaTurnCount}/${WUXIANXIA_MAX_PER_TURN}次）` : ''}`, 'log-buff');
+log(`${getSideLabel(finalTarget)}五条悟 的「六眼·无下限」生效，获得 ${shieldGain} 点护盾！${WUXIANXIA_MAX_PER_TURN > 1 ? `（本回合第${gameState.wuXianXiaTurnCount}/${WUXIANXIA_MAX_PER_TURN}次）` : ''}`, 'log-buff');
 showFloatingText(finalTarget, '护盾 +' + shieldGain, 'floating-heal');
 refreshUnit(finalTarget);
 }
@@ -3413,7 +3960,7 @@ if (target.hp <= 0) kamuiKiller = applier;
 /* 东丈「不屈」：受到致命伤害时保留 1 点生命，并对伤害来源施放「龙卷风」。
    走 applyDamage 才会触发 —— 【斩杀】是即死效果、不经过这里，因此无法触发，符合设计。 */
 // 「苍」追加伤害：五条悟命中携带「苍」的目标时触发（普攻与技能均可）
-if (attacker && target.alive) hpLossAcc += await procCang(attacker, target) || 0;
+
 /* ★ 受击后被动统一入口的位置：死亡判定【之后】（见下方 killUnit 之后）。
    触发门槛：hpLossAcc > 0 —— 只有【真正掉血】才算「受到伤害」。
    伤害被护盾完全吸收时只算「受到攻击」，不算「受到伤害」，
@@ -3488,19 +4035,21 @@ const GUIWANG_NORMAL_RATE = 1.2;     // 鬼王酒吞童子「焚天」伤害倍�
 const GUIWANG_BLAZE_RATE = 2.0;      // 强化「烈焰焚天」伤害倍率
 const GUIWANG_BLAZE_SPLASH = 0.4;    // 强化「烈焰焚天」溅射比例
 const GUIWANG_ZITAI_DURATION = 2;    // 「鬼王姿态」持续回合
-const DAEMON_POWER_SELF_MULT = 2;    // 鬼王酒吞童子被动「红莲」：自身「大妖之力」的【最终伤害率】翻倍（免伤率不翻倍）
 const GUIWANG_HEAL_REDUCTION = 0.3;  // 鬼王酒吞童子被动：自身治疗减免 30%
 const WINDWALK_SPD_PER_STACK = 25;  // 东丈「风行」每层提升的速度点数（最多5层）
 const TSUNADE_STUN_CHANCE = 0.3;    // 纲手「怪力」的眩晕概率
 const TSUNADE_ALLY_PUSH = 15;       // 纲手「怪力」给最低血友方的行动条加成
-const GOJO_AO_RATE = 1.2;           // 五条悟「苍」普攻伤害倍率
-const GOJO_HA_RATE = 2.0;           // 五条悟「赫」普攻伤害倍率
-const GOJO_CANG_EXTRA_RATE = 0.4;   // 「苍」被五条悟攻击时追加的伤害倍率
-const GOJO_CANG_SPD_RATE = 0.1;     // 「苍」降低的速度比例
-const GOJO_CANG_DURATION = 2;       // 「苍」持续回合
-const GOJO_SHIELD_RATE = 0.08;      // 无下限：受到攻击时获得的护盾 = 最大生命 × 该比例
+const GOJO_SHIELD_RATE = 0.08;      // 六眼·无下限：受到攻击时获得的护盾 = 最大生命 × 该比例
+/* 「视」不再靠持续时间到期 —— 退出方式只有两种：
+     ① 对携带者累计造成 3 次伤害（GOJO_SHI_MAX_HITS）
+     ② 施放者五条悟阵亡（全体清空）
+   因此 duration 用 999，只等上述两个出口（与「流光」同一思路）。 */
+const GOJO_SHI_DURATION = 999;
+const GOJO_SHI_DMG_RATE = 0.4;      // 「视」：任意单位行动后，五条悟对携带者造成的伤害倍率
+const GOJO_SHI_MAX_HITS = 3;        // 「视」：对携带者累计造成该次数伤害后，印记移除
+const GOJO_SHI_MAX_CARRIERS = 3;    // 「视」：场上同时携带该印记的敌方单位上限
 const WUXIANXIA_MAX_PER_TURN = 1;   // 无下限：每个单位回合内最多生效 1 次
-const SUKUNA_RESTORE_RATE = 0.05;   // 「斩击反转」：受到伤害后恢复的生命值 = 最大生命 × 该比例
+const SUKUNA_RESTORE_RATE = 0.06;   // 「斩击反转」：受到伤害后恢复的生命值 = 最大生命 × 该比例
 const GOJO_HUNLUAN_CHANCE = 0.4;    // 「无量空处」附加混乱的概率
 const GOJO_HUNLUAN_DURATION = 1;    // 「混乱」持续回合
 const QUEZHIYIN_MAX_STACKS = 2;     // 心友犬神「雀之印」层数上限，达上限后移除并触发三段伤害
@@ -3560,34 +4109,87 @@ addState(target, type, { duration, effect });
 log(`${getSideLabel(target)}${target.name} 进入${type}！`, 'log-buff'); refreshUnit(target);
 return true;
 }
-/* ==================== 五条悟 ==================== */
-/* 「苍」：减益状态，携带者 -10% 速度；若受到施加者五条悟的攻击，则移除该状态并额外受到 40% 伤害。 */
-async function applyCangState(attacker, target) {
-if (!target || !target.alive) return;
-if (target.intangible) { log(`${getSideLabel(target)}${target.name} 处于虚化，免疫苍！`, 'log-buff'); return; }
-addState(target, '苍', { duration: GOJO_CANG_DURATION, effect: 'cang',
-extra: { applierName: attacker.name, applierSide: attacker.side } });
-log(`${getSideLabel(target)}${target.name} 附加了「苍」（持续${GOJO_CANG_DURATION}回合）！`, 'log-buff');
-refreshUnit(target);
+/* ==================== 五条悟「六眼·无下限」 ==================== */
+/* ① 友方单位【施放技能】→ 对随机敌方目标附加「视」。
+   「施放技能」的判据是 skill.__kind !== 'normal' —— 因此包含：
+     · 主动技能（行动阶段）
+     · 额外技能（如「一誓归心」）
+     · 回合外触发的施放（如「宿影暗渡」「一誓归心」）
+   普攻（__kind === 'normal'）不算施放技能。 */
+async function gojoGrantShi(caster) {
+if (!caster) return;
+const gojos = gameState.units.filter(u => u.alive && u.name === '五条悟' && isPassiveActive(u) && u.side === caster.side);
+for (const gojo of gojos) {
+const enemies = getAliveEnemies(gojo).filter(isTargetable);
+if (enemies.length === 0) continue;
+/* 场上最多 3 个敌方单位携带「视」：已达上限则本次不附加新目标。
+   注意上限按【敌方携带者数量】算，与施放者无关。 */
+const aliveCarriers = gameState.units.filter(u => u.alive && hasMark(u, '视') && u.side !== gojo.side).length;
+if (aliveCarriers >= GOJO_SHI_MAX_CARRIERS) {
+/* 已达上限：只给【已有携带者】续时长（若对方全部已有），否则直接跳过 */
+const hasFresh = enemies.some(u => !hasMark(u, '视'));
+if (hasFresh) { log(`👁️ 「视」已达场上上限 ${GOJO_SHI_MAX_CARRIERS} 个，暂不附加新目标。`, 'log-buff'); continue; }
 }
-/* 「苍」的追加伤害：五条悟攻击携带「苍」的目标时，移除该状态并额外造成 40% 伤害。
-   直接走 applyDamageWithShield（不经过 applyDamage），避免再次触发苍判定形成递归。 */
-async function procCang(attacker, target) {
-if (!target || !target.alive || attacker.name !== '五条悟') return 0;
-if (!hasState(target, '苍')) return 0;
-removeState(target, '苍');
-refreshUnit(target);
-const stats = getEffectiveCombatStats(attacker);
-const dmg = Math.floor(stats.atk * GOJO_CANG_EXTRA_RATE * stats.finalDmgRate);
-const { damageToHp, absorbed } = await applyDamageWithShield(attacker, { damage: dmg }, target);
-const cangBefore = Number(target.hp) || 0;
-target.hp = Math.max(0, cangBefore - damageToHp);
-const cangLoss = cangBefore - target.hp;
-showFloatingText(target, '苍 -' + damageToHp, 'floating-damage');
-log(`${getSideLabel(attacker)}${attacker.name} 的「苍」触发！额外造成 ${damageToHp} 点伤害并移除该状态！`, 'log-buff');
-if (damageToHp + absorbed > 0) recordDamage(attacker, target, damageToHp + absorbed);
-refreshUnit(target);
-return cangLoss;
+/* ★ 优先挑【尚未携带「视」】的敌方单位。
+   「视」不可叠加（重复附加只刷新时长），若随机选中已有「视」的目标，
+   这次附加等于只续了 1 回合、没有新增压制面 —— 明显亏。
+   因此先在没有「视」的人里随机；只有当敌方【全部】都已携带「视」时，
+   才退回全体随机（此时续时长的边际收益反而合理）。 */
+const fresh = enemies.filter(u => !hasMark(u, '视'));
+const pool = fresh.length > 0 ? fresh : enemies;
+const t = pool[Math.floor(Math.random() * pool.length)];
+const m = addMark(t, '视', { stacks:1, maxStacks:1, duration: GOJO_SHI_DURATION, effect:'shi',
+extra: { applierSide: gojo.side, applierName: gojo.name } });
+if (!m) continue;
+/* 命中计数：只在【首次】附加时初始化；续时长（已有印记）不清零，累计到 3 次才移除。 */
+if (m.shiHits === undefined) m.shiHits = 0;
+log(`👁️ ${getSideLabel(gojo)}五条悟「六眼」锁定 ${getSideLabel(t)}${t.name}，附加「视」！（剩余 ${GOJO_SHI_MAX_HITS - m.shiHits} 次）`, 'log-buff');
+refreshUnit(t);
+}
+}
+/* ②【任意单位行动后】→ 五条悟对携带「视」的目标造成 40% 伤害。
+   「行动」包含：行动阶段的普攻 / 技能，以及回合外施放的技能。 */
+async function procShiAfterAction() {
+const carriers = gameState.units.filter(u => u.alive && hasMark(u, '视'));
+if (carriers.length === 0) return;
+for (const c of carriers) {
+const mk = getMark(c, '视');
+if (!mk) continue;
+const gojos = gameState.units.filter(u => u.alive && u.name === '五条悟' && isPassiveActive(u) && u.side === mk.applierSide);
+for (const gojo of gojos) {
+if (!c.alive) break;
+log(`👁️ ${getSideLabel(gojo)}五条悟 的「视」发动，对 ${getSideLabel(c)}${c.name} 造成攻击 ${Math.round(GOJO_SHI_DMG_RATE*100)}% 伤害！（第 ${mk.shiHits + 1}/${GOJO_SHI_MAX_HITS} 次）`, 'log-skill');
+/* noTransfer:true —— 「视」的伤害不可转移，白藏主「狐守」代伤对它无效。 */
+for (const r of calculateDamage(gojo, { dmgRate: GOJO_SHI_DMG_RATE }, c)) await applyDamage(gojo, { ...r, noTransfer:true }, c);
+refreshUnit(c);
+/* 命中计数 +1；累计到上限则移除印记。 */
+mk.shiHits = (Number(mk.shiHits) || 0) + 1;
+if (mk.shiHits >= GOJO_SHI_MAX_HITS) {
+removeMark(c, '视');
+log(`👁️ ${getSideLabel(c)}${c.name} 身上的「视」已造成 ${GOJO_SHI_MAX_HITS} 次伤害，印记移除。`, 'log-buff');
+refreshUnit(c);
+}
+}
+}
+}
+/* 行动后统一钩子：① 施放技能附加「视」 → ② 结算「视」的伤害。
+   挂在 executeAction（行动阶段）与 triggerSkill（回合外施放）两处末尾。 */
+async function afterAnyUnitAction(actor, skill) {
+if (!actor || !actor.alive) return;
+/* 防重入：外层结算期间内层不再触发（与 shouShiFiring 同一思路）。
+   ★ 但【犬神守势链】内不设闸 —— 守势触发的「一誓归心」是一次真实的回合外行动，
+     理应正常附加「视」并结算「视」的伤害。守势自身已有三重限制
+     （shouShiFiring 阻断递归 + 每单位回合 1 次 + 每轮 4 次），
+     天然不会无限递归，因此这里不必再拦它。 */
+const inShouShiChain = !!gameState.shouShiFiring;
+if (gameState.actionHookBusy && !inShouShiChain) return;
+/* 保存 / 恢复而不是直接置 false —— 守势链内的嵌套调用不能提前清掉外层的闸。 */
+const saved = gameState.actionHookBusy;
+gameState.actionHookBusy = true;
+try {
+if (skill && skill.__kind && skill.__kind !== 'normal') await gojoGrantShi(actor);
+await procShiAfterAction();
+} finally { gameState.actionHookBusy = saved; }
 }
 /* 「混乱」：减益状态（控制效果），携带者行动阶段时改为对场上随机目标普攻。
    · 伤害型普攻：目标可以是除「放逐」与自身外的所有角色（含队友）
@@ -3651,7 +4253,6 @@ switch (effect) {
 case 'stun': tryApplyControl(target, '眩晕', 1, 'stun'); break;
 case 'stunChance': if (Math.random() < STUN_CHANCE) tryApplyControl(target, '眩晕', 1, 'stun'); break;
 case 'guaiLi': await applyGuaiLi(attacker, target); break;      // 纲手普攻「怪力」
-case 'cang': await applyCangState(attacker, target); break;     // 五条悟普攻「苍」
 case 'hunLuan': await applyHunLuan(attacker, aoeTargets || [target]); break;  // 五条悟「无量空处」
 case 'rageDown': {
 const lost = Math.random() < RAGE_DOWN_CHANCE ? loseRage(target, 1) : 0;
@@ -3835,7 +4436,7 @@ log(`🪞 ${getSideLabel(unit)}${unit.name} 施放「万法皆空」！${detail.
 // ④ 翻转倒计时：自身回合开始递减，归零时翻转（= 两个回合后）
 unit.wanfaTurnsLeft = WANFA_DURATION;
 // ⑤ 冷却
-unit.skillCooldown = WANFA_DURATION;
+unit.skillCooldowns = unit.skillCooldowns || {}; unit.skillCooldowns['万法皆空'] = WANFA_DURATION;   // 与上方统一入口一致（按技能名分槽）
 log(`「万法皆空」将在 ${WANFA_DURATION} 个回合后翻转生命；技能进入冷却 ${WANFA_DURATION} 回合。`, 'log-buff');
 refreshUnit(unit);
 await sleep(300);
@@ -3861,13 +4462,17 @@ unit.def = Math.max(0, unit.def - DEF_DOWN_AMOUNT);
 log(`${getSideLabel(unit)}${unit.name} 防御永久降低${DEF_DOWN_AMOUNT}点！`, 'log-buff'); break;
 }
 case 'foxGuard': {
-/* 先清空场上已有的狐守（全体单位），再重新授予 —— 场上至多同时存在 2 个友方单位拥有狐守。
+/* 先清空【我方】已有的狐守，再重新授予 —— 我方至多同时存在 2 个单位拥有狐守。
    清空而非跳过，带来两个好处：
      ① 重新选人：上次挂在 A、B 身上，这次按当前局势可能该给 A、C；
      ② 时长刷新：重新 addMark 会刷新 duration 与 setTurnSeq，
         不会出现"已有者不刷新、本回合就开始递减"的老问题。
    用 removeMark 直接移除，不走自然到期回调（狐守没有到期效果）。 */
-gameState.units.forEach(u => { if (removeMarkIfHas(u, '狐守')) refreshUnit(u); });
+/* ★ 只清空【施放者自己这一方】的狐守 —— 不能清场。
+   狐守是「我方白藏主保我方队友」的印记；若遍历 gameState.units 全场清空，
+   敌方白藏主一施放技能就会把【我方】队友身上的狐守也抹掉，
+   等于敌人能驱散我方的增益，显然不对。 */
+getAliveAllies(unit, true).forEach(u => { if (removeMarkIfHas(u, '狐守')) refreshUnit(u); });
 // 狐守的授予对象排除白藏主自身（自己已另有「狐佑」）
 const allies = getAliveAllies(unit, false);
 if (allies.length > 0) {
@@ -4393,8 +4998,8 @@ return unit.side === 'player' ? '【我方】' : '【敌方】';
 }
 }
 // 战斗日志用 textContent 渲染，任何 HTML 标签都会原样显示成源码，因此统一剥离后再输出
-function log(text, className = 'log-normal') { const logEl = document.getElementById('battle-log'); if (!logEl) return; const entry = document.createElement('div'); entry.className = `log-entry ${className}`; const plain = String(text).replace(/<[^>]*>/g, ''); entry.textContent = `[${new Date().toLocaleTimeString()}] ${plain}`; logEl.appendChild(entry); logEl.scrollTop = logEl.scrollHeight; }
-function showFloatingText(target, text, className) { const container = document.getElementById('floating-container'); const el = document.getElementById(`unit-${idxOf(target)}`); if (!el) return; const rect = el.getBoundingClientRect(); const floating = document.createElement('div'); floating.className = `floating-text ${className}`; floating.textContent = text; floating.style.left = (rect.left + rect.width/2) + 'px'; floating.style.top = (rect.top - 20) + 'px'; container.appendChild(floating); setTimeout(() => floating.remove(), 1000); }
+function log(text, className = 'log-normal') { const logEl = document.getElementById('battle-log'); if (!logEl) return; const entry = document.createElement('div'); entry.className = `log-entry ${className}`; const plain = String(text).replace(/<[^>]*>/g, ''); entry.textContent = `[${new Date().toLocaleTimeString()}] ${plain}`; logEl.appendChild(entry); logEl.scrollTop = logEl.scrollHeight; if (typeof Net !== 'undefined') Net.onLog(text, className); }
+function showFloatingText(target, text, className) { const container = document.getElementById('floating-container'); const el = document.getElementById(`unit-${idxOf(target)}`); if (!el) return; const rect = el.getBoundingClientRect(); const floating = document.createElement('div'); floating.className = `floating-text ${className}`; floating.textContent = text; floating.style.left = (rect.left + rect.width/2) + 'px'; floating.style.top = (rect.top - 20) + 'px'; container.appendChild(floating); setTimeout(() => floating.remove(), 1000); if (typeof Net !== 'undefined') Net.onFloat(idxOf(target), text, className); }
 /* 倍速：所有等待时长除以 SPEED_MULTIPLIER（1 = 正常，2 = 两倍速）。
    只缩放「等待」，不改动任何游戏逻辑，因此结果与倍速无关。 */
 let SPEED_MULTIPLIER = 1;
@@ -4427,6 +5032,7 @@ el.querySelector('.sc-kind').textContent = isNormal ? 'NORMAL ATTACK' : 'SKILL';
 el.querySelector('.sc-skill').textContent = skillName || '';
 el.querySelector('.sc-heroname').textContent = unit.name;
 el.querySelector('.sc-side').textContent = sideLabelPlain(unit) + (d.tag ? ' · ' + d.tag : '');
+if (typeof Net !== 'undefined') Net.onCutin(idxOf(unit), skillName, isNormal);
 // 先移除动画类并强制重排，保证连续施放时动画能重新启动
 el.classList.remove('play', 'out');
 void el.offsetWidth;
@@ -4480,6 +5086,7 @@ return false;
 }
 function showResultScreen(resultText, resultClass) {
 renderResultTable();
+if (typeof Net !== 'undefined') Net.sendOver(String(resultText).replace(/<[^>]*>/g, ''));
 const titleEl = document.getElementById('result-title');
 titleEl.textContent = resultText;
 titleEl.className = 'result-title ' + resultClass;
@@ -4830,7 +5437,7 @@ function resetGame() {
 stopSkillCutin();
 closeConfirmDialog(false);
 speedBtnDisplay(false);
-if (gameState.rafId) cancelAnimationFrame(gameState.rafId); resetBp(); document.getElementById('bp-screen').style.display = 'none'; gameState = { phase:'modeSelect', units:[], playerTeam:[], enemyTeam:[], actionBarMax:0, paused:false, autoMode:false, animating:false, waitingForTarget:false, targetType:null, pendingSkill:null, currentActor:null, lastTimestamp:0, rafId:null, snowballSnapshot:null, vayneKillThisTurn:false, damageLogTotal:0, damageLogSide:null, currentCastSkill:null, currentCaster:null, shouShiFiring:false, shouShiTurnCount:0, wuXianXiaTurnCount:0, pendingCasts:[], needFlushAfterActionable:false, damageLogFallen:[] }; playerSelection = ['主角']; enemySelection = ['主角']; document.getElementById('battle-screen').style.display = 'none'; document.getElementById('result-screen').classList.remove('show'); document.getElementById('selection-screen').style.display = 'none'; document.getElementById('mode-select-screen').style.display = 'flex'; document.getElementById('battle-log').innerHTML = ''; document.getElementById('floating-container').innerHTML = '';
+if (gameState.rafId) cancelAnimationFrame(gameState.rafId); resetBp(); document.getElementById('bp-screen').style.display = 'none'; gameState = { phase:'modeSelect', units:[], playerTeam:[], enemyTeam:[], actionBarMax:0, paused:false, autoMode:false, animating:false, waitingForTarget:false, targetType:null, pendingSkill:null, currentActor:null, lastTimestamp:0, rafId:null, snowballSnapshot:null, vayneKillThisTurn:false, damageLogTotal:0, damageLogSide:null, currentCastSkill:null, currentCaster:null, shouShiFiring:false, shouShiTurnCount:0, wuXianXiaTurnCount:0, pendingCasts:[], needFlushAfterActionable:false, damageLogFallen:[], actionHookBusy:false }; playerSelection = ['主角']; enemySelection = ['主角']; document.getElementById('battle-screen').style.display = 'none'; document.getElementById('result-screen').classList.remove('show'); document.getElementById('selection-screen').style.display = 'none'; document.getElementById('mode-select-screen').style.display = 'flex'; document.getElementById('battle-log').innerHTML = ''; document.getElementById('floating-container').innerHTML = '';
 // 重置选人界面状态
 document.getElementById('player-selection-section').style.display = 'block';
 document.querySelector('#selection-screen h1').textContent = '⚔️ 狂想：跨界之战';
