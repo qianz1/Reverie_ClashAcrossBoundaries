@@ -372,6 +372,8 @@ pointer-events: none; white-space: nowrap; text-shadow: 0 1px 3px rgba(0,0,0,.9)
 .net-btns { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
 .net-btns button { padding: 9px 16px; font-size: 13px; border: none; border-radius: 16px; cursor: pointer; background: #4fc3f7; color: #0a1929; font-weight: bold; }
 .net-btns button.net-cancel { background: transparent; color: #90a4ae; border: 1px solid #546e7a; }
+.net-check { display: flex; align-items: center; gap: 6px; margin: 6px 0 2px; font-size: 12px; color: #90a4ae; cursor: pointer; }
+.net-check input { width: 15px; height: 15px; accent-color: #4fc3f7; }
 /* 待确认的卡片：金色描边高亮 */
 .hero-card.bp-pending { border-color: #ffd700; box-shadow: 0 0 14px rgba(255,215,0,.55); transform: scale(1.03); }
 /* 同轮 BP：对方已选的英雄【仍可选】—— 取消 bp-picked 的禁用，但保留角标 */
@@ -606,9 +608,10 @@ word-break: break-word; }
 <div id="net-overlay">
 <div id="net-card">
 <h2>🌐 联机对战</h2>
-<p class="net-tip">房主生成一个房间码发给对手，对手输入即可开打。默认使用国内公共服务器，右上角挂件实时显示延迟。</p>
+<p class="net-tip">房主生成一个房间码发给对手，对手输入即可开打。</p>
 <label class="net-label">房间码<input id="net-room" type="text" placeholder="留空点「创建房间」会自动生成" autocomplete="off" maxlength="12"></label>
-<label class="net-label">中继服务器（可选，留空自动选公共服务器）<input id="net-server" type="text" placeholder="自建填 wss://你的域名" autocomplete="off"></label>
+<label class="net-label">中继服务器<input id="net-server" type="text" placeholder="留空改用公共服务器" autocomplete="off"></label>
+<label class="net-check"><input id="net-fallback" type="checkbox" checked> 自建中继连不上时，自动改用公共服务器</label>
 <div id="net-roomcode"><div class="rc-label">把这个房间码发给对手</div><div class="rc-val" id="net-roomcode-val"></div><button class="rc-copy" id="net-roomcode-copy" type="button">复制</button></div>
 <div id="net-status">房主点「创建房间」，对手输入房间码后点「加入房间」</div>
 <div class="net-btns">
@@ -1056,6 +1059,9 @@ const RELAY_SDK_CANDIDATES = [
 const RELAY_BROKERS = [
 'wss://broker-cn.emqx.io:8084/mqtt',   // EMQX 国内接入点（腾讯云上海）
 ];
+/* 默认中继服务器：自建 Cloudflare Worker，比公共 broker 稳（不丢包）。
+   面板里预填，玩家可随时改成别的地址或清空改走公共。 */
+const DEFAULT_RELAY = 'wss://reveriecab.cc.cd/';
 const RELAY_TOPIC_PREFIX = 'ygob-battle-v1/';  // 主题前缀，避免与公共 broker 上其它流量混在一起
 const NET_TICK_MS = 200;         // 状态快照广播间隔（行动条动画流畅度 vs 消息条数，5fps 足够观战）
 const NET_GUEST_SIDE = 'enemy';  // 客机固定操控敌方（玩家2）
@@ -1185,22 +1191,40 @@ return !/\/mqtt(\/?$|[/?])/i.test(v) && !/^mqtts?:/i.test(v);
    服务器负责按房间码配对两端并原样转发，不解析游戏内容。
    与 MQTT 路径的差异只在"怎么把字节送出去"，上层消息格式完全一致。
    优势：socket 关闭时服务端能立刻感知 → 对手退出通知更及时可靠。 */
-async connectWs(cfg) {
+async connectWs(cfg, hsMs, joinMs) {
+hsMs = hsMs || 12000; joinMs = joinMs || 12000;
 const base = this.customBroker.replace(/\/+$/, '');
 const url = `${base}/?room=${encodeURIComponent(this.room)}&role=${this.role}`;
-/* 手机端优化：先发一个 HEAD 请求，让浏览器把 DNS 与 TLS 会话缓存起来。
-   这样后面的 new WebSocket() 就不用再做完整握手，能把手机上 1~3 秒的
-   冷启动延迟压到 200~400ms 级别；PC 上本来就快，影响可忽略。
-   失败也不影响主流程，所以 try/catch 吞掉。 */
-try { await fetch(base + '/', { method:'HEAD', cache:'no-store', mode:'cors' }); } catch (e) {}
+const myToken = this._connToken;          // 本次连接令牌（中途取消后旧结果一律作废）
+const t0 = Date.now();
+const el = () => ((Date.now() - t0) / 1000).toFixed(1);
 this.setStatus('⏳ 正在连接中继服务器…');
+/* 移动端握手常明显慢于桌面（DNS / IPv6 回退 / 证书链校验），
+   没有进度反馈时玩家只会以为「点了没反应」。每秒把已耗时刷到状态栏。 */
+const prog = setInterval(() => {
+if (this._aborted || this._connToken !== myToken) { clearInterval(prog); return; }
+this.setStatus(`⏳ 正在连接中继服务器…（已用 ${el()}s）`);
+}, 1000);
 const ws = await new Promise((resolve, reject) => {
-let sock = null;
-const to = setTimeout(() => { try { sock && sock.close(); } catch (e) {} reject(new Error('连接超时')); }, 12000);
-try { sock = new WebSocket(url); } catch (e) { clearTimeout(to); reject(e); this.active = false; this.transport = null; return; }
-sock.onopen = () => { clearTimeout(to); resolve(sock); };
-sock.onerror = () => { clearTimeout(to); reject(new Error('连接失败')); };
+let sock = null, done = false, to = null;
+const fin = (fn, arg) => {
+if (done) return; done = true;
+if (to) clearTimeout(to);
+clearInterval(prog);
+if (fn === reject && sock) { try { sock.close(); } catch (e) {} }   // 失败时别留半开连接
+fn(arg);
+};
+try { sock = new WebSocket(url); } catch (e) { fin(reject, e); return; }
+to = setTimeout(() => fin(reject, new Error(`连接超时（${el()}s）`)), hsMs);
+sock.onopen = () => fin(resolve, sock);
+/* ★ 移动端关键修复：多数手机 WebView 握手失败时【只触发 close，不触发 error】（code 1006）。
+   少了这一行就只能干等到 12s 超时才报错 —— 表现正是「点了没反应 / 卡住」。 */
+sock.onclose = (ev) => fin(reject, new Error('连接被关闭（code ' + ((ev && ev.code) || 1006) + '）'));
+sock.onerror = () => fin(reject, new Error('连接失败（检查地址、证书与网络）'));
 });
+clearInterval(prog);
+/* 连接途中玩家点了「返回」→ 本次结果作废，不写回全局、不覆盖新一局 */
+if (this._aborted || this._connToken !== myToken) { try { ws.close(); } catch (e) {} return false; }
 this.ws = ws;
 this.active = true;
 ws.onmessage = (ev) => {
@@ -1215,8 +1239,9 @@ ws.onclose = () => {
 if (this.active) { this.active = false; this.setStatus('❌ 与中继服务器的连接已断开'); }
 };
 /* 等服务端回 joined 再继续：它告知本端身份与对手是否已在 */
-const ok = await this.waitWsJoined(12000);
-if (!ok) { try { ws.close(); } catch (e) {} this.ws = null; this.active = false; this.transport = null; this.setStatus('❌ 房间配对失败，请重试'); return false; }
+const ok = await this.waitWsJoined(joinMs, myToken);
+if (this._aborted || this._connToken !== myToken) { try { ws.close(); } catch (e) {} this.ws = null; this.active = false; return false; }
+if (!ok) { try { ws.close(); } catch (e) {} this.ws = null; this.active = false; this.setStatus('❌ 房间配对失败，请重试'); return false; }
 this.transport = 'ws';
 this._transportAt = Date.now();
 setTimeout(() => this.renderHud(), 6200);   // 6 秒后收敛为纯数字
@@ -1225,10 +1250,33 @@ if (this.role === 'host') this.setStatus(`✅ 房间已创建（${this.room}）�
 else this.setStatus(`✅ 已加入房间 ${this.room}，等待房主开始…`);
 return true;
 },
-waitWsJoined(ms) {
+/* 等服务端 joined。带令牌：中途取消后旧等待自动作废，
+   既不会把新一局的 joined 判给旧连接，也不会用旧的超时打断新连接
+   （旧写法只存一个 _joinResolve，第二次连接会被第一次的定时器误判失败）。 */
+waitWsJoined(ms, token) {
 return new Promise((resolve) => {
-this._joinResolve = resolve;
-setTimeout(() => { if (this._joinResolve) { this._joinResolve = null; resolve(false); } }, ms);
+const t0 = Date.now();
+let tick = null, to = null;
+const w = { token, done:false };
+const cleanup = () => { if (tick) { clearInterval(tick); tick = null; } if (to) { clearTimeout(to); to = null; } };
+/* ★ 用 w.done 而不是「this._joinWait !== w」做幂等判据：
+   abort() 会先把 _joinWait 置空再回调 finish，后一种写法会直接 return、
+   永远不 resolve —— 整条 await 链就此卡死，按钮依旧恢复不了。 */
+w.finish = (v) => {
+if (w.done) return;
+w.done = true;
+if (this._joinWait === w) this._joinWait = null;
+cleanup();
+resolve(v);
+};
+/* 上一条被取消的连接若还有等待挂着，先作废掉，避免它永久挂起 */
+if (this._joinWait && !this._joinWait.done) this._joinWait.finish(false);
+this._joinWait = w;
+tick = setInterval(() => {
+if (this._aborted) { w.finish(false); return; }
+this.setStatus(`⏳ 服务器已连通，等待房间配对…（已用 ${((Date.now() - t0) / 1000).toFixed(1)}s）`);
+}, 1000);
+to = setTimeout(() => w.finish(false), ms);
 });
 },
 /* 服务端确认身份：客机要等对手到齐才发 hello（与 MQTT 路径的行为保持一致） */
@@ -1238,7 +1286,7 @@ if (this.role === 'guest') {
 if (o.peer) { this.send({ t:'hello' }); }
 else this.setStatus(`⏳ 已加入房间 ${this.room}，等待房主…`);
 }
-if (this._joinResolve) { const r = this._joinResolve; this._joinResolve = null; r(true); }
+if (this._joinWait) this._joinWait.finish(true);
 },
 /* 两端到齐 */
 onWsPeer() {
@@ -1248,19 +1296,11 @@ if (this.role === 'guest') { this.send({ t:'hello' }); this.startLatencyProbe();
 async connect(cfg) {
 this.room = String((cfg.room || '').trim()).toUpperCase();
 if (!this.room) { this.setStatus('❌ 请先填写或生成房间码'); return false; }
-this.connecting = true;
-try {
-return await this._connect(cfg);
-} finally {
-this.connecting = false;
-}
-},
-
-/* 真正干活的连接流程。拆成独立方法是为了让 connect() 能用 finally
-   保证 connecting 标记一定复位 —— 否则任意一条 early-return 路径都会
-   让"连接中返回"的判定失效。 */
-async _connect(cfg) {
 this.role = cfg.role;
+/* 本次连接的取消令牌：每次发起连接自增，abort() 也自增 ——
+   于是任何「上一局残留的异步回调」都能靠令牌比对被识别并丢弃。 */
+this._aborted = false;
+this._connToken = (this._connToken || 0) + 1;
 this.customBroker = String((cfg.broker || '').trim());
 this.transport = null;
 /* ★ 开新一局联机时必须把上一局的残留清干净。
@@ -1273,7 +1313,39 @@ this.rtt = null; this._rttSent = 0;
 this._lastPanel = null; this._panelAge = 0; this.panelIdx = -1; this.pickedPending = false;
 this.guestQueue = []; this.guestDraining = false; this.waitingPick = false;
 this.catchUpCount = 0;
-if (this.isWsRelayUrl(this.customBroker)) return this.connectWs(cfg);
+this._fallbackUsed = false;
+if (this.isWsRelayUrl(this.customBroker)) {
+/* 单网络单设备不通（典型：手机 + 校园网 到自建域名）时自动改走公共服务器。
+   默认开启，可在面板里关掉（只想强测自建时）。 */
+if (sessionStorage.getItem('net_fallback') !== '0') return this.connectWsWithFallback(cfg);
+return this.connectWs(cfg);
+}
+return this.connectMqtt(cfg);
+},
+/* 自建中继优先，但不通就立刻改走公共服务器。
+   ★ 为什么是"短预算 + 串行回退"而不是并行竞速：
+     两条路共用 this.transport / this.ws / this.client / this._joinWait 等同一份状态，
+     并行时落败方会在自己结束的那一刻把胜者的状态覆盖掉，send() 走错分支直接失联。
+     串行回退没有共享状态冲突，代价只是多等这 4 秒。 */
+async connectWsWithFallback(cfg) {
+this.setStatus('⏳ 正在连接自建中继…');
+let ok = false, err = null;
+try { ok = await this.connectWs(cfg, 4000, 6000); }
+catch (e) { ok = false; err = e; }
+if (this._aborted) return false;
+if (ok) return true;
+this.setStatus('⚠️ 自建中继在当前网络不通，正在改用公共服务器…');
+this._fallbackUsed = true;
+const ok2 = await this.connectMqtt(cfg);
+if (ok2) {
+const tip = err && err.message ? '（' + err.message + '）' : '';
+this.setStatus('⚠️ 已改用公共服务器' + tip + '：游戏可正常进行，延迟可能略高');
+this._transportAt = Date.now();
+this.renderHud();
+}
+return ok2;
+},
+async connectMqtt(cfg) {
 this.setStatus('⏳ 正在加载通讯组件…');
 const okSdk = await this.loadSDK();
 if (!okSdk) { this.setStatus('❌ 通讯组件加载失败（检查网络或改用其它 CDN）'); return false; }
@@ -1291,15 +1363,19 @@ this.transport = 'mqtt';
 this._transportAt = Date.now();
 setTimeout(() => this.renderHud(), 6200);
 this.setStatus(`⏳ 正在连接服务器…`);
-const brokerList = this.customBroker ? [this.customBroker].concat(RELAY_BROKERS) : RELAY_BROKERS;
+/* 自建地址若是 WS 中继（不含 /mqtt），不能拿来当 MQTT broker 连 ——
+   回退到公共服务器时尤其要排除，否则白白多等一轮失败。 */
+const brokerList = (this.customBroker && !this.isWsRelayUrl(this.customBroker)) ? [this.customBroker].concat(RELAY_BROKERS) : RELAY_BROKERS;
 try {
 const r = await this.dialFastest(brokerList);
+if (this._aborted) { try { r.client.end(true); } catch (e) {} return false; }
 this.client = r.client; this.broker = r.url;
 } catch (e) { this.setStatus('❌ 所有公共服务器都连不上，请检查网络后重试'); return false; }
 
 try {
 await this.subscribe(this.peerTopic);
-} catch (e) { this.setStatus('❌ 订阅房间失败：' + (e && e.message ? e.message : e)); return false; }
+if (this._aborted) { try { this.client.end(true); } catch (e) {} this.client = null; return false; }
+} catch (e) { if (this._aborted) return false; this.setStatus('❌ 订阅房间失败：' + (e && e.message ? e.message : e)); return false; }
 
 this.client.on('message', (topic, payload) => {
 if (topic !== this.peerTopic) return;
@@ -1327,7 +1403,8 @@ this.setStatus(`✅ 房间已创建（${this.room}），等待对手加入…`);
    因此这里只等【房主的保留消息】，不做盲目重试。 */
 this.setStatus(`⏳ 正在寻找房间 ${this.room}…`);
 const found = await this.waitForHost(25000);
-if (!found) { try { this.client.end(true); } catch (e) {} this.client = null; this.setStatus(`❌ 未找到房间 ${this.room}，请确认房主已创建且房间码一致`); return false; }
+if (this._aborted) { try { this.client.end(true); } catch (e) {} this.client = null; this.active = false; return false; }
+if (!found) { try { this.client.end(true); } catch (e) {} this.client = null; this.active = false; this.setStatus(`❌ 未找到房间 ${this.room}，请确认房主已创建且房间码一致`); return false; }
 this.send({ t:'hello' });
 this.startLatencyProbe();
 this.setStatus(`✅ 已加入房间 ${this.room}，等待房主开始…`);
@@ -1412,7 +1489,7 @@ try { this.client.publish(topic, payload, { qos:0, retain:!!retain }); } catch (
 waitForHost(ms) {
 return new Promise((resolve) => {
 let done = false;
-const finish = (v) => { if (done) return; done = true; clearInterval(timer); clearTimeout(to); this.client.off('message', onMsg); resolve(v); };
+const finish = (v) => { if (done) return; done = true; try { clearInterval(this._probeTimer); } catch (e) {} this._probeTimer = null; clearTimeout(to); this.client.off('message', onMsg); resolve(v); };
 const onMsg = (topic, payload) => {
 if (topic !== this.peerTopic) return;
 let o = null; try { o = JSON.parse(String(payload)); } catch (e) { return; }
@@ -1423,7 +1500,7 @@ if (Date.now() - (Number(o.ts) || 0) > RELAY_OPEN_TTL) return;
 finish(true);
 };
 this.client.on('message', onMsg);
-const timer = setInterval(() => { this.publishRaw(this.myTopic, JSON.stringify({ t:'probe' }), false); }, 2000);
+this._probeTimer = setInterval(() => { this.publishRaw(this.myTopic, JSON.stringify({ t:'probe' }), false); }, 2000);
 const to = setTimeout(() => finish(false), ms);
 });
 },
@@ -1447,18 +1524,28 @@ this.peerGoneNotified = true;
 showNoticeDialog('对手已退出联机。你可以直接「重新开始」，无需等待对方确认。');
 },
 
-cancelConnect() {
-/* 返回时中断进行中的连接：关掉尚未建立或刚建好的 socket，
-   并清掉所有状态位，让面板按钮恢复正常可点状态。
-   幂等，重复调用安全。 */
-try { if (this.ws) { this.ws.onopen = this.ws.onclose = this.ws.onmessage = null; this.ws.close(); } } catch (e) {}
+/* 中止连接：玩家在连接过程中点「返回 / 取消」时调用。
+   ★ 此前只 closeNetPanel() 关面板，后台连接仍在跑：
+     · 按钮 disabled 要等它自己结束才恢复 → 面板关掉再打开，按钮依旧是灰的，
+       表现就是「点创建房间 / 加入房间完全没反应」；
+     · 旧连接若晚到成功，还会把新一局的房间与状态覆盖掉。
+   这里做真正的中止 + 清场。 */
+abort() {
+this._aborted = true;
+this._connToken = (this._connToken || 0) + 1;
+const jw = this._joinWait; this._joinWait = null;
+if (jw) { try { jw.finish(false); } catch (e) {} }
+try { this.stopLatencyProbe(); } catch (e) {}
+try { if (this._openTimer) { clearInterval(this._openTimer); this._openTimer = null; } } catch (e) {}
+try { if (this._probeTimer) { clearInterval(this._probeTimer); this._probeTimer = null; } } catch (e) {}
+try { if (this.ws) this.ws.close(); } catch (e) {}
 try { if (this.client) this.client.end(true); } catch (e) {}
-try { if (this._joinResolve) { const r = this._joinResolve; this._joinResolve = null; r(false); } } catch (e) {}
-try { if (this._hostTimer) { clearTimeout(this._hostTimer); this._hostTimer = null; } } catch (e) {}
-this.ws = null; this.client = null; this.active = false; this.connecting = false;
-this.transport = null; this.role = null; this.entered = false;
-this.setStatus('已取消连接');
+this.ws = null; this.client = null;
+this.active = false; this.role = null; this.entered = false; this.transport = null;
+this.hudNote = ''; this.rtt = null; this._dialing = false;
+this.renderHud();
 },
+
 disconnect() {
 try { this.stopLatencyProbe(); } catch (e) {}
 try { if (this._openTimer) { clearInterval(this._openTimer); this._openTimer = null; } } catch (e) {}
@@ -2097,11 +2184,120 @@ applySpeedBtn();
 const CURRENT_VERSION = 'v1.4.10';
 const CURRENT_THEME   = '咒术·最强之战';   // 1.4.x 大主题：小版本沿用，不随每次调整变更
 const CHANGELOG = [
-  { ver:'v1.4.10', items:[
+{ ver:'v1.4.10', items:[
 '新增：联机对战模式 —— 两台设备各控一方，房主生成房间码，对手输入即连。',
 '新增：全局背景图 —— 主界面、选人、BP、战斗、结算统一生效，竖屏与横屏自动适配不同画面。',
+] },
+{ ver:'v1.4.9', items:[
+'五条悟重做：普攻固定为「苍」120%；被动改为「六眼·无下限」（友方施放技能时附加「视」；受击时获得护盾）；新增机制「视」。',
+'两面宿傩：被动「斩击反转」恢复量 5% → 6%。',
+'禅心云外镜：「心净明」施放增加 1 回合冷却。',
+'鬼王酒吞童子：被动「红莲」移除「自身大妖之力伤害翻倍」。',
+'调整：「视」优先附加给尚未携带「视」的敌方单位；取消持续时间，改为造成3次伤害后移除；场上最多3个敌方单位携带，随施放者阵亡清空；伤害不可转移。',
+'修复：白藏主「狐守」的清空范围误为全场，敌方白藏主施放技能会抹掉我方队友的狐守（同类问题：「大妖之力」/「视」的阵亡清空亦然）。',
+] },
+{ ver:'v1.4.8', items:[
+'流光追月神「绮罗舞」与「流光」调整。',
+'两面宿傩：强化「捌」斩杀线 30% → 10%；「伏魔神龛」真实伤害 80% → 90%，并新增斩杀；斩杀时机改为「造成伤害过程中或结束后」。',
+'五条悟：「茈」真实伤害 40% → 45%；「无量空处」真实伤害 60% → 75%。',
+'鬼王酒吞童子调整：普攻「焚天」（强化「烈焰焚天」）；新增被动「红莲」；「天火怒焱」新增「鬼王姿态」。',
+'修复：「雷压」「狐守」「狐佑」「大妖之力」「鬼王姿态」重复获得时会叠加层数，而非按描述「不可叠加」刷新时长。',
+'禅心云外镜：防御 380 → 360。',
+'修复：固定伤害致死未走统一死亡流程，导致东丈「不屈」不触发。',
+'新增：BP 模式分为「征召BP」与「同轮BP」（每轮双方各选1人，本轮选完统一亮出，英雄不独占）；双方禁用可为同一英雄。',
+] },
+{ ver:'v1.4.7-patch.3', items:[
+'修复：鬼金羊「宿影暗渡」满层时连续施放两次。',
+'修复：放逐被误判为控制效果，免疫控制不应免疫放逐。',
+'修复：白藏主「狐守」代伤未先结算友方护盾——改为伤害先打护盾，溢出部分才由白藏主承担。',
+'修复：心友犬神「守势」在被白藏主「狐守」代伤时不触发——「受到攻击」早于伤害结算，判定对象应为原目标。',
+'调整：虚化算「受到攻击」，守势可触发；放逐因无法选中，不算被攻击目标，守势不触发。',
+'修正：五条悟被动「无下限」时机描述由「受到攻击前」改为「受到攻击时」。',
+'修复：「混乱」未走控制效果入口，免疫控制无法免疫混乱。',
+'修正：「混乱」描述补充「控制效果」，并将「行动时」明确为「行动阶段时」（回合外行动不受影响）。',
+'修复：白藏主已有「狐佑」时再次施放技能不刷新持续时间（且本回合即开始递减），导致狐佑提前消失。',
+'调整：白藏主「梦山狐影」改为施放时先清空我方狐守再重新授予，并刷新技能描述。',
+'修复：镰鼬「牵绊」、纲手「百豪」在已携带时不刷新持续时间（同狐佑）。',
+'镰鼬：攻击 600 → 500。',
+] },
+{ ver:'v1.4.7-patch.2', items:[
+'修复：东丈身上挂有「神威」时受到致死伤害会直接阵亡的问题。',
+] },
+{ ver:'v1.4.7-patch.1', items:[
+'修复：东丈技能「龙卷风」层数与描述不符的问题。',
+'禅心云外镜：技能1「心净明」不可选择的问题。'
+] },
+{ ver:'v1.4.7', theme:'咒术·最强之战', items:[
+'新增 BP 模式（双人对战专用）：选人界面右上角「BP模式」入口，独立全屏界面。',
+'禅心云外镜：普攻「水无垠」改为只移除自身减益；新增技能1「心净明」，原「万法皆空」调整为技能2。',
+'维迦：新增技能1「扭曲空间」；原「能量爆裂」调整为技能2。',
+'镰鼬：新增被动「人多势众」——回合结束后 30% 概率使自身 +100% 行动条。',
+'捷克罗姆：攻击 1050 → 1100，暴击率 20% → 24%，普攻 80%+20%真实 → 90%+30%真实。',
+'裂空座：攻击 1000 → 1050，暴击率 20% → 24%。',
+'东丈：暴击率 12% → 15%。',
+'宇智波带土：暴击率 12% → 15%。',
+'纲手：普攻「怪力」拉条 10% → 15%。',
+'雪拉比：攻击 375 → 390。',
+'两面宿傩：暴击伤害 170% → 180%。',
+'五条悟：暴击伤害 170% → 180%。',
+'修复：五条悟被动「无下限」的护盾未计入结算面板统计。',
+'修复：雪拉比复活后头像仍为置灰状态。',
+'修复：固定伤害此前不触发受击后被动，现已纳入。',
+] },
+{ ver:'v1.4.6', theme:'咒术·最强之战', items:[
+'新增角色：五条悟（普攻「苍·赫」切换、被动「无下限」、技能「茈」「无量空处」）。',
+'新增机制：混乱（行动时随机普攻，不分敌我）、复活（预知未来复活阵亡友方）、不屈（致命伤害免死反击）。',
+'新增「更新日志」入口与当前版本主题展示，位于模式选择页底部。',
+'新增机制：技能冷却统一入口、单体技能固定伤害、状态类增删查统一 API。',
+'东丈：新增被动「不屈」；技能「龙卷风」伤害系数 320% → 340%。',
+'禅心云外镜：普攻「水无垠」额外移除随机一名携带减益友方的全部减益。',
+'两面宿傩：被动定名「斩击反转」；新增技能「灶」（消耗2点怒气），原「伏魔神龛」调整为技能2。',
+'雪拉比：技能「预知未来」新增复活效果，并加入 2 回合冷却。',
+'纲手：普攻「怪力」新增 30% 概率眩晕，并使当前生命值最低的友方 +10% 行动条。',
+'优化：多技能与额外技能体系、额外技能标题配色统一。'
+] },
+{ ver:'v1.4.5-patch-2', items:[
+'修复人机模式概率不能开始游戏的问题。'
+] },
+{ ver:'v1.4.5-patch-1', items:[
+'修复带土放逐 buff 不显示的问题。'
+] },
+{ ver:'v1.4.5', items:[
+'新增技能动画、重新开始、返回、取消等 UI。',
+'新增机制：双主动技能、额外技能。',
+'鬼金羊技能调整，心友犬神技能调整。'
+] },
+{ ver:'v1.4.4-beta', items:[
+'中间过渡版本。'
+] },
+{ ver:'v1.4.3', items:[
+'修复带土无限虚化的 bug，优化代码逻辑。'
+] },
+{ ver:'v1.4.2', items:[
+'修正教程描述问题。'
+] },
+{ ver:'v1.4.1', items:[
+'新增教程，优化文字描述。'
+] },
+{ ver:'v1.4.0', theme:'咒术·最强之战', items:[
+'新增角色：两面宿傩。',
+'新增机制：普攻转换、强化普攻、固定伤害、斩杀机制。'
+] },
+{ ver:'v1.3.x-rc', theme:'阴阳之门', items:[
+'新增角色：流光追月神、鬼金羊、禅心云外镜、心友犬神。',
+'新增机制：被动、技能冷却、翻转机制。'
+] },
+{ ver:'v1.2-beta', theme:'神威', items:[
+'新增角色：宇智波带土。',
+'新增机制：放逐、虚化。规则类效果 buff。'
+] },
+{ ver:'v1.1-beta', items:[
+'玩法框架与基础战斗流程完善。'
+] },
+{ ver:'v1.0-alpha', items:[
+'首个可运行版本：选人、行动条、伤害与治疗公式。'
 ] }
-];;
+];
 function renderVersionTheme() {
 const el = document.getElementById('version-theme-text');
 if (!el) return;
@@ -2129,13 +2325,6 @@ document.getElementById('back-btn').onclick = () => {
    之后无论自己还是别人都再也建不了/连不进同码的房间。 */
 if (typeof Net !== 'undefined' && Net.active) {
 showConfirmDialog('返回将断开联机连接，确定吗？', () => { Net.disconnect(); resetGame(); });
-return;
-}
-/* 正在连接中（Net.connect 的 Promise 还没 settle）时也视为"占线"：
-   手机点返回若直接放行，12 秒连接超时会在用户已回主界面后异步 resolve，
-   导致后续按钮状态错乱、重连无响应。此处同样走断开流程。 */
-if (typeof Net !== 'undefined' && Net.connecting) {
-showConfirmDialog('连接正在进行中，返回将取消当前连接，确定吗？', () => { Net.cancelConnect(); resetGame(); });
 return;
 }
 const playerSection = document.getElementById('player-selection-section');
@@ -2244,8 +2433,18 @@ function openNetPanel() {
 const ov = document.getElementById('net-overlay');
 document.getElementById('net-room').value = '';
 document.getElementById('net-roomcode').classList.remove('show');
-document.getElementById('net-server').value = localStorage.getItem('net_server') || '';
+/* 默认预填自建中继：比公共 broker 稳定（不丢包），打开即可直接开局。
+   玩家改过的值记在 localStorage 并沿用；★ 手动清空过（存了空串）也照旧留空，
+   不再强行塞回默认值 —— 那是他明确选择走公共服务器。 */
+const savedRelay = localStorage.getItem('net_server');
+document.getElementById('net-server').value = (savedRelay === null) ? DEFAULT_RELAY : savedRelay;
 document.getElementById('net-status').textContent = '房主点「创建房间」，对手输入房间码后点「加入房间」';
+/* ★ 复位按钮：上一次若在连接途中被「返回」打断，btn.disabled 会一直是 true，
+   面板关掉再打开也不会自动恢复 —— 表现就是「点了没反应」。 */
+['net-create', 'net-join'].forEach((id) => { const b = document.getElementById(id); if (b) b.disabled = false; });
+/* 回退开关：关掉后自建中继不通就是不通，不再自动改走公共（用于强测自建） */
+const fb = document.getElementById('net-fallback');
+if (fb) { fb.checked = sessionStorage.getItem('net_fallback') !== '0'; fb.onchange = () => sessionStorage.setItem('net_fallback', fb.checked ? '1' : '0'); }
 ov.classList.add('show');
 }
 function closeNetPanel() { document.getElementById('net-overlay').classList.remove('show'); }
@@ -2267,6 +2466,8 @@ val.textContent = code;
 box.classList.add('show');
 }
 async function netConnect(role) {
+/* 防重入：连接期间再点不再发起第二条连接（旧行为会让两条连接互相覆盖状态） */
+if (Net._dialing) { Net.setStatus('⏳ 正在连接中…如需中止请点「返回」'); return; }
 let room = document.getElementById('net-room').value.trim().toUpperCase();
 if (role === 'host' && !room) { room = genRoomCode(); document.getElementById('net-room').value = room; }
 if (!room) { Net.setStatus('❌ 请输入房主给你的房间码'); return; }
@@ -2274,10 +2475,21 @@ const btn = document.getElementById(role === 'host' ? 'net-create' : 'net-join')
 if (btn) btn.disabled = true;
 const server = document.getElementById('net-server').value.trim();
 localStorage.setItem('net_server', server);
-const ok = await Net.connect({ room, role, broker: server });
-/* 无论成功失败都要复位按钮：连接失败、或期间点了返回导致异步 resolve 时，
-   若不复位，按钮会一直 disabled —— 手机上就表现为"点了没反应"。 */
+Net._dialing = true;
+/* ★ try/finally 是关键：Net.connect 失败时是【抛异常】而不是返回 false
+   （连接超时 / 握手失败都会 reject）。旧代码没有兜底，
+   异常一抛出，下面这行 btn.disabled = false 永远执行不到 ——
+   按钮就此永久变灰，之后再点创建 / 加入都是「点了没反应」。 */
+let ok = false;
+try {
+ok = await Net.connect({ room, role, broker: server });
+} catch (e) {
+ok = false;
+Net.setStatus('❌ 连接异常：' + ((e && e.message) ? e.message : e));
+} finally {
+Net._dialing = false;
 if (btn) btn.disabled = false;
+}
 if (!ok) return;
 if (role === 'host') showRoomCode(Net.room);   // 留在面板上展示房间码，等对手加入
 else { closeNetPanel(); enterOnlineSelection(role); }
@@ -2309,7 +2521,12 @@ document.getElementById('net-join').onclick = () => netConnect('guest');
 /* 取消：若已经建好房间（在等对手），要把 Peer 销毁掉，
    否则房间码会一直被这个页面占着，对手之后就再也连不进来了。 */
 document.getElementById('net-cancel').onclick = () => {
-if (Net.active && Net.role === 'host') Net.disconnect();
+/* 无论是否已连上、无论房主还是客机，都真正中止后台连接并复位按钮。
+   旧逻辑只在「已连上且是房主」时才断开 —— 客机等待中的 25s 探测、
+   以及任何还在握手的连接都会继续在后台跑。 */
+Net.abort();
+['net-create', 'net-join'].forEach((id) => { const b = document.getElementById(id); if (b) b.disabled = false; });
+document.getElementById('net-roomcode').classList.remove('show');
 closeNetPanel();
 };
 document.getElementById('net-overlay').addEventListener('click', (e) => { if (e.target.id === 'net-overlay') closeNetPanel(); });
