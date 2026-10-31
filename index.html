@@ -522,7 +522,7 @@ word-break: break-word; }
 <div class="mode-card" id="mode-online" data-mode="online">
 <div class="mode-icon">🌐</div>
 <div class="mode-title">联机对战</div>
-<div class="mode-desc">两台设备各控一方，点对点直连（无需注册、无需内网穿透）</div>
+<div class="mode-desc">两台设备各控一方，服务器中继互联（无需注册、不受 NAT 限制）</div>
 </div>
 </div>
 <button id="mode-confirm-btn" disabled>确认选择</button>
@@ -545,9 +545,9 @@ word-break: break-word; }
 <div id="net-overlay">
 <div id="net-card">
 <h2>🌐 联机对战</h2>
-<p class="net-tip">基于 <b>PeerJS</b> 的点对点直连 —— 纯静态托管可用，<b>无需注册任何账号</b>，也不用内网穿透。房主创建一个房间码发给对手，对手输入即可开打。</p>
+<p class="net-tip">数据经公共服务器<b>中继转发</b> —— 纯静态托管可用，<b>无需注册任何账号</b>，也不受手机网络 NAT 限制。房主生成一个房间码发给对手，对手输入即可开打。</p>
 <label class="net-label">房间码<input id="net-room" type="text" placeholder="留空点「创建房间」会自动生成" autocomplete="off" maxlength="12"></label>
-<label class="net-label">信令服务器（可选）<input id="net-server" type="text" placeholder="留空用官方公共服务器" autocomplete="off"></label>
+<label class="net-label">中继服务器（可选，连不上时才填）<input id="net-server" type="text" placeholder="留空自动选公共服务器" autocomplete="off"></label>
 <div id="net-roomcode"><div class="rc-label">把这个房间码发给对手</div><div class="rc-val" id="net-roomcode-val"></div><button class="rc-copy" id="net-roomcode-copy" type="button">复制</button></div>
 <div id="net-status">房主点「创建房间」，对手输入房间码后点「加入房间」</div>
 <div class="net-btns">
@@ -951,7 +951,7 @@ let gameMode = 'pve'; // 'pve' 人机对战 | 'pvp' 双人对战
 let gameState = { phase:'modeSelect', units:[], playerTeam:[], enemyTeam:[], actionBarMax:0, paused:false, autoMode:false, animating:false, waitingForTarget:false, targetType:null, pendingSkill:null, currentActor:null, lastTimestamp:0, rafId:null, snowballSnapshot:null, vayneKillThisTurn:false, damageLogTotal:0, damageLogSide:null, shouShiFiring:false, shouShiTurnCount:0, wuXianXiaTurnCount:0, pendingCasts:[], needFlushAfterActionable:false, damageLogFallen:[], actionHookBusy:false };
 let playerSelection = ['主角']; let enemySelection = ['主角'];
 /* ============================================================================
-   联机对战（PeerJS 点对点 · 房主权威广播）
+   联机对战（公共 MQTT over WebSocket 中继 · 房主权威广播）
    ---------------------------------------------------------------------------
    为什么是「房主权威」而不是严格锁步：
      战斗里有 12 处 Math.random（暴击、混乱、视的随机目标、同速抢先手…），
@@ -961,30 +961,42 @@ let playerSelection = ['主角']; let enemySelection = ['主角'];
        · 房主（host）跑全部逻辑与随机，是唯一事实来源；
        · 客机（guest）不跑逻辑，只接收「演出事件 + 状态快照」并本地重放；
        · 客机的操作以指令形式回传房主，由房主执行。
-   代价是客机操作多一个网络往返（点对点通常 <100ms，可接受）。
+   代价是客机操作多一个网络往返（中继通常 <150ms，可接受）。
 
-   为什么选 PeerJS（而不是自建 WebSocket / 第三方 IM）：
-     · 自建中继需要长期在线的公网入口，还要自己解决端口映射、内网穿透、HTTPS 证书；
-     · PeerJS 的公共服务器只做【信令】（帮两台设备互相找到对方），
-       连上之后数据走浏览器 DataChannel 直连，不经过服务器，延迟更低；
-     · 最关键：纯静态托管就能用，且【不需要注册任何账号】——
-       房主生成一个房间码，对手输入即连，开箱即用。
-   已知取舍：公共信令服务器由社区免费提供，理论上可能不稳定或限流；
-     若日后要长期稳定使用，可自建 PeerServer 或换回 IM 中继（接口已隔离在 Net 内部）。
+   为什么用【中继】而不是点对点（WebRTC / PeerJS）：
+     手机网络（4G/5G）与多数家宽都处在 CGNAT 之下，属于对称型 NAT。
+     WebRTC 直连在无 TURN 服务器时打洞成功率很低 —— 表现为「房主正常、
+     客机一直连接中」，且不会报错，只能干等。中继把数据交给公网服务器转发，
+     两端各自出一条 WSS 连接即可，穿透问题彻底消失。
+     实测取舍：多一跳延迟（通常 +30~80ms），换来的是「任何网络都能连上」。
+
+   为什么用公共 MQTT broker：
+     · 走 WSS 443 端口，纯静态托管页面可直接连，不需要后端；
+     · 免注册、免 API Key —— 房主生成房间码，对手输入即连；
+     · 支持 retain 消息，正好用来做「房间是否存在」的在线探测。
+     下方列了 3 个公共 broker，逐个尝试，任一可用即可。
    ============================================================================ */
-/* SDK 多候选：jsDelivr 与 unpkg 各留一条，任一可用即可（浏览器端 bundle 挂载 window.Peer） */
-const PEER_SDK_CANDIDATES = [
-'https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js',
-'https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js',
-'https://cdn.jsdelivr.net/npm/peerjs@1.5.2/dist/peerjs.min.js',
+/* mqtt.js（浏览器 UMD 版，挂载 window.mqtt）多 CDN 候选 */
+const RELAY_SDK_CANDIDATES = [
+'https://cdn.jsdelivr.net/npm/mqtt@5.10.1/dist/mqtt.min.js',
+'https://unpkg.com/mqtt@5.10.1/dist/mqtt.min.js',
+'https://cdn.jsdelivr.net/npm/mqtt@4.3.8/dist/mqtt.min.js',
 ];
-const PEER_ID_PREFIX = 'ygob-room-';   // 房间码 → PeerID 的前缀，避免与公共服务器上其它应用撞名
+/* 公共 broker 候选：按顺序尝试，连上哪个用哪个 */
+const RELAY_BROKERS = [
+'wss://broker.emqx.io:8084/mqtt',
+'wss://broker.hivemq.com:8884/mqtt',
+'wss://test.mosquitto.org:8081/mqtt',
+];
+const RELAY_TOPIC_PREFIX = 'ygob-battle-v1/';  // 主题前缀，避免与公共 broker 上其它流量混在一起
 const NET_TICK_MS = 200;         // 状态快照广播间隔（行动条动画流畅度 vs 消息条数，5fps 足够观战）
 const NET_GUEST_SIDE = 'enemy';  // 客机固定操控敌方（玩家2）
+const RELAY_OPEN_TTL = 90000;    // 房主「在线」标记的有效期：超过这个时间没刷新就视为房间已不存在
+const RELAY_HELLO_BEACON = 15000; // 房主在线标记的心跳间隔
 
 const Net = {
-active:false, role:null, room:'', myId:'', server:'',
-peer:null, conn:null, Peer:null,
+active:false, role:null, room:'', myId:'', broker:'',
+client:null, myTopic:'', peerTopic:'',
 entered:false,         // 是否已进过选人界面（对手断线重连时不再重复进入）
 guestRoster:null,      // 房主收到客机阵容后存放，开局时写入 enemySelection
 hostBattleStarted:false,
@@ -992,165 +1004,164 @@ lastTick:0,
 guestQueue:[], guestDraining:false,
 waitingPick:false,     // 客机是否处于「选目标」态
 statusCb:null,
+_openTimer:null,
 
 setStatus(t) { const el = document.getElementById('net-status'); if (el) el.textContent = t; if (this.statusCb) this.statusCb(t); },
 
 /* ---------- SDK 加载 ---------- */
 async loadSDK() {
-if (window.Peer) return true;
-for (const url of PEER_SDK_CANDIDATES) {
+if (window.mqtt && window.mqtt.connect) return true;
+for (const url of RELAY_SDK_CANDIDATES) {
 try {
 await new Promise((res, rej) => { const sc = document.createElement('script'); sc.src = url; sc.onload = res; sc.onerror = () => rej(new Error('load fail')); document.head.appendChild(sc); });
-if (window.Peer) return true;
+if (window.mqtt && window.mqtt.connect) return true;
 } catch (e) { /* 换下一个源 */ }
 }
 return false;
 },
 
 /* ---------- 连接：role = 'host' | 'guest' ----------
-   房间码即 PeerID：房主用固定 ID「ygob-room-<房间码>」注册到公共信令服务器，
-   客机拿同一串 ID 去连。信令服务器只负责牵线，连上后数据走 DataChannel 直连。 */
+   双方各自连上同一个 broker，房主往「自己的主题」发、订阅「客机主题」，反之亦然。
+   房间是否存在，靠房主发在自己主题上的一条【保留消息】(retain) 来判断：
+   客机一订阅就能立刻收到 —— 比"盲等对方先说话"可靠得多。 */
 async connect(cfg) {
 this.room = String((cfg.room || '').trim()).toUpperCase();
 if (!this.room) { this.setStatus('❌ 请先填写或生成房间码'); return false; }
 this.setStatus('⏳ 正在加载通讯组件…');
-const ok = await this.loadSDK();
-if (!ok) { this.setStatus('❌ 通讯组件加载失败（检查网络或改用其它 CDN）'); return false; }
-this.Peer = window.Peer;
-this.server = String((cfg.server || '').trim());
+const okSdk = await this.loadSDK();
+if (!okSdk) { this.setStatus('❌ 通讯组件加载失败（检查网络或改用其它 CDN）'); return false; }
 this.role = cfg.role;
+this.customBroker = String((cfg.broker || '').trim());
+this.myTopic = RELAY_TOPIC_PREFIX + this.room + '/' + (this.role === 'host' ? 'host' : 'guest');
+this.peerTopic = RELAY_TOPIC_PREFIX + this.room + '/' + (this.role === 'host' ? 'guest' : 'host');
+this.myId = this.role + '-' + Math.random().toString(36).slice(2, 10);
+
+/* 依次尝试候选 broker —— 公共服务器偶尔会限流，多留几个入口。
+   用户手动填的服务器排在最前面（他有明确目标时优先满足）。 */
+const brokerList = this.customBroker ? [this.customBroker].concat(RELAY_BROKERS) : RELAY_BROKERS;
+for (const url of brokerList) {
+this.setStatus(`⏳ 正在连接服务器…`);
+try { this.client = await this.dialBroker(url); this.broker = url; break; }
+catch (e) { /* 换下一个 broker */ }
+}
+if (!this.client) { this.setStatus('❌ 所有公共服务器都连不上，请检查网络后重试'); return false; }
+
 try {
-this.setStatus('⏳ 正在连接…');
-if (cfg.role === 'host') {
-this.peer = await this.createPeer(PEER_ID_PREFIX + this.room, true);
-/* 房主：等客机连进来。on('connection') 可能触发多次（对手重连），
-   每次都以最新的一条连接为准；若已开局则立刻给重连方补发一次初始状态。 */
-this.peer.on('connection', (c) => {
-this.attachConn(c);
-this.setStatus(`✅ 对手已加入（房间 ${this.room}）`);
-/* 用显式标志判断「是否已进过选人」，而不是看面板是否开着 ——
-   后者依赖 UI 时序，一旦路径有变就会漏掉进选人。
-   首次连上 → 进选人；之后再有连接（对手断线重连）→ 只补发战局状态。 */
-if (!this.entered) { this.entered = true; closeNetPanel(); enterOnlineSelection('host'); }
-else if (gameState.phase === 'fighting') this.sendInit();
-const btn = document.getElementById('start-battle-btn');
-if (btn) { btn.disabled = false; btn.textContent = '开始战斗（对手已就绪）'; }
-if (gameState.phase === 'fighting') this.sendInit();
+await this.subscribe(this.peerTopic);
+} catch (e) { this.setStatus('❌ 订阅房间失败：' + (e && e.message ? e.message : e)); return false; }
+
+this.client.on('message', (topic, payload) => {
+if (topic !== this.peerTopic) return;
+let obj = null;
+try { obj = JSON.parse(String(payload)); } catch (e) { return; }
+if (!obj || !obj.t) return;
+this.handle(obj);
 });
-this.setStatus(`✅ 房间已创建，等待对手加入…`);
+
+/* ★ active 必须在这里就置位，不能放到函数末尾 ——
+   下面客机要立刻 send('hello') 给房主报「我已到」，
+   而 send() 有 active 前置检查；晚置位会让这条 hello 被静默吞掉，
+   结果是客机显示"已加入"、房主却永远停在"等待对手加入"。 */
+this.active = true;
+
+if (this.role === 'host') {
+/* 房主：发出在线标记（retain，客机一订阅就能看到），并周期性刷新 */
+this.publishOpen(true);
+this._openTimer = setInterval(() => this.publishOpen(false), RELAY_HELLO_BEACON);
+this.setStatus(`✅ 房间已创建（${this.room}），等待对手加入…`);
 } else {
-/* 客机：自己用随机 ID 上线，再主动连房主。
-   房主可能还没点「创建房间」→ 连不上时按 2s 间隔重试最多 15 次（约 30s）。 */
-this.peer = await this.createPeer(null, false);
-let lastErr = '';
-for (let i = 0; i < 15; i++) {
-this.setStatus(`⏳ 正在连接房间 ${this.room}…（第 ${i + 1} 次）`);
-try { this.conn = await this.dialHost(PEER_ID_PREFIX + this.room); break; }
-catch (e) {
-lastErr = (e && e.type) || (e && e.message) || String(e);
-if (lastErr !== 'peer-unavailable') break;   // 其它错误重试也没用
-await new Promise(r => setTimeout(r, 2000));
-}
-}
-if (!this.conn) {
-this.setStatus(lastErr === 'peer-unavailable'
-? `❌ 未找到房间 ${this.room}，请确认房主已创建且房间码一致`
-: `❌ 连接失败：${lastErr}`);
-return false;
-}
-this.attachConn(this.conn);
+/* 客机：等房主的在线标记。连上了 broker 但没人建房才叫「房间不存在」，
+   因此这里只等【房主的保留消息】，不做盲目重试。 */
+this.setStatus(`⏳ 正在寻找房间 ${this.room}…`);
+const found = await this.waitForHost(25000);
+if (!found) { try { this.client.end(true); } catch (e) {} this.client = null; this.setStatus(`❌ 未找到房间 ${this.room}，请确认房主已创建且房间码一致`); return false; }
+this.send({ t:'hello' });
 this.setStatus(`✅ 已加入房间 ${this.room}，等待房主开始…`);
 }
-this.active = true;
 return true;
-} catch (e) {
-this.setStatus('❌ 连接失败：' + (e && e.message ? e.message : e));
-return false;
-}
 },
 
-/* 信令服务器配置：留空则用 PeerJS 官方公共服务器。
-   国内访问官方服务器偶尔偏慢，可在这里填自建或其它公共 PeerServer。
-   支持写法：域名 / 域名:端口；默认按 HTTPS + 默认路径连接。 */
-peerOptions() {
-const raw = this.server;
-if (!raw) return {};
-let h = raw.replace(/^https?:\/\//, '').replace(/\/+$/, '');
-let port = 443;
-const m = h.match(/^(.*):(\d+)$/);
-if (m) { h = m[1]; port = Number(m[2]); }
-return { host:h, port, path:'/', secure: port !== 80 };
-},
-
-/* 创建 Peer 实例并等它拿到 ID。
-   房主侧 ID 被占用（同码重复建房）会报 unavailable → 转成友好提示。 */
-createPeer(id, hostRole) {
+dialBroker(url) {
 return new Promise((resolve, reject) => {
-let peer = null;
-const opt = this.peerOptions();
-try { peer = id ? new this.Peer(id, opt) : new this.Peer(opt); }
-catch (e) { reject(e); return; }
-let settled = false;
-peer.on('open', () => { if (settled) return; settled = true; resolve(peer); });
-peer.on('error', (err) => {
-if (settled) { this.onPeerError(err); return; }
-settled = true;
-const t = err && err.type;
-if (hostRole && t === 'unavailable') reject(new Error('该房间码已被占用，请换一个'));
-else reject(err);
-});
-/* 兜底超时：公共信令服务器无响应时不要让界面一直转圈 */
-setTimeout(() => { if (!settled) { settled = true; reject(new Error('连接信令服务器超时')); } }, 15000);
-});
-},
-
-/* 客机主动拨号：包装成 Promise，便于重试 */
-dialHost(peerId) {
-return new Promise((resolve, reject) => {
-const c = this.peer.connect(peerId, { reliable:true });
+let c = null;
+try {
+c = window.mqtt.connect(url, { clientId:this.myId, keepalive:30, connectTimeout:8000, clean:true, reconnectPeriod:0 });
+} catch (e) { reject(e); return; }
 let done = false;
-c.on('open', () => { if (done) return; done = true; resolve(c); });
-c.on('error', (e) => { if (done) return; done = true; reject(e); });
-setTimeout(() => { if (!done) { done = true; try { c.close(); } catch (e) {} reject({ type:'peer-unavailable' }); } }, 8000);
+c.on('connect', () => { if (done) return; done = true; resolve(c); });
+c.on('error', (e) => { if (done) return; done = true; try { c.end(true); } catch (x) {} reject(e || new Error('broker error')); });
+setTimeout(() => { if (!done) { done = true; try { c.end(true); } catch (x) {} reject(new Error('timeout')); } }, 9000);
 });
 },
 
-/* 绑定一条数据连接：收消息 + 断线提醒。房主重连时会再次调用，覆盖旧连接。 */
-attachConn(c) {
-this.conn = c;
-c.on('data', (obj) => {
-if (!obj || !obj.t) return;
-/* 房主只听客机指令；客机只听房主广播 —— 避免自己发的消息被自己处理 */
-const fromGuest = obj.t === 'act' || obj.t === 'pick' || obj.t === 'roster';
-if (this.role === 'host' ? fromGuest : !fromGuest) this.handle(obj);
+subscribe(topic) {
+return new Promise((resolve, reject) => {
+this.client.subscribe(topic, { qos:0 }, (err) => { err ? reject(err) : resolve(); });
+setTimeout(() => reject(new Error('subscribe timeout')), 8000);
 });
-c.on('close', () => { if (this.active) this.setStatus('⚠️ 对手已断开连接'); });
-c.on('error', (e) => this.onPeerError(e));
 },
 
-onPeerError(e) {
-const t = (e && e.type) || '';
-const msg = { 'peer-unavailable':'对手不在线（房间码可能不对）',
-'network':'网络中断', 'server-error':'信令服务器出错',
-'socket-error':'信令连接出错', 'socket-closed':'信令连接已关闭' }[t];
-this.setStatus('⚠️ ' + (msg || ('连接异常：' + (t || e))));
+/* 房主：发布「我在这里」的保留消息。first=true 表示刚建房。 */
+publishOpen(first) {
+if (!this.active && !first) return;
+this.publishRaw(this.myTopic, JSON.stringify({ t:'open', ts:Date.now() }), true);
 },
 
-/* 断开：退出 / 重开时调用，避免残留占用房间码 */
+publishRaw(topic, payload, retain) {
+if (!this.client) return;
+try { this.client.publish(topic, payload, { qos:0, retain:!!retain }); } catch (e) {}
+},
+
+/* 客机：等待房主的在线标记（保留消息会在订阅后立刻送达） */
+waitForHost(ms) {
+return new Promise((resolve) => {
+let done = false;
+const finish = (v) => { if (done) return; done = true; clearInterval(timer); clearTimeout(to); this.client.off('message', onMsg); resolve(v); };
+const onMsg = (topic, payload) => {
+if (topic !== this.peerTopic) return;
+let o = null; try { o = JSON.parse(String(payload)); } catch (e) { return; }
+if (!o || o.t !== 'open') return;
+/* 保留消息可能来自很久以前的一次对局（房主已关页面但没清标记），
+   用时间戳判断新鲜度，避免连进一个"僵尸房间"。 */
+if (Date.now() - (Number(o.ts) || 0) > RELAY_OPEN_TTL) return;
+finish(true);
+};
+this.client.on('message', onMsg);
+const timer = setInterval(() => { this.publishRaw(this.myTopic, JSON.stringify({ t:'probe' }), false); }, 2000);
+const to = setTimeout(() => finish(false), ms);
+});
+},
+
+/* 断开：退出 / 重开时调用。房主额外清掉在线标记，免得留下僵尸房间。 */
 disconnect() {
-try { if (this.conn) this.conn.close(); } catch (e) {}
-try { if (this.peer) this.peer.destroy(); } catch (e) {}
-this.active = false; this.role = null; this.conn = null; this.peer = null; this.entered = false;
+try { if (this._openTimer) { clearInterval(this._openTimer); this._openTimer = null; } } catch (e) {}
+if (this.client) {
+try { if (this.role === 'host') this.publishRaw(this.myTopic, '', true); } catch (e) {}
+try { this.client.end(true); } catch (e) {}
+}
+this.active = false; this.role = null; this.client = null; this.entered = false;
 },
 
 send(obj) {
-if (!this.active || !this.conn) return;
-try { this.conn.send(obj); } catch (e) { /* 单条失败不影响对局 */ }
+if (!this.active || !this.client) return;
+this.publishRaw(this.myTopic, JSON.stringify(obj), false);
 },
 
 /* ---------- 消息分发 ---------- */
 handle(o) {
 const H = this.role === 'host';
+/* 客机打招呼 → 房主据此确认对手已到（保留消息只能证明房间存在，不能证明人在） */
+if (H && o.t === 'hello') {
+this.setStatus(`✅ 对手已加入（房间 ${this.room}）`);
+/* 用显式标志判断「是否已进过选人」，而不是看面板是否开着 ——
+   后者依赖 UI 时序，一旦路径有变就会漏掉进选人。
+   首次连上 → 进选人；之后再收到 hello（对手断线重连）→ 只补发战局状态。 */
+if (!this.entered) { this.entered = true; closeNetPanel(); enterOnlineSelection('host'); }
+else if (gameState.phase === 'fighting') this.sendInit();
+const btn = document.getElementById('start-battle-btn');
+if (btn) { btn.disabled = false; btn.textContent = '开始战斗（对手已就绪）'; }
+return;
+}
 if (H && o.t === 'roster') {
 this.guestRoster = o.names || [];
 this.setStatus('✅ 对手已就绪，可以开始战斗');
@@ -1344,7 +1355,7 @@ const CURRENT_VERSION = 'v1.4.10';
 const CURRENT_THEME   = '咒术·最强之战';   // 1.4.x 大主题：小版本沿用，不随每次调整变更
 const CHANGELOG = [
 { ver:'v1.4.10', items:[
-'新增：联机对战模式（PeerJS 点对点 · 房主权威广播）—— 两台设备各控一方，纯静态托管可用、无需注册账号；房主生成房间码，对手输入即连。',
+'新增：联机对战模式（公共 MQTT over WebSocket 中继 · 房主权威广播）—— 两台设备各控一方，纯静态托管可用、无需注册账号、不受手机网络 NAT 限制；房主生成房间码，对手输入即连。',
 ] },
 { ver:'v1.4.9', items:[
 '五条悟重做：普攻固定为「苍」120%；被动改为「六眼·无下限」（友方施放技能时附加「视」；受击时获得护盾）；新增机制「视」。',
@@ -1592,10 +1603,12 @@ ov.classList.add('show');
 }
 function closeNetPanel() { document.getElementById('net-overlay').classList.remove('show'); }
 /* 生成 6 位房间码：去掉 0/O/1/I 这类容易念错记混的字符 */
+/* 8 位房间码：数据走公共 broker，主题名本质上是公开的，
+   码越长越不容易被陌生人误入（相当于 32^8 ≈ 1e12 种组合）。 */
 function genRoomCode() {
 const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 let out = '';
-for (let i = 0; i < 6; i++) out += chars[Math.floor(Math.random() * chars.length)];
+for (let i = 0; i < 8; i++) out += chars[Math.floor(Math.random() * chars.length)];
 return out;
 }
 /* 房主创建成功 → 把房间码大字展示出来，方便念给对手或复制到聊天窗口 */
@@ -1614,7 +1627,7 @@ const btn = document.getElementById(role === 'host' ? 'net-create' : 'net-join')
 if (btn) btn.disabled = true;
 const server = document.getElementById('net-server').value.trim();
 localStorage.setItem('net_server', server);
-const ok = await Net.connect({ room, role, server });
+const ok = await Net.connect({ room, role, broker: server });
 if (btn) btn.disabled = false;
 if (!ok) return;
 if (role === 'host') showRoomCode(Net.room);   // 留在面板上展示房间码，等对手加入
