@@ -290,16 +290,13 @@ body { font-family: 'Microsoft YaHei', sans-serif; background-color: #0a0a1a; ba
    联机面板（#net-overlay）连上后就关掉了，状态栏跟着一起消失 ——
    于是"实时延迟"这个读数在真正对战时根本看不到。
    这里做一个独立的小挂件，跨界面常驻，不随面板开关。 */
-#net-hud { position: fixed; top: 8px; right: 8px; z-index: 300; display: none;
-padding: 4px 10px; font-size: 11px; line-height: 1.4; border-radius: 10px;
-color: #cfe8ff; background: rgba(6,10,26,.72); border: 1px solid rgba(79,195,247,.35);
-pointer-events: none; white-space: nowrap; backdrop-filter: blur(3px); }
+#net-hud { position: fixed; top: 6px; right: 10px; z-index: 300; display: none;
+font-size: 12px; font-weight: bold; color: #69f0ae;
+pointer-events: none; white-space: nowrap; text-shadow: 0 1px 3px rgba(0,0,0,.9); }
 #net-hud.show { display: block; }
-#net-hud .nh-role { color: #ffd700; }
-#net-hud .nh-lat { font-weight: bold; }
-#net-hud .nh-lat.good { color: #69f0ae; }
-#net-hud .nh-lat.mid  { color: #ffd54f; }
-#net-hud .nh-lat.bad  { color: #ef5350; }
+#net-hud.good { color: #69f0ae; }
+#net-hud.mid  { color: #ffd54f; }
+#net-hud.bad  { color: #ef5350; }
 
 /* 选人界面返回上一级 */
 #back-btn { position: absolute; left: 14px; top: 14px; z-index: 10; padding: 8px 14px; font-size: 14px; color: #4fc3f7; background: transparent; border: none; cursor: pointer; text-shadow: 0 0 8px rgba(79,195,247,.45); -webkit-tap-highlight-color: transparent; }
@@ -1095,14 +1092,11 @@ if (this.statusCb) this.statusCb(t);
 renderHud() {
 const hud = document.getElementById('net-hud');
 if (!hud) return;
-if (!this.active) { hud.classList.remove('show'); return; }
+if (!this.active || this.rtt == null) { hud.classList.remove('show'); return; }
 hud.classList.add('show');
-const role = this.role === 'host' ? '房主' : '玩家2';
-const mode = this.transport === 'ws' ? 'WS中继' : (this.transport === 'mqtt' ? 'MQTT' : '联机');
-let lat = '';
-let cls = '';
-if (this.rtt != null) { cls = this.rtt < 120 ? 'good' : (this.rtt < 400 ? 'mid' : 'bad'); lat = ` · ${this.rtt}ms`; }
-hud.innerHTML = `<span class="nh-role">${role}</span> · ${mode}<span class="nh-lat ${cls}">${lat}</span>`;
+hud.classList.remove('good', 'mid', 'bad');
+hud.classList.add(this.rtt < 120 ? 'good' : (this.rtt < 400 ? 'mid' : 'bad'));
+hud.textContent = `${this.rtt}ms`;
 },
 /* 「🟢 延迟 85ms」这类后缀；未测得则不显示 */
 latencyTag() {
@@ -1815,11 +1809,8 @@ const CURRENT_VERSION = 'v1.4.10';
 const CURRENT_THEME   = '咒术·最强之战';   // 1.4.x 大主题：小版本沿用，不随每次调整变更
 const CHANGELOG = [
 { ver:'v1.4.10', items:[
-'新增：联机对战模式（公共 MQTT over WebSocket 中继 · 房主权威广播）—— 两台设备各控一方，房主生成房间码，对手输入即连。',
+'新增：联机对战模式 —— 两台设备各控一方，房主生成房间码，对手输入即连，自动选择最快的中继服务器。',
 '新增：全局背景图 —— 主界面、选人、BP、战斗、结算统一生效，竖屏与横屏自动适配不同画面。',
-'联机：支持自建 WebSocket 中继 —— 在「中继服务器」填 wss://你的域名 即可切换（留空仍走公共服务器），两种方式可随时对比。',
-'联机：右上角新增常驻状态挂件，实时显示当前身份、连接方式与延迟（联机面板关闭后仍可见）。',
-'联机：连接改为多服务器竞速 —— 自动选出当前网络下最快的中继，并优先使用国内节点。',
 ] },
 { ver:'v1.4.9', items:[
 '五条悟重做：普攻固定为「苍」120%；被动改为「六眼·无下限」（友方施放技能时附加「视」；受击时获得护盾）；新增机制「视」。',
