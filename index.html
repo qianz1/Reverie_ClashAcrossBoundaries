@@ -1661,6 +1661,18 @@ this.catchUpCount++;
 /* 结算面板：房主把标题/样式/副标题一并广播，客机据此完整渲染。
    表格数据用客机本地已同步的 gameState（快照持续同步，数值是最新的）。 */
 applyOver(o) {
+/* 先把房主发来的战绩写进本地单位，再渲染表格 ——
+   顺序反了的话表格读到的仍是全 0。 */
+if (Array.isArray(o.stats) && typeof gameState !== 'undefined') {
+o.stats.forEach((v, i) => {
+const u = gameState.units[i]; if (!u) return;
+u.statsDamageDealt = Number(v[0]) || 0;
+u.statsDamageTaken = Number(v[1]) || 0;
+u.statsHealDone    = Number(v[2]) || 0;
+u.statsRestoreDone = Number(v[3]) || 0;
+u.statsShieldDone  = Number(v[4]) || 0;
+});
+}
 if (typeof renderResultTable === 'function') renderResultTable();
 const t = document.getElementById('result-title');
 if (t) { t.textContent = o.text || '对局结束'; t.className = 'result-title ' + (o.cls || ''); }
@@ -1843,7 +1855,19 @@ this.send({ t:'init', roster:playerSelection.slice(), guest:enemySelection.slice
 sendOver(text, cls) {
 if (!this.active || this.role !== 'host') return;
 this.send(this.snapshot());
-this.send({ t:'over', text, cls, sub:'联机对战 · 战斗数据统计' });
+/* ★ 战绩数据必须单独带上。
+   快照只同步血量/怒气/状态这类"战局状态"，从不同步 statsDamageDealt 等统计字段
+   （每 200ms 全量同步 12×4 个统计数字纯属浪费）。但客机端这些字段永远是 0，
+   结算表格直接从 gameState 读它们 —— 于是玩家2 看到的全是 0。
+   结算是一次性事件，这里补发一次即可。 */
+this.send({ t:'over', text, cls, sub:'联机对战 · 战斗数据统计',
+stats: gameState.units.map(u => [
+Math.round(Number(u.statsDamageDealt) || 0),
+Math.round(Number(u.statsDamageTaken) || 0),
+Math.round(Number(u.statsHealDone) || 0),
+Math.round(Number(u.statsRestoreDone) || 0),
+Math.round(Number(u.statsShieldDone) || 0),
+]) });
 },
 };
 /* 联机下「当前行动者归客机操控」：房主据此把操作面板转交给客机 */
