@@ -879,7 +879,7 @@ skill: { name:"梦山狐影", cost:4, type:"buff", target:"ally", selfEffect:"fo
 descNormal: "对敌方目标造成 <span class='dmg'>100%</span> 伤害，有 <span class='buff'>50%概率</span> 使目标减 <span class='buff'>1点怒气</span>。",
 descSkill: "使攻击最高的友方单位和血量最低的友方单位获得 <span class='m-mark'>狐守</span>（我方至多同时存在2个单位拥有狐守），持续2回合。然后自身获得 <span class='m-mark'>狐佑</span>，持续2回合。",
 mechanics: [
-{ type:'mark', name:'狐守', desc:'增益印记：提升20%最终免伤率；拥有印记的友方所受伤害由白藏主代为承受，不可叠加。' },
+{ type:'mark', name:'狐守', desc:'增益印记：提升20%最终免伤率；拥有印记的友方所受伤害由白藏主代为承受。随施放者阵亡清空。不可叠加。' },
 { type:'mark', name:'狐佑', desc:'增益印记：提升自身25%最终免伤率，不可叠加。' }
 ] },
 "宇智波带土": { atk:1000, def:220, hp:3400, spd:182, critRate:0.15, critDmg:1.6, color:'#d32f2f', tag:'攻击',
@@ -888,8 +888,8 @@ skill: { name:"神威·虚化", cost:4, type:"banish", target:"enemy", selfEffec
 descNormal: "对敌方目标造成两段 <span class='dmg'>63%</span> 伤害，并使目标附加 <span class='m-mark'>1层神威</span>。",
 descSkill: "将敌方目标放逐至神威空间（<span class='m-rule'>放逐</span>），同时自身进入 <span class='m-rule'>虚化</span>，均持续至施放者带土下回合结束。放逐结束后，施放者带土立即对该目标分别造成 <span class='dmg'>50%</span>伤害、<span class='dmg'>70%</span>伤害、<span class='true-dmg'>90%真实伤害</span>，敌方全体附加 <span class='m-mark'>1层神威</span>，然后对敌方全体造成 <span class='true-dmg'>36%真实伤害</span>。敌方放逐存在时，无法施放此技能。",
 mechanics: [
-{ type:'mark', name:'神威', desc:'减益印记：受到攻击时，每层额外附加施加者12%真实伤害（该伤害不可转移），同时施加者+12%行动条，最多叠加3层。' },
-{ type:'rule', name:'放逐', desc:'规则：视为离开战局。期间无法行动，无法选中，无法被治疗、恢复，行动条锁定；目标相关的所有状态、印记失效，免疫伤害，取消效果buff的变化。' },
+{ type:'mark', name:'神威', desc:'减益印记：受到攻击时，每层额外附加施加者12%真实伤害（该伤害不可转移），同时施加者+12%行动条，最多叠加3层。随施放者阵亡清空。' },
+{ type:'rule', name:'放逐', desc:'规则：视为离开战局。期间无法行动，无法选中，无法被治疗、恢复，行动条锁定；目标相关的所有状态、印记失效，免疫伤害，取消效果buff的变化。随施放者阵亡清空。' },
 { type:'rule', name:'虚化', desc:'规则：免疫伤害与减益效果。进入时移除自身所有减益状态与减益印记，持续期间免疫减益状态与减益印记。' } ] },
 "镰鼬": { atk:500, def:400, hp:4600, spd:272, critRate:0.08, critDmg:1.5, color:'#aed581', tag:'辅助',
 normal: { name:"胖揍", type:"single", dmgRate:1.0, target:"enemy", effect:"stunChance" },
@@ -940,8 +940,8 @@ desc:"自身回合开始时，使所有携带 <span class='m-mark'>流光</span>
 descNormal: "对敌方目标造成 <span class='dmg'>100%</span> 伤害，<span class='buff'>50%概率</span> 使其减 <span class='buff'>1点怒气</span>。",
 descSkill: "全体友方获得 <span class='m-mark'>流光</span>。",
 mechanics: [
-{ type:'mark', name:'流光', desc:'增益印记：携带者怒气减少时（不包括技能消耗的怒气），恢复1点怒气，然后移除此印记。不可叠加。' },
-{ type:'mark', name:'照君', desc:'增益印记：提升10%攻击、5点速度，最多叠加5层。' },
+{ type:'mark', name:'流光', desc:'增益印记：携带者怒气减少时（不包括技能消耗的怒气），恢复1点怒气，然后移除此印记。随施放者阵亡清空。不可叠加。' },
+{ type:'mark', name:'照君', desc:'增益印记：提升8%攻击、5点速度，最多叠加5层。' },
 { type:'note', name:'先机', desc:'战斗开始时，触发一次相应效果。' } ] },
 "维迦": { atk:1000, def:250, hp:3300, spd:155, critRate:0.5, critDmg:2.0, color:'#6a1b9a', tag:'攻击',
 normal: { name:"黑暗祭祀", type:"single", dmgRate:1.0, target:"enemy", selfEffect:"darkEssence" },
@@ -967,7 +967,7 @@ descExtra: "对敌方全体造成 <span class='dmg'>80%</span> 伤害（每个�
 descNormal: "对敌方目标造成 <span class='dmg'>120%</span> 伤害，并对目标附加 <span class='m-mark'>1层雀之印</span>。",
 descSkill: "使自身、主角以及生命比例最低的友方单位（不包括自身和主角）获得心友犬神攻击 <span class='buff'>80%</span> 的护盾。自身获得 <span class='m-mark'>守势</span>（持续2回合）。先机：施放「浪客归刃」。",
 mechanics: [
-{ type:'mark', name:'雀之印', desc:'减益印记：上限2层。达到上限时，受到施加者造成的三段50%伤害，移除所有层数。' },
+{ type:'mark', name:'雀之印', desc:'减益印记：上限2层。达到上限时，受到施加者造成的三段50%伤害，移除所有层数。随施放者阵亡清空。' },
 { type:'mark', name:'守势', desc:'增益印记：获得270点防御。拥有护盾的友方单位受到攻击时，施放「一誓归心」。不可叠加。' },
 { type:'note', name:'先机', desc:'战斗开始时，触发一次相应效果。' },
 { type:'note', name:'护盾', desc:'优先于生命值承受伤害。' } ] },
@@ -994,7 +994,7 @@ descSkill2: "对敌方目标附加 <span class='m-mark'>长星锁</span>，并�
 descExtra: "跳过目标回合。",
 mechanics: [
 { type:'mark', name:'宿影阵', desc:'增益印记：上限5层。达到上限时，施放「宿影暗渡」，移除所有层数（先施放，成功后再移除）。' },
-{ type:'mark', name:'长星锁', desc:'减益印记：携带者行动条达到100%时，鬼金羊对其施放「鬼宿奇惊·谜夜」，然后移除此印记。不可叠加。' },
+{ type:'mark', name:'长星锁', desc:'减益印记：携带者行动条达到100%时，鬼金羊对其施放「鬼宿奇惊·谜夜」，然后移除此印记。随施放者阵亡清空。不可叠加。' },
 { type:'note', name:'先机', desc:'战斗开始时，触发一次相应效果。' } ] },
 "禅心云外镜": { atk:450, def:360, hp:5300, spd:240, critRate:0.05, critDmg:1.5, color:'#8d6e63', tag:'防御',   // 棕（心友犬神改前用色）
 normal: { name:"水无垠", type:"single", dmgRate:1.0, target:"enemy", selfEffect:"shuiWuYin" },
@@ -2541,6 +2541,8 @@ const CHANGELOG = [
 { ver:'v1.4.10', items:[
 '新增：联机对战模式 —— 两台设备各控一方，房主生成房间码，对手输入即连。',
 '新增：全局背景图 —— 主界面、选人、BP、战斗、结算统一生效，竖屏与横屏自动适配不同画面。',
+'调整：狐守、流光、雀之印、长星锁随施放者阵亡清空（仅清施加者一方的，双方同名角色互不影响）；放逐同步补充描述。',
+'调整：照君攻击提升 10% → 8%。',
 ] },
 { ver:'v1.4.9', items:[
 '五条悟重做：普攻固定为「苍」120%；被动改为「六眼·无下限」（友方施放技能时附加「视」；受击时获得护盾）；新增机制「视」。',
@@ -5065,7 +5067,7 @@ atk += Math.floor(atk * 0.2 * s);
 critRate += 0.1 * s; critDmg += 0.2 * s; finalDmgRate += 0.1 * s;
 }
 const zhaojun = getMark(unit, '照君');
-if (zhaojun) atk += Math.floor(atk * 0.1 * (zhaojun.stacks || 1));  // 照君：+10% 攻击/层（最多5层）
+if (zhaojun) atk += Math.floor(atk * 0.08 * (zhaojun.stacks || 1));  // 照君：+8% 攻击/层（最多5层）
 // ③ 状态（百豪为增益状态，与牵绊同级）
 if ((unit.states || []).some(s => s.type === '牵绊')) atk += Math.floor(atk * 0.25);
 if ((unit.states || []).some(s => s.type === '百豪')) atk += Math.floor(atk * 0.1);
@@ -5126,26 +5128,29 @@ gameState.damageLogFallen.push({ idx: idxOf(unit), actionValue: Number(unit.acti
 unit.alive = false; unit.hp = 0;
 // 阵亡即清空全部 buff / 效果（状态 / 印记 / 规则 / 护盾 / 虚化 / 放逐）
 clearAllEffects(unit);
-/* 鬼王酒吞童子阵亡 → 其赋予的「大妖之力」随施放者【全体清空】。
-   印记本身挂在别人身上，自身的 clearAllEffects 清不到，必须在这里单独处理。 */
+/* ── 随施放者阵亡清空 ──
+   以下印记挂在他人身上，自身的 clearAllEffects 清不到，必须在这里单独处理。
+   统一用 applierSide 判断归属：双方各有同名角色时，一方阵亡只清自己附加的。 */
+{
+/* 大妖之力：鬼吞用阵营判断（先机全体赋予，未记 applierSide） */
 if (unit.name === '鬼王酒吞童子') {
-/* ★ 只清【同一阵营】：双方各有一只鬼吞时，其中一只阵亡不应抹掉另一方的「大妖之力」。 */
 const cleared = gameState.units.filter(u => u.side === unit.side && removeMarkIfHas(u, '大妖之力'));
 cleared.forEach(u => refreshUnit(u));
 if (cleared.length > 0) log(`💀 ${getSideLabel(unit)}鬼王酒吞童子 阵亡，全体的「大妖之力」随之消散！`, 'log-buff');
 }
-/* 五条悟阵亡 → 其附加的「视」随施放者【全体清空】。
-   印记挂在敌方身上，自身的 clearAllEffects 清不到，必须在这里单独处理。 */
-if (unit.name === '五条悟') {
-/* ★ 只清【该施放者自己附加的】：印记上记了 applierSide，
-   双方各有一个五条悟时，其中一个阵亡不应抹掉另一个附加的「视」。 */
-const cleared = gameState.units.filter(u => {
-const mk = getMark(u, '视');
+/* 其余印记统一用 applierSide 判断（视、狐守、流光、雀之印、长星锁、神威） */
+const sideMarks = ['视', '狐守', '流光', '雀之印', '长星锁', '神威'];
+const clearedMarks = gameState.units.filter(u => {
+const found = sideMarks.filter(m => {
+const mk = getMark(u, m);
 if (!mk) return false;
 return !mk.applierSide || mk.applierSide === unit.side;
-}).filter(u => removeMarkIfHas(u, '视'));
-cleared.forEach(u => refreshUnit(u));
-if (cleared.length > 0) log(`💀 ${getSideLabel(unit)}五条悟 阵亡，其附加的「视」随之消散！`, 'log-buff');
+});
+if (found.length === 0) return false;
+found.forEach(m => removeMark(u, m));
+return true;
+});
+clearedMarks.forEach(u => refreshUnit(u));
 }
 log(`💀 ${getSideLabel(unit)}${unit.name} 被击败了！`, 'log-death');
 refreshUnit(unit);
@@ -5755,7 +5760,7 @@ if (target.intangible) { log(`${getSideLabel(target)}${target.name} 处于虚化
 /* 免疫长星锁属「宿影暗渡」的【被动效果】部分：不需要角色本体施放，
    因此不受【无法行动】约束，只要存活即免疫（与攒宿影阵同一口径）。 */
 if (target.name === '鬼金羊') { log(`${getSideLabel(target)}${target.name} 免疫长星锁！`, 'log-buff'); break; }
-const cx = addMark(target, '长星锁', { stacks:1, maxStacks:1, duration:999, effect:'changXingSuo' });
+const cx = addMark(target, '长星锁', { stacks:1, maxStacks:1, duration:999, effect:'changXingSuo', extra:{ applierSide:attacker.side, applierName:attacker.name } });
 if (!cx) break;
 log(`${getSideLabel(target)}${target.name} 被附加长星锁！下次行动条满时跳过回合。`, 'log-buff');
 refreshUnit(target);
@@ -5947,7 +5952,7 @@ const highestAtk = findHighestAtkAmong(allies);
 const lowestHp = findLowestHpAmong(allies);   // 当前绝对血量最低
 [highestAtk, lowestHp].forEach((t, i) => {
 if (!t || (i === 1 && t === highestAtk)) return;
-addMark(t, '狐守', { duration:2, effect:'foxGuard' });
+addMark(t, '狐守', { duration:2, effect:'foxGuard', extra:{ applierSide:unit.side, applierName:unit.name } });
 log(`${getSideLabel(t)}${t.name} 获得狐守！`, 'log-buff'); refreshUnit(t);
 });
 }
@@ -6042,7 +6047,7 @@ const dur = FLOWING_LIGHT_DURATION;
 if (getMark(u, '流光')) {
 log(`${getSideLabel(u)}${u.name} 已携带流光（不可叠加）！`, 'log-buff');
 } else {
-addMark(u, '流光', { stacks:1, maxStacks:1, duration:dur, effect:'flowingLight' });   // 不可叠加、不可刷新
+addMark(u, '流光', { stacks:1, maxStacks:1, duration:dur, effect:'flowingLight', extra:{ applierSide:unit.side, applierName:unit.name } });   // 不可叠加、不可刷新
 log(`${getSideLabel(u)}${u.name} 获得流光！（持续${dur}回合）`, 'log-buff');
 }
 refreshUnit(u);
