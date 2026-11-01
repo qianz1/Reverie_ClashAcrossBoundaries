@@ -1098,6 +1098,7 @@ const NET_WS_RETRY = 2;          // 自建中继失败后的额外重试次数�
 const NET_WS_RETRY_GAP = 600;    // 两次尝试之间的间隔：给网络一点恢复时间，立刻重试往往还是同一条失败路径
 const NET_GUEST_HINT_AFTER = 6;  // 加入房间重试到第几次开始附带"逃生提示"（房主可能已改走公共服务器）
 const NET_WS_HS_MS = 3500;       // 单次握手预算（重试机制存在，单次不必死等太久）
+const NET_OVER_WAIT_MS = 2500;   // 结算前最多等多久让演出播完（上限兜底，避免演出卡住就进不去结算）
 const NET_WS_JOIN_MS = 4500;     // 单次房间配对预算
 const NET_SILENCE_MS = 5000;     // 客机多久没收到房主消息就主动请求重新同步
 const BAR_KEEP_FT = 4;           // 追赶模式下保留的浮动文字条数（伤害数字，全丢会显得"动画没了"）
@@ -1356,7 +1357,7 @@ this.rtt = null; this._rttSent = 0;
 this._lastPanel = null; this._panelAge = 0; this.panelIdx = -1; this.pickedPending = false;
 this.guestQueue = []; this.guestDraining = false; this.waitingPick = false;
 this.catchUpCount = 0;
-this._msgSeq = 0; this._seenSeq = null; this._cutinChain = null;
+this._msgSeq = 0; this._seenSeq = null; this._cutinChain = null; this._overQueued = false;
 this._barSnap = null; this._barSnapT = 0; this._barRun = true; this._guestBarReady = false;
 this._barTarget = []; this._barRate = [];
 this._lastBars = null; this._lastBarsT = 0; this._lastOver = null;
@@ -1615,6 +1616,8 @@ if (this._silenceTimer) return;
 this._lastRecv = performance.now();
 this._silenceTimer = setInterval(() => {
 if (!this.active || this.role !== 'guest') return;
+/* 已收到结算（可能正在等演出播完）→ 不再请求同步，避免房主反复补发 over */
+if (this._overQueued) return;
 if (gameState.phase !== 'fighting' && gameState.phase !== 'gameOver') return;
 if (performance.now() - (this._lastRecv || 0) < NET_SILENCE_MS) return;
 this._lastRecv = performance.now();     // 发出请求后重置，避免每 2 秒狂发
@@ -1830,7 +1833,16 @@ return;
    后面也压着若干条 —— 排队的话要等它们播完才弹结算，表现就是"比房主慢一两秒"。
    结算是终局事件，高于一切演出：立刻清掉积压、马上渲染。 */
 if (!H) {
-if (o.t === 'over') { this.guestQueue.length = 0; this.applyOver(o); return; }
+/* 结算【排进队列】而不是插队立刻结算。
+   ★ 旧行为是清空队列 + 立刻切结算界面 —— 房主一结算，
+     客机还在播的最后一击动画（cutin / 浮动数字 / 日志）就被整批丢掉，
+     表现正是"动画还差一点没播完，直接就结束了"。
+   ★ _overQueued 防重复：结算等待期间房主可能因看门狗补发 over
+     （带新 seq，去重拦不住），不拦会让结算界面渲染两次。 */
+if (o.t === 'over') {
+if (!this._overQueued) { this._overQueued = true; this.guestQueue.push(o); this.drainGuest(); }
+return;
+}
 this.guestQueue.push(o);
 this.drainGuest();
 }
@@ -1946,7 +1958,13 @@ else if (o.t === 'cutin') { const u = gameState.units[o.idx]; if (u) { const nm 
 else if (o.t === 'st') this.applySnapshot(o);
 else if (o.t === 'panel') this.applyPanel(o);
 else if (o.t === 'init') this.applyInit(o);
-else if (o.t === 'over') this.applyOver(o);
+/* 结算：先让正在播的演出播完，再切结算界面 */
+else if (o.t === 'over') {
+try { await this.waitCutinDone(NET_OVER_WAIT_MS); } catch (e) {}
+this.applyOver(o);
+this.guestQueue.length = 0;    // 已结算，队列里剩下的消息不再有意义
+return;
+}
 } catch (e) { /* 单条播放失败不阻断后续 */ }
 }
 } finally {
@@ -1955,12 +1973,25 @@ this.guestDraining = false;
 if (this.guestQueue.length > 0) this.drainGuest();
 }
 },
+/* 等正在播的技能演出播完（带上限）。
+   演出挂在 _cutinChain 上后台播放，结算时需要等它收尾，
+   否则最后一击的特写会被结算界面直接盖掉。
+   ★ 上限必须有：演出万一卡住，不能连结算界面都进不去。 */
+waitCutinDone(ms) {
+const chain = this._cutinChain;
+if (!chain) return Promise.resolve();
+return Promise.race([
+Promise.resolve(chain).catch(() => {}),
+new Promise((r) => setTimeout(r, ms || NET_OVER_WAIT_MS)),
+]);
+},
 /* 追赶：把队列里"可被后来者覆盖"的消息丢掉，只留最新的 */
 catchUp() {
 const keep = [];
 const ftKeep = [];
-let lastSt = null, lastCutin = null;
+let lastSt = null, lastCutin = null, lastOver = null;
 for (const o of this.guestQueue) {
+if (o.t === 'over') { lastOver = o; continue; }      // 结算：永远排最后
 if (o.t === 'st') { lastSt = o; continue; }          // 快照：只留最后一条
 if (o.t === 'anim') continue;                        // 纯视觉开关：过期即无意义
 /* 浮动文字（伤害/治疗数字）此前被整类丢掉 —— 玩家看到的就是"动画没了"。
@@ -1969,9 +2000,13 @@ if (o.t === 'ft') { ftKeep.push(o); if (ftKeep.length > BAR_KEEP_FT) ftKeep.shif
 if (o.t === 'cutin') { lastCutin = o; continue; }    // 演出：只留最后一条补播
 keep.push(o);
 }
+/* 顺序：普通消息 → 浮动数字 → 补播演出 → 最新快照 → 结算。
+   ★ 结算必须垫底：它是终止信号，排在它前面的动画都要先播完，
+     否则追赶时结算会跑到演出前面，最后一击照样看不到。 */
 this.guestQueue = keep.concat(ftKeep);
 if (lastCutin) this.guestQueue.push(lastCutin);
 if (lastSt) this.guestQueue.push(lastSt);            // 快照放最后，保证状态是最新的
+if (lastOver) this.guestQueue.push(lastOver);
 this.catchUpCount++;
 },
 /* ---------- 客机：行动条本地插值 ----------
@@ -2050,6 +2085,7 @@ this.bindGuestButtons();
 /* ★ 启动本地行动条插值循环（只推进显示，不跑任何战斗逻辑）。
    此前客机没有任何 rAF 循环，行动条只能靠快照硬跳。 */
 this._guestBarReady = false;
+this._overQueued = false;                            // 新一局：允许再次接收结算
 this._barTarget = []; this._barRate = [];
 this._barSnap = null; this._barRun = true;
 gameState.paused = false; gameState.animating = false;
