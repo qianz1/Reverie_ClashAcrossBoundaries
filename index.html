@@ -1909,11 +1909,8 @@ showControlPanel(actor);
 return;
 }
 log('目标已失效，请重新选择。', 'log-normal');
-/* 还有别的合法目标 → 重发一次选目标面板，客机据此刷新可点目标。
-   ★ retry 标记：客机已把 pickedPending 置位（提交过了），
-     普通的 select 面板会被它整条忽略，于是"目标失效"后客机再也点不了 ——
-     带上 retry 让客机解除置位、重新进入可点状态。 */
-this.send({ t:'panel', mode:'select', idx: idxOf(actor), ttype: gameState.targetType || 'enemy', btns:[], retry:1 });
+/* 还有别的合法目标 → 重发一次选目标面板，客机据此刷新可点目标 */
+this.send({ t:'panel', mode:'select', idx: idxOf(actor), ttype: gameState.targetType || 'enemy', btns:[] });
 return;
 }
 gameState.waitingForTarget = false;
@@ -2166,11 +2163,8 @@ this.panelIdx = (o.idx == null) ? -1 : Number(o.idx);
 const b = document.getElementById(id); if (b) { b.style.opacity = ''; b.disabled = false; }
 });
 /* 已提交目标后收到 select → 房主周期性重发的陈旧面板，必须忽略，
-   否则会把刚清掉的目标高亮又点亮一次（表现为边框闪烁）。
-   ★ 但房主明确要求重选（retry：目标失效/被驳回）时除外，
-     否则客机会永远停在"已提交"状态，再也选不了目标。 */
-if (o.mode === 'select' && this.pickedPending && !o.retry) return;
-if (o.mode === 'select' && o.retry) this.pickedPending = false;
+   否则会把刚清掉的目标高亮又点亮一次（表现为边框闪烁）。 */
+if (o.mode === 'select' && this.pickedPending) return;
 /* 回到技能选择态 = 上一轮选目标结束，清掉残留高亮 */
 if (o.mode === 'skill') { this.pickedPending = false; clearHighlights(); }
 if (o.mode !== 'none') this.setStatus('✅ 对局进行中（你是玩家2 · 我方）');
@@ -2194,7 +2188,7 @@ set('btn-normal', true); set('btn-skill', true); set('btn-skill2', true); set('b
    指令要绕一圈到房主、房主算完再广播回来，这段空窗期客机画面毫无变化，
    很容易被当成"点了没反应 / 卡了"。先本地响应，房主的权威 panel 回来时再校正。
    ★ 同时把面板所属行动者的 idx 一并回传，房主据此识别过期面板。 */
-guestLocalAck(kind) {
+guestLocalAck() {
 ['btn-normal','btn-skill','btn-skill2','btn-cancel'].forEach(id => {
 const b = document.getElementById(id);
 if (!b) return;
@@ -2202,38 +2196,11 @@ b.disabled = true;                 // 置灰防连点（重复指令会让房主
 b.style.opacity = '0.45';
 });
 this.setStatus('⏳ 已发送操作，等待房主结算…');
-/* 乐观预判：不再干等房主回 select 面板 */
-if (kind && kind !== 'cancel') this.guestPredictTarget(kind);
-},
-/* ---------- 乐观预判目标态 ----------
-   旧流程：点技能 → 【等一整趟往返】→ 房主回 select 面板 → 才高亮可点目标。
-   玩家看到的就是"点了技能，要愣一下才能点目标"。
-   其实客机本地完全算得出该高亮谁：单位数据由 init 建好了，
-   技能对象与目标类型都是现成的，判定函数与房主用的也是同一个。
-   于是点下的瞬间就地高亮，省掉这趟往返；房主的权威面板随后到达并复核，
-   万一预判有误（怒气不足 / 行动者已换人）它会自动纠正 —— 不会比现在更差。 */
-guestPredictTarget(kind) {
-try {
-const u = (typeof gameState !== 'undefined') ? gameState.units[this.panelIdx] : null;
-if (!u) return;
-const skill = kind === 'normal' ? u.normalSkill : (kind === 'skill2' ? u.activeSkill2 : u.activeSkill);
-if (!skill) return;
-if (typeof isNoTargetSkill === 'function' && isNoTargetSkill(skill)) return;   // 无需选目标
-const type = skill.target || 'enemy';
-gameState.targetType = type;
-this.waitingPick = true;
-this.pickedPending = false;
-const fakeActor = { side: NET_GUEST_SIDE };
-gameState.units.forEach((t, idx) => {
-const el = document.getElementById(`unit-${idx}`); if (!el) return;
-if (isValidTarget(t, type, fakeActor)) el.style.boxShadow = '0 0 10px 3px #ffd700';
-});
-} catch (e) { /* 预判失败不影响正常流程：房主的权威面板随后会到位 */ }
 },
 bindGuestButtons() {
-document.getElementById('btn-normal').onclick = () => { this.guestLocalAck('normal'); this.send({ t:'act', kind:'normal', idx:this.panelIdx }); };
-document.getElementById('btn-skill').onclick  = () => { this.guestLocalAck('skill');  this.send({ t:'act', kind:'skill',  idx:this.panelIdx }); };
-document.getElementById('btn-skill2').onclick = () => { this.guestLocalAck('skill2'); this.send({ t:'act', kind:'skill2', idx:this.panelIdx }); };
+document.getElementById('btn-normal').onclick = () => { this.guestLocalAck(); this.send({ t:'act', kind:'normal', idx:this.panelIdx }); };
+document.getElementById('btn-skill').onclick  = () => { this.guestLocalAck(); this.send({ t:'act', kind:'skill',  idx:this.panelIdx }); };
+document.getElementById('btn-skill2').onclick = () => { this.guestLocalAck(); this.send({ t:'act', kind:'skill2', idx:this.panelIdx }); };
 document.getElementById('btn-cancel').onclick = () => { this.waitingPick = false; clearHighlights(); this.send({ t:'act', kind:'cancel' }); };
 /* 自动：客机【也要有】—— 玩家2 同样需要能托管自己那一方。
    （此前这里写的是"联机下不提供托管"并把按钮藏了，于是房主一点自动，
@@ -4719,10 +4686,6 @@ if (typeof Net !== 'undefined' && Net.active && Net.role === 'guest' && Net.wait
 if (!isValidTarget(target, gameState.targetType, { side: NET_GUEST_SIDE })) { log('❌ 无效目标！', 'log-normal'); return; }
 Net.waitingPick = false; clearHighlights();
 Net.pickedPending = true;      // 已提交，后续迟到的 select 面板一律忽略
-/* 本地先闪一下选中反馈：房主结算要再绕一趟，这段空窗期点了没动静
-   很容易被当成没点上。房主随后播真正的演出，这里只是即时确认。 */
-const gel = document.getElementById(`unit-${idx}`);
-if (gel) { gel.classList.add('selected-target'); setTimeout(() => gel.classList.remove('selected-target'), 200); }
 Net.send({ t:'pick', idx });
 return;
 }
