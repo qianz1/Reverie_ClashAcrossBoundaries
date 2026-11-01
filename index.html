@@ -1086,9 +1086,14 @@ const DEFAULT_RELAY = 'wss://reveriecab.cc.cd/';
 const RELAY_TOPIC_PREFIX = 'ygob-battle-v1/';  // 主题前缀，避免与公共 broker 上其它流量混在一起
 const NET_TICK_MS = 300;         // 状态快照广播间隔（客机本地插值后不再依赖它出帧，降频可显著减少消息量）
 const NET_JUMP_CHECK_MS = 50;    // 行动条跳变检测间隔（清零/拉条必须立刻同步，不能等下一个节拍）
-const BAR_HARD_JUMP = 12;        // 行动条与权威值偏差超过这个百分比 → 直接对齐（回合清零、拉条等真跳变）
-const BAR_TAU = 0.12;            // 偏差收敛时间常数(秒)：越小跟得越紧，越大越平滑
+const BAR_CORR_WINDOW = 450;     // 偏差吸收窗口(ms)：略大于快照间隔，保证修正过程被下一次快照自然接管
+const BAR_DEADZONE = 1.2;        // 偏差小于这个百分比完全不修正 —— 消除"持续被微调"的橡皮筋感
+const BAR_JUMP_DELTA = 25;       // 单次快照间「房主推进量」超过这个值 → 判定为真跳变（回合清零/拉条），硬对齐
 const NET_CRITICAL_MSG = { init:1, over:1, panel:1, cutin:1, roster:1, hello:1, act:1, pick:1, restart:1, restartAck:1 };
+const NET_WS_RETRY = 2;          // 自建中继失败后的额外重试次数（连首次共 3 次）
+const NET_WS_RETRY_GAP = 600;    // 两次尝试之间的间隔：给网络一点恢复时间，立刻重试往往还是同一条失败路径
+const NET_WS_HS_MS = 3500;       // 单次握手预算（重试机制存在，单次不必死等太久）
+const NET_WS_JOIN_MS = 4500;     // 单次房间配对预算
 const NET_SILENCE_MS = 5000;     // 客机多久没收到房主消息就主动请求重新同步
 const BAR_KEEP_FT = 4;           // 追赶模式下保留的浮动文字条数（伤害数字，全丢会显得"动画没了"）
 const NET_GUEST_SIDE = 'enemy';  // 客机固定操控敌方（玩家2）
@@ -1218,19 +1223,25 @@ return !/\/mqtt(\/?$|[/?])/i.test(v) && !/^mqtts?:/i.test(v);
    服务器负责按房间码配对两端并原样转发，不解析游戏内容。
    与 MQTT 路径的差异只在"怎么把字节送出去"，上层消息格式完全一致。
    优势：socket 关闭时服务端能立刻感知 → 对手退出通知更及时可靠。 */
-async connectWs(cfg, hsMs, joinMs) {
-hsMs = hsMs || 12000; joinMs = joinMs || 12000;
+async connectWs(cfg, hsMs, joinMs, attempt) {
+hsMs = hsMs || NET_WS_HS_MS; joinMs = joinMs || NET_WS_JOIN_MS;
+/* 上一次尝试可能留下半开 socket / 挂起的 joined 等待 —— 重试前务必清干净，
+   否则第二次会读到第一次的残留状态。 */
+try { if (this.ws) { this.ws.onopen = this.ws.onclose = this.ws.onerror = this.ws.onmessage = null; this.ws.close(); } } catch (e) {}
+this.ws = null;
+if (this._joinWait) { try { this._joinWait.finish(false); } catch (e) {} this._joinWait = null; }
 const base = this.customBroker.replace(/\/+$/, '');
 const url = `${base}/?room=${encodeURIComponent(this.room)}&role=${this.role}`;
 const myToken = this._connToken;          // 本次连接令牌（中途取消后旧结果一律作废）
 const t0 = Date.now();
 const el = () => ((Date.now() - t0) / 1000).toFixed(1);
-this.setStatus('⏳ 正在连接中继服务器…');
+const atTag = (attempt && attempt > 1) ? `第 ${attempt} 次 · ` : '';
+this.setStatus(`⏳ 正在连接中继服务器…${atTag}`);
 /* 移动端握手常明显慢于桌面（DNS / IPv6 回退 / 证书链校验），
    没有进度反馈时玩家只会以为「点了没反应」。每秒把已耗时刷到状态栏。 */
 const prog = setInterval(() => {
 if (this._aborted || this._connToken !== myToken) { clearInterval(prog); return; }
-this.setStatus(`⏳ 正在连接中继服务器…（已用 ${el()}s）`);
+this.setStatus(`⏳ 正在连接中继服务器…${atTag}（已用 ${el()}s）`);
 }, 1000);
 const ws = await new Promise((resolve, reject) => {
 let sock = null, done = false, to = null;
@@ -1342,6 +1353,7 @@ this.guestQueue = []; this.guestDraining = false; this.waitingPick = false;
 this.catchUpCount = 0;
 this._msgSeq = 0; this._seenSeq = null; this._cutinChain = null;
 this._barSnap = null; this._barSnapT = 0; this._barRun = true; this._guestBarReady = false;
+this._barCorr = []; this._barCorrRate = []; this._prevSnap = []; this._prevLocal = [];
 this._lastBars = null; this._lastBarsT = 0; this._lastOver = null;
 this._fallbackUsed = false;
 if (this.isWsRelayUrl(this.customBroker)) {
@@ -1357,14 +1369,31 @@ return this.connectMqtt(cfg);
      两条路共用 this.transport / this.ws / this.client / this._joinWait 等同一份状态，
      并行时落败方会在自己结束的那一刻把胜者的状态覆盖掉，send() 走错分支直接失联。
      串行回退没有共享状态冲突，代价只是多等这 4 秒。 */
+/* 自建中继优先，失败重试 NET_WS_RETRY 次，全失败才改走公共服务器。
+   ★ 为什么重试有效：校园网/移动网络下的握手失败常是【偶发】的
+     （DNS 缓存未就绪、IPv6 回退尚未触发、链路瞬时拥塞），
+     第二次往往就走通了。此前一次失败就切换，白白放弃能连上的路。
+   ★ 为什么是串行重试而不是并行竞速：
+     多条连接共用 this.transport / this.ws / this._joinWait 等同一份状态，
+     并行时落败方会在自己结束的那一刻覆盖胜者的状态，send() 走错分支直接失联。 */
 async connectWsWithFallback(cfg) {
 this.setStatus('⏳ 正在连接自建中继…');
 let ok = false, err = null;
-try { ok = await this.connectWs(cfg, 4000, 6000); }
+const total = NET_WS_RETRY + 1;
+for (let i = 0; i < total; i++) {
+if (this._aborted) return false;
+try { ok = await this.connectWs(cfg, NET_WS_HS_MS, NET_WS_JOIN_MS, i + 1); }
 catch (e) { ok = false; err = e; }
 if (this._aborted) return false;
 if (ok) return true;
-this.setStatus('⚠️ 自建中继在当前网络不通，正在改用公共服务器…');
+/* 还没到最后一次 → 稍等再试，并把次数明确显示出来，避免玩家以为卡住 */
+if (i < total - 1) {
+this.setStatus(`⚠️ 第 ${i + 1} 次未成功，${NET_WS_RETRY_GAP / 1000} 秒后重试…`);
+await new Promise((r) => setTimeout(r, NET_WS_RETRY_GAP));
+}
+}
+if (this._aborted) return false;
+this.setStatus(`⚠️ 已尝试 ${total} 次仍未连上，正在改用公共服务器…`);
 this._fallbackUsed = true;
 const ok2 = await this.connectMqtt(cfg);
 if (ok2) {
@@ -1920,26 +1949,28 @@ this.catchUpCount++;
      · 偏差超过阈值直接对齐（真跳变不拖泥带水）
      · 房主演出/等待操作期间冻结 —— 由快照的 run 字段告知 */
 interpBars(dt) {
-if (!this._barSnap) return;
 const dtSec = dt / 1000;
-const now = performance.now();
 const max = gameState.actionBarMax || 1;
 const run = !!this._barRun;
+const corr = this._barCorr || [];
+const rate = this._barCorrRate || [];
 for (let i = 0; i < gameState.units.length; i++) {
 const u = gameState.units[i];
 if (!u || !isTargetable(u) || isActionLocked(u)) continue;
 const perSec = (getEffectiveSpd(u) / max) * 100 * ACTION_BAR_SPEED;
 let v = Number(u.actionValue) || 0;
-/* 到点后停止本地推进：房主此刻已暂停等出手，再涨只会让圆点贴着终点抖动 */
+/* ① 本地按速度自由推进（与房主同一套公式，天然接近） */
+/* 到点后停止：房主此刻已暂停等出手，再涨只会让圆点贴着终点抖动 */
 if (run && v < ACTION_MAX) v += perSec * dtSec;
-const s = this._barSnap[i];
-if (s != null) {
-const age = Math.max(0, (now - (this._barSnapT || now)) / 1000);
-/* 权威值是 age 毫秒前的，按同样速度推到现在再比对 */
-const target = run ? (s + perSec * age) : s;
-const diff = target - v;
-if (Math.abs(diff) > BAR_HARD_JUMP) v = target;                    // 真跳变：立刻对齐
-else v += diff * (1 - Math.exp(-dtSec / BAR_TAU));                 // 小偏差：平滑收敛
+/* ② 匀速吸收上次快照登记的剩余偏差。
+   ★ 这里【只推进、不重新算偏差】：偏差只在快照到达时算一次，
+     之后按固定速率分摊掉。旧实现每帧重新收敛，等于持续施加拉力，
+     视觉上就是"被橡皮筋拽着"，且方向会随 age 波动反复变化。 */
+const c = corr[i] || 0;
+if (c !== 0) {
+const step = (rate[i] || 0) * dt;
+if (Math.abs(step) >= Math.abs(c)) { v += c; corr[i] = 0; rate[i] = 0; }
+else { v += step; corr[i] = c - step; }
 }
 u.actionValue = clamp(v, 0, ACTION_OVERFLOW_CAP);
 }
@@ -1989,6 +2020,7 @@ this.bindGuestButtons();
 /* ★ 启动本地行动条插值循环（只推进显示，不跑任何战斗逻辑）。
    此前客机没有任何 rAF 循环，行动条只能靠快照硬跳。 */
 this._guestBarReady = false;
+this._barCorr = []; this._barCorrRate = []; this._prevSnap = []; this._prevLocal = [];
 this._barSnap = null; this._barRun = true;
 gameState.paused = false; gameState.animating = false;
 gameState.lastTimestamp = performance.now();
@@ -1997,25 +2029,70 @@ gameState.rafId = requestAnimationFrame(guestBarLoop);
 },
 applySnapshot(o) {
 const us = o.us || [];
-/* 权威行动条登记下来给插值用（不直接硬赋值，见下） */
-if (Array.isArray(o.bars)) { this._barSnap = o.bars.slice(); this._barSnapT = performance.now(); }
+/* 权威行动条到来：用【增量对齐】算出需要修正的量，登记为"待吸收"。
+   ★ 为什么不能用绝对差（旧实现）：
+     快照是房主几百毫秒前生成的，本地值此刻已经比它更新。
+     拿"旧快照"去纠正"新本地值"，等于无条件往后拽 —— 这就是"老是被拉回"。
+     而且房主暂停时行动条不动、快照因去重不再发，
+     那份快照会越来越旧，把本地值一路往后拉，随后又被新快照拉回来，来回震荡。
+   ★ 增量法只比较【两边各自的推进量】：
+     authDelta = 房主这段时间的推进，localDelta = 客机这段时间的推进，
+     差值才是真正的速度漂移。位置上的恒定相位差（网络延迟造成的）不再被纠正 ——
+     它本来就无害，两台设备各自看，没人能察觉那几十毫秒的错位。 */
+if (Array.isArray(o.bars)) {
 this._barRun = (o.run !== false);
+if (!this._barCorr) this._barCorr = [];
+if (!this._barCorrRate) this._barCorrRate = [];
+if (!this._prevSnap) this._prevSnap = [];
+if (!this._prevLocal) this._prevLocal = [];
+const ready = !!this._guestBarReady;
+for (let i = 0; i < gameState.units.length; i++) {
+const u = gameState.units[i]; if (!u) continue;
+const s = o.bars[i];
+if (s == null) { this._barCorr[i] = 0; this._barCorrRate[i] = 0; continue; }
+const cur = Number(u.actionValue) || 0;
+const prevS = this._prevSnap[i], prevL = this._prevLocal[i];
+if (!ready || prevS == null || prevL == null) {
+/* 首次同步：直接对齐，没有历史增量可比 */
+u.actionValue = clamp(s, 0, ACTION_OVERFLOW_CAP);
+this._barCorr[i] = 0; this._barCorrRate[i] = 0;
+} else {
+const authDelta = s - prevS;
+if (Math.abs(authDelta) > BAR_JUMP_DELTA) {
+/* 回合清零（大负值）/ 拉条（大正值）：真跳变，硬对齐，不拖泥带水 */
+u.actionValue = clamp(s, 0, ACTION_OVERFLOW_CAP);
+this._barCorr[i] = 0; this._barCorrRate[i] = 0;
+} else {
+/* 只纠正速度漂移本身，不动恒定相位差 */
+const drift = authDelta - (cur - prevL);
+if (Math.abs(drift) < BAR_DEADZONE) { this._barCorr[i] = 0; this._barCorrRate[i] = 0; }
+else {
+/* ★ 吸收速率设上限：修正最多让速度减半。
+   没有上限时，一次较大的负漂移会让吸收量超过本地推进量，
+   圆点就会【真的倒着走】—— 那正是"被拉回"最刺眼的样子。
+   限幅后修正只表现为"走得慢一点"，永远不会倒退。 */
+const perSecG = (getEffectiveSpd(u) / (gameState.actionBarMax || 1)) * 100 * ACTION_BAR_SPEED;
+const capRate = (perSecG * 0.5) / 1000;
+let rt = drift / BAR_CORR_WINDOW;
+if (rt > capRate) rt = capRate;
+else if (rt < -capRate) rt = -capRate;
+this._barCorr[i] = drift;
+this._barCorrRate[i] = rt;
+}
+}
+}
+/* 基准同步刷新：记的是修正【后】的值，下次增量才对得上 */
+this._prevSnap[i] = s;
+this._prevLocal[i] = Number(u.actionValue) || 0;
+}
+this._guestBarReady = true;
+}
 us.forEach((d, i) => {
 const u = gameState.units[i]; if (!u) return;
 u.hp = d.hp; u.shield = d.sh; u.rage = d.rg; u.alive = d.al; u.banished = d.bn; u.intangible = d.it;
-/* ★ 行动条不再无条件硬赋值。
-   硬赋值 = 每 300ms 一次位置跳变，正是客机"动画僵硬"的根因。
-   改为：小偏差交给本地插值平滑收敛（视觉连续），
-         只有真跳变（回合清零、拉条）或首次同步才直接对齐。 */
-const b = (o.bars && o.bars[i] != null) ? o.bars[i] : null;
-if (b != null) {
-const cur = Number(u.actionValue) || 0;
-if (!this._guestBarReady || Math.abs(b - cur) > BAR_HARD_JUMP) u.actionValue = b;
-}
 u.states = (d.st || []).map(x => ({ type:x[0], duration:x[1] }));
 u.marks = (d.mk || []).map(x => ({ type:x[0], duration:x[1], stacks:x[2] || 1 }));
 });
-this._guestBarReady = true;
 renderActionBarDots();
 /* 同步「正在行动」高亮：房主那边的 .acting 是本地 class，不会随快照自动过来 */
 const actIdx = (o.acting == null) ? -1 : Number(o.acting);
