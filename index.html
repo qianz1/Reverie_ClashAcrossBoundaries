@@ -374,6 +374,19 @@ pointer-events: none; white-space: nowrap; text-shadow: 0 1px 3px rgba(0,0,0,.9)
 .net-btns button.net-cancel { background: transparent; color: #90a4ae; border: 1px solid #546e7a; }
 .net-check { display: flex; align-items: center; gap: 6px; margin: 6px 0 2px; font-size: 12px; color: #90a4ae; cursor: pointer; }
 .net-check input { width: 15px; height: 15px; accent-color: #4fc3f7; }
+/* 中继服务器：三选一。前两个是常用项，做得比「自定义」大一圈 ——
+   既暗示优先级，也让手指更容易点中。 */
+.net-relay { margin-bottom: 8px; }
+.net-relay-title { font-size: 12px; color: #90a4ae; margin-bottom: 6px; }
+.net-relay-btns { display: flex; gap: 7px; }
+.relay-btn { flex: 1 1 0; min-width: 0; padding: 10px 4px; font-size: 12px; line-height: 1.25; color: #cfd8dc; background: rgba(255,255,255,.07); border: 1px solid #455a64; border-radius: 8px; cursor: pointer; transition: all .2s; touch-action: manipulation; }
+/* 1、2 号按钮更大：更宽的占比 + 更大的字号与内边距 */
+.relay-btn.relay-main { flex: 1.45 1 0; padding: 13px 5px; font-size: 14px; }
+.relay-btn.relay-sub  { flex: 0.85 1 0; padding: 11px 3px; font-size: 12.5px; }
+.relay-btn:hover { border-color: #4fc3f7; color: #fff; }
+.relay-btn.active { background: #1b3a2e; border-color: #00e676; color: #69f0ae; box-shadow: 0 0 12px rgba(0,230,118,.28); font-weight: bold; }
+.relay-input { display: none; width: 100%; margin-top: 8px; padding: 9px 10px; font-size: 13px; background: rgba(255,255,255,.07); border: 1px solid #455a64; border-radius: 8px; color: #fff; box-sizing: border-box; }
+.relay-input.show { display: block; }
 /* 待确认的卡片：金色描边高亮 */
 .hero-card.bp-pending { border-color: #ffd700; box-shadow: 0 0 14px rgba(255,215,0,.55); transform: scale(1.03); }
 /* 同轮 BP：对方已选的英雄【仍可选】—— 取消 bp-picked 的禁用，但保留角标 */
@@ -610,8 +623,16 @@ word-break: break-word; }
 <h2>🌐 联机对战</h2>
 <p class="net-tip">房主生成一个房间码发给对手，对手输入即可开打。</p>
 <label class="net-label">房间码<input id="net-room" type="text" placeholder="留空点「创建房间」会自动生成" autocomplete="off" maxlength="12"></label>
-<label class="net-label">中继服务器<input id="net-server" type="text" placeholder="留空改用公共服务器" autocomplete="off"></label>
-<label class="net-check"><input id="net-fallback" type="checkbox" checked> 自建中继连不上时，自动改用公共服务器</label>
+<div class="net-relay">
+<div class="net-relay-title">中继服务器</div>
+<div class="net-relay-btns">
+<button id="relay-cf" type="button" class="relay-btn relay-main">Cloudflare（推荐）</button>
+<button id="relay-mqtt" type="button" class="relay-btn relay-main">MQTT公网</button>
+<button id="relay-custom" type="button" class="relay-btn relay-sub">自定义</button>
+</div>
+<input id="net-server" class="relay-input" type="text" placeholder="填写你的中继地址（wss://你的域名）" autocomplete="off" spellcheck="false">
+</div>
+<label class="net-check"><input id="net-fallback" type="checkbox" checked> Cloudflare连接失败时，自动改用MQTT公网</label>
 <div id="net-roomcode"><div class="rc-label">把这个房间码发给对手</div><div class="rc-val" id="net-roomcode-val"></div><button class="rc-copy" id="net-roomcode-copy" type="button">复制</button></div>
 <div id="net-status">房主点「创建房间」，对手输入房间码后点「加入房间」</div>
 <div class="net-btns">
@@ -2433,11 +2454,10 @@ function openNetPanel() {
 const ov = document.getElementById('net-overlay');
 document.getElementById('net-room').value = '';
 document.getElementById('net-roomcode').classList.remove('show');
-/* 默认预填自建中继：比公共 broker 稳定（不丢包），打开即可直接开局。
-   玩家改过的值记在 localStorage 并沿用；★ 手动清空过（存了空串）也照旧留空，
-   不再强行塞回默认值 —— 那是他明确选择走公共服务器。 */
-const savedRelay = localStorage.getItem('net_server');
-document.getElementById('net-server').value = (savedRelay === null) ? DEFAULT_RELAY : savedRelay;
+/* 恢复上次选的中继方式（默认 Cloudflare），并把三个按钮的高亮同步好 */
+const savedCustom = localStorage.getItem('net_server');
+if (savedCustom !== null) document.getElementById('net-server').value = savedCustom;
+setRelayMode(localStorage.getItem('net_relay_mode') || 'cf');
 document.getElementById('net-status').textContent = '房主点「创建房间」，对手输入房间码后点「加入房间」';
 /* ★ 复位按钮：上一次若在连接途中被「返回」打断，btn.disabled 会一直是 true，
    面板关掉再打开也不会自动恢复 —— 表现就是「点了没反应」。 */
@@ -2473,8 +2493,14 @@ if (role === 'host' && !room) { room = genRoomCode(); document.getElementById('n
 if (!room) { Net.setStatus('❌ 请输入房主给你的房间码'); return; }
 const btn = document.getElementById(role === 'host' ? 'net-create' : 'net-join');
 if (btn) btn.disabled = true;
-const server = document.getElementById('net-server').value.trim();
+/* 中继地址由上面的三选一决定，自定义时才读输入框 */
+const mode = getRelayMode();
+const server = (mode === 'custom') ? document.getElementById('net-server').value.trim()
+: (mode === 'mqtt' ? '' : DEFAULT_RELAY);
+if (mode === 'custom') {
 localStorage.setItem('net_server', server);
+if (!server) { if (btn) btn.disabled = false; Net.setStatus('❌ 请填写自定义中继地址，或改用 Cloudflare / MQTT公网'); return; }
+}
 Net._dialing = true;
 /* ★ try/finally 是关键：Net.connect 失败时是【抛异常】而不是返回 false
    （连接超时 / 握手失败都会 reject）。旧代码没有兜底，
@@ -2515,7 +2541,30 @@ checkStartButton();
 switchToPlayer2Selection();
 }
 }
+/* ---------- 中继服务器：三选一 ----------
+   cf     → 自建 Cloudflare Worker（不丢包，默认）
+   mqtt   → 公共 MQTT broker（留空地址即走这条）
+   custom → 自己填地址（选它才展开输入框） */
+function getRelayMode() {
+const v = localStorage.getItem('net_relay_mode');
+return (v === 'mqtt' || v === 'custom') ? v : 'cf';   // 默认/异常值一律回落到 cf
+}
+function setRelayMode(mode) {
+mode = (mode === 'mqtt' || mode === 'custom') ? mode : 'cf';
+localStorage.setItem('net_relay_mode', mode);
+const map = { cf:'relay-cf', mqtt:'relay-mqtt', custom:'relay-custom' };
+Object.keys(map).forEach((k) => {
+const b = document.getElementById(map[k]);
+if (b) b.classList.toggle('active', k === mode);
+});
+const inp = document.getElementById('net-server');
+if (inp) inp.classList.toggle('show', mode === 'custom');
+}
 function initNetPanel() {
+/* 三个中继按钮：点「自定义」才展开地址输入框 */
+document.getElementById('relay-cf').onclick = () => setRelayMode('cf');
+document.getElementById('relay-mqtt').onclick = () => setRelayMode('mqtt');
+document.getElementById('relay-custom').onclick = () => setRelayMode('custom');
 document.getElementById('net-create').onclick = () => netConnect('host');
 document.getElementById('net-join').onclick = () => netConnect('guest');
 /* 取消：若已经建好房间（在等对手），要把 Peer 销毁掉，
