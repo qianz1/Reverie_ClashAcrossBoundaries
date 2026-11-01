@@ -1084,7 +1084,13 @@ const RELAY_BROKERS = [
    面板里预填，玩家可随时改成别的地址或清空改走公共。 */
 const DEFAULT_RELAY = 'wss://reveriecab.cc.cd/';
 const RELAY_TOPIC_PREFIX = 'ygob-battle-v1/';  // 主题前缀，避免与公共 broker 上其它流量混在一起
-const NET_TICK_MS = 200;         // 状态快照广播间隔（行动条动画流畅度 vs 消息条数，5fps 足够观战）
+const NET_TICK_MS = 300;         // 状态快照广播间隔（客机本地插值后不再依赖它出帧，降频可显著减少消息量）
+const NET_JUMP_CHECK_MS = 50;    // 行动条跳变检测间隔（清零/拉条必须立刻同步，不能等下一个节拍）
+const BAR_HARD_JUMP = 12;        // 行动条与权威值偏差超过这个百分比 → 直接对齐（回合清零、拉条等真跳变）
+const BAR_TAU = 0.12;            // 偏差收敛时间常数(秒)：越小跟得越紧，越大越平滑
+const NET_CRITICAL_MSG = { init:1, over:1, panel:1, cutin:1, roster:1, hello:1, act:1, pick:1, restart:1, restartAck:1 };
+const NET_SILENCE_MS = 5000;     // 客机多久没收到房主消息就主动请求重新同步
+const BAR_KEEP_FT = 4;           // 追赶模式下保留的浮动文字条数（伤害数字，全丢会显得"动画没了"）
 const NET_GUEST_SIDE = 'enemy';  // 客机固定操控敌方（玩家2）
 const RELAY_OPEN_TTL = 90000;    // 房主「在线」标记的有效期：超过这个时间没刷新就视为房间已不存在
 const RELAY_HELLO_BEACON = 15000; // 房主在线标记的心跳间隔
@@ -1304,14 +1310,14 @@ to = setTimeout(() => w.finish(false), ms);
 onWsJoined(o) {
 if (o.role && o.role !== this.role) this.role = o.role;   // 以服务端登记的身份为准
 if (this.role === 'guest') {
-if (o.peer) { this.send({ t:'hello' }); }
+if (o.peer) { this.send({ t:'hello' }); this.startLatencyProbe(); this.startSilenceWatch(); }
 else this.setStatus(`⏳ 已加入房间 ${this.room}，等待房主…`);
 }
 if (this._joinWait) this._joinWait.finish(true);
 },
 /* 两端到齐 */
 onWsPeer() {
-if (this.role === 'guest') { this.send({ t:'hello' }); this.startLatencyProbe(); }
+if (this.role === 'guest') { this.send({ t:'hello' }); this.startLatencyProbe(); this.startSilenceWatch(); }
 },
 
 async connect(cfg) {
@@ -1334,6 +1340,9 @@ this.rtt = null; this._rttSent = 0;
 this._lastPanel = null; this._panelAge = 0; this.panelIdx = -1; this.pickedPending = false;
 this.guestQueue = []; this.guestDraining = false; this.waitingPick = false;
 this.catchUpCount = 0;
+this._msgSeq = 0; this._seenSeq = null; this._cutinChain = null;
+this._barSnap = null; this._barSnapT = 0; this._barRun = true; this._guestBarReady = false;
+this._lastBars = null; this._lastBarsT = 0; this._lastOver = null;
 this._fallbackUsed = false;
 if (this.isWsRelayUrl(this.customBroker)) {
 /* 单网络单设备不通（典型：手机 + 校园网 到自建域名）时自动改走公共服务器。
@@ -1428,6 +1437,7 @@ if (this._aborted) { try { this.client.end(true); } catch (e) {} this.client = n
 if (!found) { try { this.client.end(true); } catch (e) {} this.client = null; this.active = false; this.setStatus(`❌ 未找到房间 ${this.room}，请确认房主已创建且房间码一致`); return false; }
 this.send({ t:'hello' });
 this.startLatencyProbe();
+this.startSilenceWatch();
 this.setStatus(`✅ 已加入房间 ${this.room}，等待房主开始…`);
 }
 return true;
@@ -1490,7 +1500,11 @@ setTimeout(() => { if (!done) { done = true; try { c.end(true); } catch (x) {} r
 
 subscribe(topic) {
 return new Promise((resolve, reject) => {
-this.client.subscribe(topic, { qos:0 }, (err) => { err ? reject(err) : resolve(); });
+/* ★ 订阅升到 QoS1。MQTT 投递等级 = min(发布qos, 订阅qos)，
+   订阅停在 0 的话，就算发布用 qos1 也会被降级。
+   升到 1 之后，只有显式指定 qos1 的关键消息才走"至少一次"投递，
+   高频快照仍是 qos0（可覆盖，丢了无所谓），不会额外增加流量。 */
+this.client.subscribe(topic, { qos:1 }, (err) => { err ? reject(err) : resolve(); });
 setTimeout(() => reject(new Error('subscribe timeout')), 8000);
 });
 },
@@ -1501,9 +1515,9 @@ if (!this.active && !first) return;
 this.publishRaw(this.myTopic, JSON.stringify({ t:'open', ts:Date.now() }), true);
 },
 
-publishRaw(topic, payload, retain) {
+publishRaw(topic, payload, retain, qos) {
 if (!this.client) return;
-try { this.client.publish(topic, payload, { qos:0, retain:!!retain }); } catch (e) {}
+try { this.client.publish(topic, payload, { qos:qos || 0, retain:!!retain }); } catch (e) {}
 },
 
 /* 客机：等待房主的在线标记（保留消息会在订阅后立刻送达） */
@@ -1524,6 +1538,40 @@ this.client.on('message', onMsg);
 this._probeTimer = setInterval(() => { this.publishRaw(this.myTopic, JSON.stringify({ t:'probe' }), false); }, 2000);
 const to = setTimeout(() => finish(false), ms);
 });
+},
+
+/* ---------- 客机看门狗 ----------
+   公网 broker 会丢 QoS0 消息，最致命的是「结算」那条丢了 ——
+   客机永远停在战斗界面，游戏结束不了，且不会报错。
+   这里主动兜底：超过 NET_SILENCE_MS 没收到房主任何消息，
+   就发一条 resync 请求，房主据此补发它当前最该发的那份状态。 */
+startSilenceWatch() {
+if (this._silenceTimer) return;
+this._lastRecv = performance.now();
+this._silenceTimer = setInterval(() => {
+if (!this.active || this.role !== 'guest') return;
+if (gameState.phase !== 'fighting' && gameState.phase !== 'gameOver') return;
+if (performance.now() - (this._lastRecv || 0) < NET_SILENCE_MS) return;
+this._lastRecv = performance.now();     // 发出请求后重置，避免每 2 秒狂发
+this.send({ t:'resync', needInit: !gameState.units || !gameState.units.length });
+this.setStatus('⚠️ 长时间未收到房主数据，已请求重新同步…');
+}, 2000);
+},
+stopSilenceWatch() { if (this._silenceTimer) { clearInterval(this._silenceTimer); this._silenceTimer = null; } },
+/* 房主：补发当前最该发的那份状态 */
+onResync(o) {
+if (typeof gameState === 'undefined') return;
+if (gameState.phase === 'gameOver' && this._lastOver) { this.send(this._lastOver); return; }
+if (gameState.phase !== 'fighting') return;
+/* 客机连单位都没有（init 丢了）→ 必须重发 init 重建战场 */
+if (o && o.needInit) { this.sendInit(); }
+/* 强制下一份快照发出：清掉去重基准，否则内容没变就静默不发 */
+this._lastSnapJson = null;
+const snap = this.snapshot();
+this.send(snap);
+this._lastBars = snap.bars.slice();
+this._lastBarsT = performance.now();
+this.syncGuestPanel();
 },
 
 /* 断开：退出 / 重开时调用。房主额外清掉在线标记，免得留下僵尸房间。 */
@@ -1552,6 +1600,7 @@ showNoticeDialog('对手已退出联机。你可以直接「重新开始」，�
      · 旧连接若晚到成功，还会把新一局的房间与状态覆盖掉。
    这里做真正的中止 + 清场。 */
 abort() {
+try { this.stopSilenceWatch(); } catch (e) {}
 this._aborted = true;
 this._connToken = (this._connToken || 0) + 1;
 const jw = this._joinWait; this._joinWait = null;
@@ -1569,6 +1618,7 @@ this.renderHud();
 
 disconnect() {
 try { this.stopLatencyProbe(); } catch (e) {}
+try { this.stopSilenceWatch(); } catch (e) {}
 try { if (this._openTimer) { clearInterval(this._openTimer); this._openTimer = null; } } catch (e) {}
 if (this.transport === 'ws') {
 /* WS 中继：服务端能直接看到 socket 关闭并代发 bye，这里不用自己发 */
@@ -1589,27 +1639,49 @@ this.active = false; this.role = null; this.client = null; this.entered = false;
 this.renderHud();
 },
 
+/* 关键消息：丢一条就会卡住流程或丢失演出，必须走 QoS1（至少一次）。
+   · init / over —— 开局与结算，丢了游戏永远结束不了
+   · panel       —— 客机的操作面板全靠它，丢一条就停在旧角色的技能上
+   · cutin / roster / hello —— 技能演出、阵容确认、到齐通知
+   · act / pick  —— 客机的操作指令，丢了等于点了没反应
+   · restart*    —— 重开需双方确认，丢了就一直等
+   ★ 高频的 st（快照）/ log / ft / anim / ping 保持 QoS0：
+     可被后续消息覆盖，丢了无后果，走 QoS1 只会白白增加 broker 往返。 */
+isCriticalMsg(t) { return NET_CRITICAL_MSG[t] === 1; },
 send(obj) {
-if (!this.active) return;
+if (!this.active || !obj) return;
 /* 面板消息统一登记 —— 供 tick 周期性重发做自愈（见 syncGuestPanel）。
    记在这里，任何新增的发送点都不会漏掉。 */
-if (obj && obj.t === 'panel') { this._lastPanel = obj; this._panelAge = 0; }
+if (obj.t === 'panel') { this._lastPanel = obj; this._panelAge = 0; }
+/* ★ 关键消息带自增序号：QoS1 重传时 seq 相同 → 对端据此去重，不会重复播技能演出。
+   注意「原样重发面板」也必须拿新 seq，否则会被去重拦掉、自愈失效。 */
+if (this.isCriticalMsg(obj.t)) obj.seq = ++this._msgSeq;
 if (this.transport === 'ws') {
 if (!this.ws || this.ws.readyState !== 1) return;
 try { this.ws.send(JSON.stringify(obj)); } catch (e) {}
 return;
 }
 if (!this.client) return;
-this.publishRaw(this.myTopic, JSON.stringify(obj), false);
+this.publishRaw(this.myTopic, JSON.stringify(obj), false, this.isCriticalMsg(obj.t) ? 1 : 0);
 },
 
 /* ---------- 消息分发 ---------- */
 handle(o) {
 const H = this.role === 'host';
+/* QoS1 重传去重：同一条消息可能到达两次（PUBACK 丢失时 broker 会重发）。
+   只针对带 seq 的关键消息；快照类没有 seq，不受影响。 */
+if (o.seq != null) {
+if (!this._seenSeq) this._seenSeq = new Set();
+if (this._seenSeq.has(o.seq)) return;
+this._seenSeq.add(o.seq);
+/* 窗口上限：只保留最近一批，避免长局把内存撑大 */
+if (this._seenSeq.size > 256) this._seenSeq.clear();
+}
 /* 收到对手的实质性消息说明他还在线 —— 重连后自动解除「已退出」状态。
    ★ ping / pong 只是心跳，不能当作"对手回来了"的证据：
      对手断开的瞬间可能已发出若干心跳，用它们复位会让退出提示立刻消失，
      甚至误判对手仍在（实际已掉线）。 */
+this._lastRecv = performance.now();
 if (o.t !== 'bye' && o.t !== 'ping' && o.t !== 'pong') {
 if (this.peerGone) { this.peerGone = false; this.peerGoneNotified = false; this.hudNote = ''; netRefreshStartButton(); }
 }
@@ -1641,6 +1713,7 @@ else if (gameState.phase === 'fighting') this.sendInit();
 netRefreshStartButton();
 return;
 }
+if (H && o.t === 'resync') { this.onResync(o); return; }
 if (H && o.t === 'roster') {
 this.guestRoster = o.names || [];
 this.setStatus('✅ 对手已提交阵容');
@@ -1801,7 +1874,10 @@ if (o.t === 'log') log(this.flipLog(o.text), o.cls);
 else if (o.t === 'logs') (o.items || []).forEach(it => log(this.flipLog(it.text), it.cls));
 else if (o.t === 'ft') { const u = gameState.units[o.idx]; if (u) showFloatingText(u, o.text, o.cls); }
 else if (o.t === 'anim') { const el = document.getElementById(`unit-${o.idx}`); if (el) el.classList.toggle(o.cls, !!o.on); }
-else if (o.t === 'cutin') { const u = gameState.units[o.idx]; if (u) await playSkillCutin(u, o.name, !!o.nm); }
+/* 演出不再 await：它动辄 1~2 秒，期间房主仍在持续发快照，
+   队列会暴涨到触发追赶、把后面的动画全丢掉（"动画丢失"的主因）。
+   改成挂到一条串行链上后台播，队列继续消费，演出之间仍不重叠。 */
+else if (o.t === 'cutin') { const u = gameState.units[o.idx]; if (u) { const nm = !!o.nm; this._cutinChain = Promise.resolve(this._cutinChain).catch(() => {}).then(() => playSkillCutin(u, o.name, nm)).catch(() => {}); } }
 else if (o.t === 'st') this.applySnapshot(o);
 else if (o.t === 'panel') this.applyPanel(o);
 else if (o.t === 'init') this.applyInit(o);
@@ -1817,17 +1893,57 @@ if (this.guestQueue.length > 0) this.drainGuest();
 /* 追赶：把队列里"可被后来者覆盖"的消息丢掉，只留最新的 */
 catchUp() {
 const keep = [];
+const ftKeep = [];
 let lastSt = null, lastCutin = null;
 for (const o of this.guestQueue) {
 if (o.t === 'st') { lastSt = o; continue; }          // 快照：只留最后一条
-if (o.t === 'anim' || o.t === 'ft') continue;        // 瞬时视觉：过期即无意义
+if (o.t === 'anim') continue;                        // 纯视觉开关：过期即无意义
+/* 浮动文字（伤害/治疗数字）此前被整类丢掉 —— 玩家看到的就是"动画没了"。
+   保留最近几条：它们是结算感的关键反馈，全丢会让打击感彻底消失。 */
+if (o.t === 'ft') { ftKeep.push(o); if (ftKeep.length > BAR_KEEP_FT) ftKeep.shift(); continue; }
 if (o.t === 'cutin') { lastCutin = o; continue; }    // 演出：只留最后一条补播
 keep.push(o);
 }
-this.guestQueue = keep;
+this.guestQueue = keep.concat(ftKeep);
 if (lastCutin) this.guestQueue.push(lastCutin);
 if (lastSt) this.guestQueue.push(lastSt);            // 快照放最后，保证状态是最新的
 this.catchUpCount++;
+},
+/* ---------- 客机：行动条本地插值 ----------
+   客机的行动条此前完全靠房主的 300ms 快照硬赋值 —— 等于 3fps 动画，
+   圆点一跳一跳地走，这是"客机动画僵硬"的直接原因。
+   房主端是 rAF 每帧推进的，客机却没跑任何循环（它不能跑 gameLoop：
+   那里面有 readyUnits 判定与 processUnitTurn，逻辑只能由房主执行）。
+   这里补一个【只推进显示】的循环：
+     · 按本地速度自由推进（与房主同一套速度公式，天然接近）
+     · 同时向"外推后的权威值"指数收敛，抵消累积漂移
+     · 偏差超过阈值直接对齐（真跳变不拖泥带水）
+     · 房主演出/等待操作期间冻结 —— 由快照的 run 字段告知 */
+interpBars(dt) {
+if (!this._barSnap) return;
+const dtSec = dt / 1000;
+const now = performance.now();
+const max = gameState.actionBarMax || 1;
+const run = !!this._barRun;
+for (let i = 0; i < gameState.units.length; i++) {
+const u = gameState.units[i];
+if (!u || !isTargetable(u) || isActionLocked(u)) continue;
+const perSec = (getEffectiveSpd(u) / max) * 100 * ACTION_BAR_SPEED;
+let v = Number(u.actionValue) || 0;
+/* 到点后停止本地推进：房主此刻已暂停等出手，再涨只会让圆点贴着终点抖动 */
+if (run && v < ACTION_MAX) v += perSec * dtSec;
+const s = this._barSnap[i];
+if (s != null) {
+const age = Math.max(0, (now - (this._barSnapT || now)) / 1000);
+/* 权威值是 age 毫秒前的，按同样速度推到现在再比对 */
+const target = run ? (s + perSec * age) : s;
+const diff = target - v;
+if (Math.abs(diff) > BAR_HARD_JUMP) v = target;                    // 真跳变：立刻对齐
+else v += diff * (1 - Math.exp(-dtSec / BAR_TAU));                 // 小偏差：平滑收敛
+}
+u.actionValue = clamp(v, 0, ACTION_OVERFLOW_CAP);
+}
+updateActionBarDots();
 },
 /* 结算面板：房主把标题/样式/副标题一并广播，客机据此完整渲染。
    表格数据用客机本地已同步的 gameState（快照持续同步，数值是最新的）。 */
@@ -1870,16 +1986,36 @@ renderUnits(); renderActionBarDots();
 gameState.units.forEach((u, i) => clearUnitAnims(i));
 applyNetViewFlip();
 this.bindGuestButtons();
+/* ★ 启动本地行动条插值循环（只推进显示，不跑任何战斗逻辑）。
+   此前客机没有任何 rAF 循环，行动条只能靠快照硬跳。 */
+this._guestBarReady = false;
+this._barSnap = null; this._barRun = true;
+gameState.paused = false; gameState.animating = false;
+gameState.lastTimestamp = performance.now();
+if (gameState.rafId) cancelAnimationFrame(gameState.rafId);
+gameState.rafId = requestAnimationFrame(guestBarLoop);
 },
 applySnapshot(o) {
 const us = o.us || [];
+/* 权威行动条登记下来给插值用（不直接硬赋值，见下） */
+if (Array.isArray(o.bars)) { this._barSnap = o.bars.slice(); this._barSnapT = performance.now(); }
+this._barRun = (o.run !== false);
 us.forEach((d, i) => {
 const u = gameState.units[i]; if (!u) return;
 u.hp = d.hp; u.shield = d.sh; u.rage = d.rg; u.alive = d.al; u.banished = d.bn; u.intangible = d.it;
-u.actionValue = (o.bars && o.bars[i] != null) ? o.bars[i] : u.actionValue;
+/* ★ 行动条不再无条件硬赋值。
+   硬赋值 = 每 300ms 一次位置跳变，正是客机"动画僵硬"的根因。
+   改为：小偏差交给本地插值平滑收敛（视觉连续），
+         只有真跳变（回合清零、拉条）或首次同步才直接对齐。 */
+const b = (o.bars && o.bars[i] != null) ? o.bars[i] : null;
+if (b != null) {
+const cur = Number(u.actionValue) || 0;
+if (!this._guestBarReady || Math.abs(b - cur) > BAR_HARD_JUMP) u.actionValue = b;
+}
 u.states = (d.st || []).map(x => ({ type:x[0], duration:x[1] }));
 u.marks = (d.mk || []).map(x => ({ type:x[0], duration:x[1], stacks:x[2] || 1 }));
 });
+this._guestBarReady = true;
 renderActionBarDots();
 /* 同步「正在行动」高亮：房主那边的 .acting 是本地 class，不会随快照自动过来 */
 const actIdx = (o.acting == null) ? -1 : Number(o.acting);
@@ -1979,7 +2115,12 @@ t:'st',
    后者在"行动结束但回合未结束"的间隙里仍残留，会让客机一直亮着；
    读 DOM 则自动跟随所有 add/remove 路径，不用在 4 处调用点各插一遍。 */
 acting: (() => { const el = document.querySelector('.unit.acting'); if (!el) return -1; return parseInt(String(el.id).replace('unit-',''), 10) || -1; })(),
-bars: gameState.units.map(u => Math.round(Number(u.actionValue) || 0)),
+/* 行动条保留一位小数：取整会让客机的插值在 60fps 下出现可见台阶 */
+bars: gameState.units.map(u => Math.round((Number(u.actionValue) || 0) * 10) / 10),
+/* 房主此刻是否在推进行动条（演出/等待操作时会冻结）。
+   客机必须知道这个：否则会在房主演出期间继续本地外推，
+   把行动条推到终点并停在那儿，看起来像"卡住了"。 */
+run: !gameState.paused && !gameState.animating,
 us: gameState.units.map(u => ({
 hp: Math.round(u.hp), sh: Math.round(Number(u.shield) || 0), rg: u.rage,
 al: !!u.alive, bn: !!u.banished, it: !!u.intangible,
@@ -1991,7 +2132,14 @@ mk: (u.marks || []).map(m => [m.type, m.duration, m.stacks || 1]),
 tick(now) {
 if (!this.active || this.role !== 'host') return;
 if (gameState.phase !== 'fighting') return;
-if (now - this.lastTick < NET_TICK_MS) return;
+const elapsed = now - this.lastTick;
+if (elapsed < NET_JUMP_CHECK_MS) return;
+/* 行动条跳变（回合结束清零、推条/拉条、先机加速）必须立刻同步 ——
+   等下一个节拍才发，客机回合切换就是一顿一顿的。
+   ★ 跳变检测只读 actionValue、不做序列化，所以能按 50ms 高频跑；
+     下面的 snapshot()+JSON.stringify 只在真要发时才做，避免每 50ms 全量序列化。 */
+const jump = this.detectBarJump(now);
+if (!jump && elapsed < NET_TICK_MS) return;
 this.lastTick = now;
 /* 快照去重：只有内容相对上一次真的变了才发。
    双方都 idle 的回合消息量降到 0，队列不再被无害快照挤占，
@@ -2002,10 +2150,41 @@ this.lastTick = now;
    完全相同则静默 return，客机只是少收一份冗余全量同步。 */
 const snap = this.snapshot();
 const snapJson = JSON.stringify(snap);
-if (this._lastSnapJson === snapJson) return;
+/* 内容没变：重置节流基准。不重置的话，双方 idle 时会每 50ms
+   白白做一次全量序列化，手机上这是实打实的开销。 */
+if (!jump && this._lastSnapJson === snapJson) return;
 this._lastSnapJson = snapJson;
 this.send(snap);
 this.syncGuestPanel();
+},
+/* 行动条跳变检测：把每个单位的实际变化量与「按速度自然推进应有的量」对比，
+   偏差超容差即判定为跳变。自然推进不受影响，清零/拉条会被立刻捕获。 */
+detectBarJump(now) {
+if (!this._lastBars) {
+this._lastBars = gameState.units.map(u => Number(u.actionValue) || 0);
+this._lastBarsT = now;
+return false;
+}
+const el = Math.max(0.001, (now - (this._lastBarsT || now)) / 1000);
+const max = gameState.actionBarMax || 1;
+for (let i = 0; i < gameState.units.length; i++) {
+const prev = this._lastBars[i];
+if (prev == null) continue;
+const u = gameState.units[i];
+if (!u || !isTargetable(u) || isActionLocked(u)) continue;
+const perSec = (getEffectiveSpd(u) / max) * 100 * ACTION_BAR_SPEED;
+const natural = perSec * el;
+const d = (Number(u.actionValue) || 0) - prev;
+/* 容差取「自然量的 60%」与一个绝对下限的较大值 ——
+   低速单位在短间隔内自然增量极小，没有绝对下限会把它误判成跳变。 */
+const tol = Math.max(2.5, Math.abs(natural) * 0.6);
+if (Math.abs(d - natural) > tol) { this._lastBars = null; return true; }
+}
+/* 本次检查值存为下次基准：跳变检测按 50ms 跑，
+   基准必须同步刷新，否则 natural 会随时间累积、容差越放越宽、检测越来越迟钝。 */
+this._lastBars = gameState.units.map(u => Number(u.actionValue) || 0);
+this._lastBarsT = now;
+return false;
 },
 /* 主动生成「当前行动者」的面板（校验失败 / 跳过回合等场景调用） */
 sendPanelFor(unit) {
@@ -2065,14 +2244,17 @@ this.send(snap);
    （每 200ms 全量同步 12×4 个统计数字纯属浪费）。但客机端这些字段永远是 0，
    结算表格直接从 gameState 读它们 —— 于是玩家2 看到的全是 0。
    结算是一次性事件，这里补发一次即可。 */
-this.send({ t:'over', text, cls, sub:'联机对战 · 战斗数据统计',
+/* 存一份：结算这条在公网上丢了就会「游戏结束不了」，
+   客机的看门狗会来要，这里能原样补发。 */
+this._lastOver = { t:'over', text, cls, sub:'联机对战 · 战斗数据统计',
 stats: gameState.units.map(u => [
 Math.round(Number(u.statsDamageDealt) || 0),
 Math.round(Number(u.statsDamageTaken) || 0),
 Math.round(Number(u.statsHealDone) || 0),
 Math.round(Number(u.statsRestoreDone) || 0),
 Math.round(Number(u.statsShieldDone) || 0),
-]) });
+]) };
+this.send(this._lastOver);
 },
 };
 /* 联机下「当前行动者归客机操控」：房主据此把操作面板转交给客机 */
@@ -3983,6 +4165,16 @@ dot.title = `${u.name} (${getActionDisplayPct(u).toFixed(1)}%)${getActionOverflo
 function removeActionBarDot(unit) {
 if (!unit) return;
 document.getElementById(`dot-${idxOf(unit)}`)?.remove();
+}
+/* 客机专用主循环：只让行动条平滑推进，绝不触碰战斗逻辑。
+   回合判定 / 伤害结算全部由房主执行，客机跑这些会导致两边分叉。 */
+function guestBarLoop(timestamp) {
+if (gameState.phase !== 'fighting') return;
+if (typeof Net === 'undefined' || Net.role !== 'guest' || !Net.active) return;
+const rawDt = timestamp - gameState.lastTimestamp; gameState.lastTimestamp = timestamp;
+const dt = Math.min(Math.max(rawDt, 0), MAX_FRAME_DT);
+try { Net.interpBars(dt); } catch (e) { /* 插值失败不影响后续收包 */ }
+gameState.rafId = requestAnimationFrame(guestBarLoop);
 }
 function gameLoop(timestamp) {
 if (gameState.phase !== 'fighting') return;
