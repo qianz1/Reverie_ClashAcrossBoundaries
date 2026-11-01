@@ -632,7 +632,7 @@ word-break: break-word; }
 </div>
 <input id="net-server" class="relay-input" type="text" placeholder="填写你的中继地址（wss://你的域名）" autocomplete="off" spellcheck="false">
 </div>
-<label class="net-check"><input id="net-fallback" type="checkbox" checked> Cloudflare连接失败时，自动改用MQTT公网</label>
+<label class="net-check"><input id="net-fallback" type="checkbox" checked> Cloudflare创建失败时，自动改用MQTT公网</label>
 <div id="net-roomcode"><div class="rc-label">把这个房间码发给对手</div><div class="rc-val" id="net-roomcode-val"></div><button class="rc-copy" id="net-roomcode-copy" type="button">复制</button></div>
 <div id="net-status">房主点「创建房间」，对手输入房间码后点「加入房间」</div>
 <div class="net-btns">
@@ -1084,14 +1084,19 @@ const RELAY_BROKERS = [
    面板里预填，玩家可随时改成别的地址或清空改走公共。 */
 const DEFAULT_RELAY = 'wss://reveriecab.cc.cd/';
 const RELAY_TOPIC_PREFIX = 'ygob-battle-v1/';  // 主题前缀，避免与公共 broker 上其它流量混在一起
-const NET_TICK_MS = 300;         // 状态快照广播间隔（客机本地插值后不再依赖它出帧，降频可显著减少消息量）
+const NET_TICK_MS = 300;         // 状态快照广播间隔
 const NET_JUMP_CHECK_MS = 50;    // 行动条跳变检测间隔（清零/拉条必须立刻同步，不能等下一个节拍）
-const BAR_CORR_WINDOW = 450;     // 偏差吸收窗口(ms)：略大于快照间隔，保证修正过程被下一次快照自然接管
-const BAR_DEADZONE = 1.2;        // 偏差小于这个百分比完全不修正 —— 消除"持续被微调"的橡皮筋感
-const BAR_JUMP_DELTA = 25;       // 单次快照间「房主推进量」超过这个值 → 判定为真跳变（回合清零/拉条），硬对齐
+/* ---------- 客机行动条：纯跟随权威快照，不做任何本地预测 ----------
+   此前客机自己按速度公式推进，但速度依赖 states/marks，而这些来自快照、天然滞后，
+   算出的速度与房主实时值不一致 → 偏差随时间累积，越到后面差得越多，
+   甚至冲过上限跑到行动条外面。现在完全不预测：权威值是唯一目的地，误差不可能累积。 */
+const BAR_TRAVEL_MS = 280;       // 从当前位置平滑走到权威值所需时间(ms)：略小于快照间隔，走完即停
+const BAR_JUMP_DELTA = 28;       // 与权威值相差超过这个值 → 判定为回合清零/拉条推条，直接突变到位
+const BAR_EPS = 0.05;            // 浮点噪声阈值
 const NET_CRITICAL_MSG = { init:1, over:1, panel:1, cutin:1, roster:1, hello:1, act:1, pick:1, restart:1, restartAck:1 };
 const NET_WS_RETRY = 2;          // 自建中继失败后的额外重试次数（连首次共 3 次）
 const NET_WS_RETRY_GAP = 600;    // 两次尝试之间的间隔：给网络一点恢复时间，立刻重试往往还是同一条失败路径
+const NET_GUEST_HINT_AFTER = 6;  // 加入房间重试到第几次开始附带"逃生提示"（房主可能已改走公共服务器）
 const NET_WS_HS_MS = 3500;       // 单次握手预算（重试机制存在，单次不必死等太久）
 const NET_WS_JOIN_MS = 4500;     // 单次房间配对预算
 const NET_SILENCE_MS = 5000;     // 客机多久没收到房主消息就主动请求重新同步
@@ -1353,11 +1358,16 @@ this.guestQueue = []; this.guestDraining = false; this.waitingPick = false;
 this.catchUpCount = 0;
 this._msgSeq = 0; this._seenSeq = null; this._cutinChain = null;
 this._barSnap = null; this._barSnapT = 0; this._barRun = true; this._guestBarReady = false;
-this._barCorr = []; this._barCorrRate = []; this._prevSnap = []; this._prevLocal = [];
+this._barTarget = []; this._barRate = [];
 this._lastBars = null; this._lastBarsT = 0; this._lastOver = null;
 this._fallbackUsed = false;
 if (this.isWsRelayUrl(this.customBroker)) {
-/* 单网络单设备不通（典型：手机 + 校园网 到自建域名）时自动改走公共服务器。
+/* ★ 回退只对【创建房间】生效。
+   加入房间绝不能改走公共服务器：房主很可能已经用 Cloudflare 建好了房间，
+   客机一旦退到 MQTT 公网，两台设备连的根本不是同一台服务器 ——
+   房间码一字不差也永远碰不上面。所以客机只能死磕同一地址，反复重试。 */
+if (this.role !== 'host') return this.connectWsRetryForever(cfg);
+/* 房主：单网络单设备不通时自动改走公共服务器。
    默认开启，可在面板里关掉（只想强测自建时）。 */
 if (sessionStorage.getItem('net_fallback') !== '0') return this.connectWsWithFallback(cfg);
 return this.connectWs(cfg);
@@ -1377,6 +1387,8 @@ return this.connectMqtt(cfg);
      多条连接共用 this.transport / this.ws / this._joinWait 等同一份状态，
      并行时落败方会在自己结束的那一刻覆盖胜者的状态，send() 走错分支直接失联。 */
 async connectWsWithFallback(cfg) {
+/* 兜底：只有房主才走这条路（客机已在上面被分派走重试） */
+if (this.role !== 'host') return this.connectWsRetryForever(cfg);
 this.setStatus('⏳ 正在连接自建中继…');
 let ok = false, err = null;
 const total = NET_WS_RETRY + 1;
@@ -1403,6 +1415,30 @@ this._transportAt = Date.now();
 this.renderHud();
 }
 return ok2;
+},
+/* 加入房间：失败就一直重试，直到成功，或玩家点「返回」中止。
+   ★ 为什么不设上限、也不改走公共服务器：
+     房主那边大概率已经用 Cloudflare 建好房间在等了，客机换到 MQTT 公网
+     就等于去了另一个地方，房间码对得上也永远进不去。
+     这里的失败基本都是偶发的（校园网/移动网络握手抖动），多试几次通常就通。
+   ★ 不会失控：每次尝试都有握手预算上限，且全程可被 abort() 立刻打断。 */
+async connectWsRetryForever(cfg) {
+this.setStatus('⏳ 正在连接自建中继…');
+let n = 0;
+for (;;) {
+if (this._aborted) return false;
+n++;
+let ok = false;
+try { ok = await this.connectWs(cfg, NET_WS_HS_MS, NET_WS_JOIN_MS, n); }
+catch (e) { ok = false; }
+if (this._aborted) return false;
+if (ok) return true;
+/* 一直重试，但把次数明确显示出来 —— 否则玩家只会以为卡住了 */
+const hint = (n >= NET_GUEST_HINT_AFTER) ? '（若房主已改用公共服务器，请改选「MQTT公网」）' : '';
+this.setStatus(`⚠️ 第 ${n} 次未成功，${NET_WS_RETRY_GAP / 1000} 秒后重试…${hint}`);
+await new Promise((r) => setTimeout(r, NET_WS_RETRY_GAP));
+if (this._aborted) return false;
+}
 },
 async connectMqtt(cfg) {
 this.setStatus('⏳ 正在加载通讯组件…');
@@ -1949,28 +1985,22 @@ this.catchUpCount++;
      · 偏差超过阈值直接对齐（真跳变不拖泥带水）
      · 房主演出/等待操作期间冻结 —— 由快照的 run 字段告知 */
 interpBars(dt) {
-const dtSec = dt / 1000;
-const max = gameState.actionBarMax || 1;
-const run = !!this._barRun;
-const corr = this._barCorr || [];
-const rate = this._barCorrRate || [];
+const tgt = this._barTarget || [];
+const rate = this._barRate || [];
 for (let i = 0; i < gameState.units.length; i++) {
 const u = gameState.units[i];
 if (!u || !isTargetable(u) || isActionLocked(u)) continue;
-const perSec = (getEffectiveSpd(u) / max) * 100 * ACTION_BAR_SPEED;
+const t = tgt[i];
+if (t == null) continue;
+const r = rate[i] || 0;
+if (r === 0) continue;                       // 已到位：停住等下一份快照
 let v = Number(u.actionValue) || 0;
-/* ① 本地按速度自由推进（与房主同一套公式，天然接近） */
-/* 到点后停止：房主此刻已暂停等出手，再涨只会让圆点贴着终点抖动 */
-if (run && v < ACTION_MAX) v += perSec * dtSec;
-/* ② 匀速吸收上次快照登记的剩余偏差。
-   ★ 这里【只推进、不重新算偏差】：偏差只在快照到达时算一次，
-     之后按固定速率分摊掉。旧实现每帧重新收敛，等于持续施加拉力，
-     视觉上就是"被橡皮筋拽着"，且方向会随 age 波动反复变化。 */
-const c = corr[i] || 0;
-if (c !== 0) {
-const step = (rate[i] || 0) * dt;
-if (Math.abs(step) >= Math.abs(c)) { v += c; corr[i] = 0; rate[i] = 0; }
-else { v += step; corr[i] = c - step; }
+const step = r * dt;
+/* 越过目的地就直接吸附到位并停下：不会冲过头，也就不会倒退 */
+if ((r > 0 && v + step >= t) || (r < 0 && v + step <= t)) {
+v = t; rate[i] = 0;
+} else {
+v += step;
 }
 u.actionValue = clamp(v, 0, ACTION_OVERFLOW_CAP);
 }
@@ -2020,7 +2050,7 @@ this.bindGuestButtons();
 /* ★ 启动本地行动条插值循环（只推进显示，不跑任何战斗逻辑）。
    此前客机没有任何 rAF 循环，行动条只能靠快照硬跳。 */
 this._guestBarReady = false;
-this._barCorr = []; this._barCorrRate = []; this._prevSnap = []; this._prevLocal = [];
+this._barTarget = []; this._barRate = [];
 this._barSnap = null; this._barRun = true;
 gameState.paused = false; gameState.animating = false;
 gameState.lastTimestamp = performance.now();
@@ -2029,61 +2059,36 @@ gameState.rafId = requestAnimationFrame(guestBarLoop);
 },
 applySnapshot(o) {
 const us = o.us || [];
-/* 权威行动条到来：用【增量对齐】算出需要修正的量，登记为"待吸收"。
-   ★ 为什么不能用绝对差（旧实现）：
-     快照是房主几百毫秒前生成的，本地值此刻已经比它更新。
-     拿"旧快照"去纠正"新本地值"，等于无条件往后拽 —— 这就是"老是被拉回"。
-     而且房主暂停时行动条不动、快照因去重不再发，
-     那份快照会越来越旧，把本地值一路往后拉，随后又被新快照拉回来，来回震荡。
-   ★ 增量法只比较【两边各自的推进量】：
-     authDelta = 房主这段时间的推进，localDelta = 客机这段时间的推进，
-     差值才是真正的速度漂移。位置上的恒定相位差（网络延迟造成的）不再被纠正 ——
-     它本来就无害，两台设备各自看，没人能察觉那几十毫秒的错位。 */
+/* 权威行动条到来：把它登记为「目的地」，由 interpBars 平滑走过去。
+   ★ 不做任何本地预测：客机自己算速度会用到 states/marks，而这些来自快照、天然滞后，
+     算出的速度与房主实时值不一致，偏差随时间累积 —— 越到后面差得越多，
+     甚至冲过上限跑到行动条外面。现在权威值是唯一目的地，误差不可能累积。 */
 if (Array.isArray(o.bars)) {
 this._barRun = (o.run !== false);
-if (!this._barCorr) this._barCorr = [];
-if (!this._barCorrRate) this._barCorrRate = [];
-if (!this._prevSnap) this._prevSnap = [];
-if (!this._prevLocal) this._prevLocal = [];
+if (!this._barTarget) this._barTarget = [];
+if (!this._barRate) this._barRate = [];
 const ready = !!this._guestBarReady;
 for (let i = 0; i < gameState.units.length; i++) {
 const u = gameState.units[i]; if (!u) continue;
 const s = o.bars[i];
-if (s == null) { this._barCorr[i] = 0; this._barCorrRate[i] = 0; continue; }
+if (s == null) { this._barTarget[i] = null; this._barRate[i] = 0; continue; }
+/* 权威值已由房主 clamp 过，这里再 clamp 一次，杜绝跑到行动条外面 */
+const tgt = clamp(s, 0, ACTION_OVERFLOW_CAP);
 const cur = Number(u.actionValue) || 0;
-const prevS = this._prevSnap[i], prevL = this._prevLocal[i];
-if (!ready || prevS == null || prevL == null) {
-/* 首次同步：直接对齐，没有历史增量可比 */
-u.actionValue = clamp(s, 0, ACTION_OVERFLOW_CAP);
-this._barCorr[i] = 0; this._barCorrRate[i] = 0;
+const d = tgt - cur;
+/* 首次同步 / 推条拉条 / 回合清零 → 直接到位（这些本来就该是突变） */
+if (!ready || Math.abs(d) > BAR_JUMP_DELTA) {
+u.actionValue = tgt;
+this._barTarget[i] = tgt;
+this._barRate[i] = 0;
+} else if (Math.abs(d) < BAR_EPS) {
+this._barTarget[i] = tgt;
+this._barRate[i] = 0;
 } else {
-const authDelta = s - prevS;
-if (Math.abs(authDelta) > BAR_JUMP_DELTA) {
-/* 回合清零（大负值）/ 拉条（大正值）：真跳变，硬对齐，不拖泥带水 */
-u.actionValue = clamp(s, 0, ACTION_OVERFLOW_CAP);
-this._barCorr[i] = 0; this._barCorrRate[i] = 0;
-} else {
-/* 只纠正速度漂移本身，不动恒定相位差 */
-const drift = authDelta - (cur - prevL);
-if (Math.abs(drift) < BAR_DEADZONE) { this._barCorr[i] = 0; this._barCorrRate[i] = 0; }
-else {
-/* ★ 吸收速率设上限：修正最多让速度减半。
-   没有上限时，一次较大的负漂移会让吸收量超过本地推进量，
-   圆点就会【真的倒着走】—— 那正是"被拉回"最刺眼的样子。
-   限幅后修正只表现为"走得慢一点"，永远不会倒退。 */
-const perSecG = (getEffectiveSpd(u) / (gameState.actionBarMax || 1)) * 100 * ACTION_BAR_SPEED;
-const capRate = (perSecG * 0.5) / 1000;
-let rt = drift / BAR_CORR_WINDOW;
-if (rt > capRate) rt = capRate;
-else if (rt < -capRate) rt = -capRate;
-this._barCorr[i] = drift;
-this._barCorrRate[i] = rt;
+/* 正常推进：登记目的地与"每毫秒走多少"，保证单向平滑、不倒退 */
+this._barTarget[i] = tgt;
+this._barRate[i] = d / BAR_TRAVEL_MS;
 }
-}
-}
-/* 基准同步刷新：记的是修正【后】的值，下次增量才对得上 */
-this._prevSnap[i] = s;
-this._prevLocal[i] = Number(u.actionValue) || 0;
 }
 this._guestBarReady = true;
 }
