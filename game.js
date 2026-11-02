@@ -137,7 +137,7 @@ mechanics: [] },
 normal: { name:"怪力", type:"single", dmgRate:1.5, target:"enemy", effect:"guaiLi" },
 skill: { name:"百豪之术", cost:4, type:"buff", target:"ally", selfEffect:"hundredHeal" },
 descNormal: "对敌方单个目标造成 <span class='dmg'>150%</span> 伤害，<span class='buff'>30%基础概率</span>使目标附加 <span class='m-state'>眩晕</span>，并使当前生命值最低的友方<span class='buff'>+15%</span>行动条。",
-descSkill: "<span class='heal'>治疗所有友方200%生命</span>，使所有友方获得 <span class='m-state'>百豪</span>（持续3回合）。",
+descSkill: "<span class='heal'>治疗所有友方200%生命</span>，使所有友方获得 <span class='m-state'>百豪</span>（持续3回合），全体友方<span class='buff'>+20%行动条</span>。",
 mechanics: [{ type:'state', name:'百豪', desc:'增益状态：提升10%攻击、20%治疗加成，持续3回合。不可叠加。' }] },
 "裂空座": { atk:1050, def:240, hp:4100, spd:154, effectHit:0, effectResist:0, critRate:0.24, critDmg:1.8, color:'#00c853', tag:'攻击',
 normal: { name:"龙爪", type:"single", dmgRate:1.2, target:"enemy", selfEffect:"dragonDance" },
@@ -162,10 +162,10 @@ normal: { name:"黑暗祭祀", type:"single", dmgRate:1.0, target:"enemy", selfE
 /* 技能1「扭曲空间」cost 2：击杀只给 1 层超凡邪力（无全套收益）。
    技能2「能量爆裂」cost 4：击杀给全套（超凡邪力 + 4怒气 + 行动条60% + 恢复30%）。
    两者用 vayneFullKill 标记区分，killUnit 里读该标记决定给多少。 */
-skill:  { name:"扭曲空间", cost:2, type:"single", dmgRate:1.0, target:"enemy", effect:"stun", selfEffect:"darkEssence", vayneFullKill:false },
+skill:  { name:"扭曲空间", cost:2, type:"single", dmgRate:1.4, target:"enemy", effect:"stun", selfEffect:"darkEssence", vayneFullKill:false },
 skill2: { name:"能量爆裂", cost:4, type:"single", dmgRate:3.0, target:"enemy", selfEffect:"darkEssence", vayneFullKill:true },
 descNormal: "对敌方目标造成 <span class='dmg'>100%</span> 伤害，若造成击杀则获得 <span class='m-mark'>1层超凡邪力</span>。",
-descSkill: "对敌方目标造成 <span class='dmg'>100%</span> 伤害，并附加<span class='m-state'>眩晕</span>（持续1回合），若造成击杀则获得 <span class='m-mark'>1层超凡邪力</span>。",
+descSkill: "对敌方目标造成 <span class='dmg'>140%</span> 伤害，并附加<span class='m-state'>眩晕</span>（持续1回合），若造成击杀则获得 <span class='m-mark'>1层超凡邪力</span>。",
 descSkill2: "对敌方目标造成 <span class='dmg'>300%</span> 伤害，若造成击杀则获得 <span class='m-mark'>1层超凡邪力</span>，且回合结束后自身 <span class='buff'>+60%行动条</span>，获得 <span class='buff'>4点怒气</span>，<span class='restore'>恢复</span>自身最大生命值 <span class='heal'>30%</span> 的生命值。",
 mechanics: [{ type:'mark', name:'超凡邪力', desc:'增益印记：永久提升攻击20%、暴击率10%、暴击伤害20%、最终伤害率10%，最多叠加5层。' },
 { type:'state', name:'眩晕', desc:'减益状态：控制效果，目标无法行动，持续1回合。不可叠加。' }] },
@@ -232,24 +232,29 @@ mechanics: [
 { type:'note', name:'护盾', desc:'优先于生命值承受伤害。' } ] },
 "两面宿傩": { atk:1020, def:310, hp:3900, spd:180, effectHit:0, effectResist:0, critRate:0.15, critDmg:1.8, color:'#d50000', tag:'攻击',
 normal: { name:"解·捌", type:"single", dmgRate:1.0, target:"enemy", sukunaForm:"jie" },
-skill: { name:"灶", cost:2, type:"single", dmgRate:1.2, trueRate:0.6, fixedMaxHpRate: 0.08, target:"enemy" },
-skill2: { name:"伏魔神龛", cost:4, type:"aoe", trueRate:0.9, fixedMaxHpRate: 0.1, target:"enemy", selfEffect:"fuMo", canExecute:true },   // 0.1 = SUKUNA_FIXED_MAXHP_RATE
+skill: { name:"灶", cost:2, type:"single", dmgRate:1.34, trueRate:0.67, fixedMaxHpRate: 0.1, target:"enemy" },
+skill2: { name:"伏魔神龛", cost:4, type:"aoe", trueRate:1.0, fixedMaxHpRate: 0.1, target:"enemy", selfEffect:"fuMo", canExecute:true },   // 0.1 = SUKUNA_FIXED_MAXHP_RATE
 passive: { name:"斩击反转", onDamaged:'sukunaRestore',
 desc:"两面宿傩的普攻在<span class='k'>「解」</span>与<span class='k'>「捌」</span>之间切换，施放普攻后切换一次，初始为<span class='k'>解</span>。受到伤害后，<span class='restore'>恢复</span>自身 <span class='heal'>6%</span>最大生命值的生命值。" },
 descNormal: "<span class='k'>解</span>：对敌方目标造成两段 <span class='dmg'>63%</span> 的伤害（强化：额外造成 <span class='true-dmg'>63%真实伤害</span>）。<br><span class='k'>捌</span>：对敌方目标造成攻击 <span class='true-dmg'>120%的真实伤害</span>与 <span class='fixed-dmg'>10%目标最大生命值的固定伤害</span>（强化：若造成伤害过程中或结束后目标生命值低于 <span class='dmg'>10%</span>，则直接<span class='m-note'>斩杀</span>目标）。",
-descSkill: "对敌方目标造成 <span class='dmg'>120%</span>伤害、<span class='true-dmg'>60%真实伤害</span>与 <span class='fixed-dmg'>8%目标最大生命值的固定伤害</span>。",
-descSkill2: "分别对敌方全体造成 <span class='true-dmg'>90%真实伤害</span>与 <span class='fixed-dmg'>10%目标最大生命值的固定伤害</span>，若造成伤害过程中或结束后目标生命值低于 <span class='dmg'>10%</span>，则直接<span class='m-note'>斩杀</span>目标。使自身获得 <span class='m-mark'>伏魔</span>（持续2回合）。",
+descSkill: "对敌方目标造成 <span class='dmg'>134%</span>伤害、<span class='true-dmg'>67%真实伤害</span>与 <span class='fixed-dmg'>10%目标最大生命值的固定伤害</span>。",
+descSkill2: "分别对敌方全体造成 <span class='true-dmg'>100%真实伤害</span>与 <span class='fixed-dmg'>10%目标最大生命值的固定伤害</span>，若造成伤害过程中或结束后目标生命值低于 <span class='dmg'>10%</span>，则直接<span class='m-note'>斩杀</span>目标。使自身获得 <span class='m-mark'>伏魔</span>（持续2回合）。",
 mechanics: [
 { type:'mark', name:'伏魔', desc:'增益印记：强化两面宿傩的普攻，不可叠加。' },
 { type:'note', name:'斩杀', desc:'达成斩杀条件时，目标立即死亡。' },
 { type:'note', name:'固定伤害', desc:'造成固定数值的伤害，不受任何影响，无视护盾。' } ] },
 "五条悟": { atk:1010, def:300, hp:3800, spd:181, effectHit:0, effectResist:0, critRate:0.15, critDmg:1.8, color:'#40c4ff', tag:'攻击',
 normal: { name:"苍", type:"single", dmgRate:1.2, target:"enemy" },
-skill: { name:"无量空处", cost:4, type:"aoe", trueRate:0.75, fixedMaxHpRate:0.08, target:"enemy", effect:"hunLuan" },
+skill: { name:"无量空处", cost:4, type:"aoe", trueRate:0.8, fixedMaxHpRate:0.08, target:"enemy", effect:"hunLuan" },
+/* 技能2「茈」：纯直接伤害的群体技。
+   type:'aoe' 会自动走 isNoTargetSkill → 无需选目标；dmgRate 由 calculateDamage 结算，
+   与裂空座「画龙点睛」同口径（普通伤害，吃防御/暴击/最终伤害率，不是真实伤害）。 */
+skill2: { name:"茈", cost:5, type:"aoe", dmgRate:2.0, target:"enemy" },
 passive: { name:"六眼·无下限",
 desc:"友方单位施放技能时，对随机敌方目标附加 <span class='m-mark'>视</span>。受到攻击时，自身获得 <span class='buff'>8%最大生命值</span>的护盾（每个单位回合限一次）。" },
 descNormal: "对敌方目标造成 <span class='dmg'>120%</span> 伤害。",
-descSkill: "对敌方全体造成 <span class='true-dmg'>75%真实伤害</span>与 <span class='fixed-dmg'>8%目标最大生命值的固定伤害</span>，每个目标有 <span class='buff'>40%基础概率</span>被附加 <span class='m-state'>混乱</span>（持续1回合）。",
+descSkill: "对敌方全体造成 <span class='true-dmg'>80%真实伤害</span>与 <span class='fixed-dmg'>8%目标最大生命值的固定伤害</span>，每个目标有 <span class='buff'>40%基础概率</span>被附加 <span class='m-state'>混乱</span>（持续1回合）。",
+descSkill2: "对敌方全体造成 <span class='dmg'>200%</span> 伤害。",
 mechanics: [
 { type:'mark', name:'视', desc:'减益印记：任意单位行动后，五条悟会对携带者造成 <span class="dmg">40%</span> 伤害（不可转移），对携带者造成 <span class="dmg">3次</span>伤害后移除。场上最多 <span class="dmg">3个</span>敌方单位携带此印记。随施放者阵亡清空。不可叠加。' },
 { type:'state', name:'混乱', desc:'减益状态：控制效果，携带者行动阶段时，改为对场上随机目标普攻。不可叠加。' },
@@ -1770,6 +1775,11 @@ const CHANGELOG = [
 '新增：教程新增「神魂」标签页，可点击套装卡片查看效果与判定细节。',
 '新增：角色详情属性以「基础值+金色加成」显示，并补齐效果命中 / 效果抵抗卡片。',
 '新增：战斗中携带 2 件套的角色，其套装名以金色标签显示在状态栏。',
+/* ---- 角色 / 平衡性（沿用历史版本的「角色名：改动」写法，一角色一条）---- */
+'维迦：「扭曲空间」伤害 100% → 140%。',
+'两面宿傩：「灶」伤害 120% → 134%、真实伤害 60% → 67%、固定伤害 8% → 10%；「伏魔神龛」真实伤害 90% → 100%。',
+'五条悟：新增技能2「茈」（消耗 5 点怒气，敌方全体 200% 伤害）；「无量空处」真实伤害 75% → 80%。',
+'纲手：「百豪之术」新增全体友方 +20% 行动条。',
 /* ---- 沿用上一版（原 v1.4.10，已并入本版）---- */
 '新增：联机对战模式 —— 两台设备各控一方，房主生成房间码，对手输入即连。',
 '新增：全局背景图 —— 主界面、选人、BP、战斗、结算统一生效，竖屏与横屏自动适配不同画面。',
@@ -4523,7 +4533,7 @@ if (!r.isTrue && !r.isSplash) actualDirect += Math.max(0, hpBefore - target.hp);
 }
 }
 if (hitCount > 1) log(`${getSideLabel(attacker)}${attacker.name} 的${skill.name} 命中 ${hitCount} 段！`, 'log-damage');
-/* 单体技能的固定伤害：目标最大生命值 × 比例（如两面宿傩「灶」的 8%）。
+/* 单体技能的固定伤害：目标最大生命值 × 比例（如两面宿傩「灶」的 10%）。
    此前只有 AOE 与宿傩普攻处理了 fixedMaxHpRate，单体技能会静默漏掉这一段。 */
 if (skill.fixedMaxHpRate && target.alive) {
 const fixed = Math.floor((Number(target.maxHp) || 0) * skill.fixedMaxHpRate);
@@ -5381,6 +5391,7 @@ break;
 }
 }
 const BOND_ACTION_BONUS = 30;   // 牵绊推进的行动条
+const BAIHAO_ACTION_BONUS = 20; // 百豪之术：全体友方推进的行动条
 const DEF_DOWN_AMOUNT = 80;     // 画龙点睛自身永久降防
 async function applySelfEffect(unit, effect, target = null) {
 switch (effect) {
@@ -5567,13 +5578,19 @@ refreshUnit(u);
 updateActionBarDots(); log(`${getSideLabel(unit)}全体获得牵绊，行动条+${BOND_ACTION_BONUS}%！`, 'log-buff'); break;
 }
 case 'hundredHeal': {
+/* 行动条加成一律走 grantActionValueBonus()：纲手此刻正停在 100%，
+   直接 advance 会被 ACTION_MAX 截断、随后 endTurn 清零，自己那份 +20% 会凭空消失
+   （与「牵绊」同坑）。统一入口会把施放者这份登记到回合结束后落地。 */
 for (const t of getAliveAllies(unit)) {
 await performHeal(unit, { name:'百豪之术', healRate:2.0 }, t);
 /* 无条件 addState：已存在时由 addState 内部刷新时长（取 max）并更新 setTurnSeq，
    即重复施放「百豪之术」会把百豪续回完整 3 回合，且本次回合结束不递减。 */
 addState(t, '百豪', { duration:3, effect:'hundredHeal' });
+grantActionValueBonus(t, BAIHAO_ACTION_BONUS, '百豪之术');
 refreshUnit(t);
 }
+updateActionBarDots();
+log(`${getSideLabel(unit)}${unit.name}「百豪之术」使全体友方行动条+${BAIHAO_ACTION_BONUS}%！`, 'log-buff');
 break;
 }
 case 'rageAll1': {
