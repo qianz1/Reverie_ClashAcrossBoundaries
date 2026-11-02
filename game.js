@@ -2552,7 +2552,10 @@ cls += ' bp-picked';
 /* 同轮 BP：对方已选的仍可选 —— 解除 bp-picked 的禁用（同队不可重复选由 bpIsPickable 管） */
 if (pickable) cls += ' pickable-again';
 }
-if (bpState.pending === name) cls += ' bp-pending';   // 待确认：金色高亮
+/* 待确认高亮：同样只给「当前操作方」看。
+   联机下房主端在客机回合也持有 pending（客机的待确认由房主统一记录），
+   若照常高亮，房主就能提前看到玩家2 选了谁 —— 同轮 BP 的暗选更是直接泄密。 */
+if (bpState.pending === name && bpCanOperate()) cls += ' bp-pending';
 card.className = cls;
 /* 角标：同轮模式下双方可能同时选中同一英雄，两个角标都要显示 */
 let mark = '';
@@ -2570,20 +2573,32 @@ card.querySelector('.detail-btn').addEventListener('touchstart', (e) => { e.stop
 if (pickable) card.addEventListener('click', () => bpSelectPending(name));
 grid.appendChild(card);
 });
-/* 确认条：仅在有待确认英雄时显示 */
+/* 确认条：仅在「有待确认英雄」且「轮到本端操作」时显示。
+   ★ 联机修复：房主是唯一权威，客机点卡片后由房主把选择记进 bpState.pending
+     再广播回去。这个 pending 属于【玩家2】，房主端若照常渲染确认条，
+     玩家1 就能看到并点到玩家2 的「确认 / 取消」—— 等于替对手做决定。
+     bpCanOperate() 判定 step.side 是否等于本端所控方：
+       房主 p1 回合 → true（自己的确认条，正常显示）
+       客机 p2 回合 → false（房主隐藏；客机那边收到广播后为 true，正常显示）
+     单机（netLocal 为空）恒为 true，行为不变。 */
 const bar = document.getElementById('bp-confirm-bar');
 const cbtn = document.getElementById('bp-confirm-btn');
+const ccbtn = document.getElementById('bp-confirm-cancel');
 const ctext = document.getElementById('bp-confirm-text');
-if (bpState.pending && step) {
+const canConfirm = !!bpState.pending && !!step && bpCanOperate();
+if (canConfirm) {
 bar.classList.add('show');
 bar.classList.toggle('banning', step.action === 'ban');
 ctext.textContent = `${step.action === 'ban' ? '禁用' : '选择'}「${bpState.pending}」？`;
 cbtn.disabled = false;
+if (ccbtn) ccbtn.disabled = false;
 cbtn.textContent = step.action === 'ban' ? '确认禁用' : '确认选择';
 } else {
 bar.classList.remove('show');
 bar.classList.remove('banning');
 cbtn.disabled = true;
+/* 取消按钮也一并禁用：整条虽已 display:none，仍防住程序化触发 / 样式异常 */
+if (ccbtn) ccbtn.disabled = true;
 }
 /* 开始按钮：联机下只有房主能点（客机点了也没用 —— 阵容由房主统一下发） */
 const btn = document.getElementById('bp-start-btn');
@@ -2602,8 +2617,14 @@ bpState.pending = name;
 renderBp();
 if (bpState.netLocal === 'host') bpBroadcastView();
 }
-/* 第二步：确认 / 取消 —— 客机同样回传房主执行 */
+/* 第二步：确认 / 取消 —— 客机同样回传房主执行。
+   ★ 防御性兜底：联机下不是自己回合时一律不响应。
+     renderBp 已把确认条隐藏 + 按钮 disabled，这里再堵一层，
+     防止程序化调用 / 残留事件让房主代按了玩家2 的确认或取消。
+   注意：房主收到网络指令 bpConfirm / bpCancel 时走的是 bpConfirmPending() 直调
+     （见消息分发处），不经过本函数 —— 客机的合法确认不受影响。 */
 function bpConfirmOrCancel(confirmed) {
+if (bpState.netLocal && !bpCanOperate()) return;
 if (bpState.netLocal === 'guest') { Net.send({ t: confirmed ? 'bpConfirm' : 'bpCancel' }); return; }
 if (confirmed) bpConfirmPending(); else bpCancelPending();
 }
