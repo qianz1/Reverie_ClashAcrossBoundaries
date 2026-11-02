@@ -103,7 +103,7 @@ descNormal: "对敌方目标造成两段 <span class='dmg'>63%</span> 伤害，�
 descSkill: "将敌方目标放逐至神威空间（<span class='m-rule'>放逐</span>），同时自身进入 <span class='m-rule'>虚化</span>，均持续至施放者带土下回合结束。放逐结束后，施放者带土立即对该目标分别造成 <span class='dmg'>50%</span>伤害、<span class='dmg'>70%</span>伤害、<span class='true-dmg'>90%真实伤害</span>，敌方全体附加 <span class='m-mark'>1层神威</span>，然后对敌方全体造成 <span class='true-dmg'>36%真实伤害</span>。敌方放逐存在时，无法施放此技能。",
 mechanics: [
 { type:'mark', name:'神威', desc:'减益印记：受到攻击时，每层额外附加施加者12%真实伤害（该伤害不可转移），同时施加者+12%行动条，最多叠加3层。随施放者阵亡清空。' },
-{ type:'rule', name:'放逐', desc:'规则：视为离开战局。期间无法行动，无法选中，无法被治疗、恢复，行动条锁定；目标相关的所有状态、印记失效，免疫伤害，取消效果buff的变化。随施放者阵亡清空。' },
+{ type:'rule', name:'放逐', desc:'规则：视为离开战局。期间无法行动，无法选中，无法被治疗、恢复，行动条锁定；目标相关的所有状态、印记失效，神魂失效（2件套效果），免疫伤害，取消效果buff的变化。随施放者阵亡清空。' },
 { type:'rule', name:'虚化', desc:'规则：免疫伤害与减益效果。进入时移除自身所有减益状态与减益印记，持续期间免疫减益状态与减益印记。' } ] },
 "镰鼬": { atk:500, def:400, hp:4600, spd:272, effectHit:0, effectResist:0, critRate:0.08, critDmg:1.5, color:'#aed581', tag:'辅助',
 normal: { name:"胖揍", type:"single", dmgRate:1.0, target:"enemy", effect:"stunChance" },
@@ -312,7 +312,7 @@ const BAR_TRAVEL_MS = 280;       // 从当前位置平滑走到权威值所需�
 const BAR_JUMP_DELTA = 28;       // 与权威值相差超过这个值 → 判定为回合清零/拉条推条，直接突变到位
 const BAR_EPS = 0.05;            // 浮点噪声阈值
 /* bye 也必须是关键消息：丢了对手就只能等 keepalive 超时才看到「对方已退出」 */
-const NET_CRITICAL_MSG = { init:1, over:1, panel:1, cutin:1, roster:1, hello:1, act:1, pick:1, restart:1, restartAck:1, bye:1 };
+const NET_CRITICAL_MSG = { init:1, over:1, panel:1, cutin:1, roster:1, hello:1, act:1, pick:1, restart:1, restartAck:1, bye:1, souls:1, soulsReq:1 };
 const NET_WS_RETRY = 5;          // 自建中继失败后的额外重试次数（连首次共 6 次）
 const NET_WS_RETRY_GAP = 600;    // 两次尝试之间的间隔：给网络一点恢复时间，立刻重试往往还是同一条失败路径
 const NET_GUEST_HINT_AFTER = 6;  // 加入房间重试到第几次开始附带"逃生提示"（房主可能已改走公共服务器）
@@ -331,6 +331,9 @@ active:false, role:null, room:'', myId:'', broker:'',
 peerGone:false,        // 对手是否已退出（收到 bye 置位；之后重开不再需要双方确认）
 peerGoneNotified:false,// 本次连接是否已弹过「对手已退出」提示（防止重复打扰）
 hudNote:'',            // 需要让玩家看到的重要提示（联机面板关闭后只能靠挂件传达）
+/* 对端的神魂加成快照：{ 角色名: { 各属性增量, shenhunSets } }。
+   联机下双方各用自己的神魂 —— 对端仓库在本机不可见，只能靠它发来的增量还原。 */
+peerSouls:null,
 /* 快照去重：上一次【实际发出去】的快照 JSON 串。tick 只与这一份比对，
    保证判断与 wire 完全一致，避免摘要与发出内容有偏差。 */
 _lastSnapJson:null,
@@ -1001,6 +1004,11 @@ netRefreshStartButton();
 return;
 }
 if (H && o.t === 'resync') { this.onResync(o); return; }
+/* ---- 联机神魂：双方各用自己的存档 ----
+   收到对端的加成快照就存下来，开局 createUnit 时据此还原对方的神魂。
+   soulsReq 是对端的索取（它可能在本机发快照之前就已建好单位），收到即回一份。 */
+if (o.t === 'souls') { this.peerSouls = o.map || null; return; }
+if (o.t === 'soulsReq') { netSendSouls(); return; }
 if (H && o.t === 'roster') {
 this.guestRoster = o.names || [];
 this.setStatus('✅ 对手已提交阵容');
@@ -1039,6 +1047,8 @@ if (!H && o.t === 'bpDone') {
 enemySelection = ['主角', ...(o.p2 || [])];
 playerSelection = ['主角', ...(o.p1 || [])];
 gameMode = 'pvp';
+/* BP 阵容刚确定 → 立刻补发自己的神魂：房主马上就要开局建单位了。 */
+netSendSouls();
 bpState.active = false;
 document.getElementById('bp-screen').style.display = 'none';
 document.getElementById('selection-screen').style.display = 'block';
@@ -1749,14 +1759,23 @@ applySpeedBtn();
    数据结构：{ ver, theme?, items:[] }，ver 与主题一一对应。
    新增版本时往 CHANGELOG 数组**开头**加一条即可（渲染按数组顺序，最新的在最上面）。
    CURRENT_VERSION / CURRENT_THEME 同时驱动模式选择页底部那行文字。 */
-const CURRENT_VERSION = 'v1.4.10';
-const CURRENT_THEME   = '咒术·最强之战';   // 1.4.x 大主题：小版本沿用，不随每次调整变更
+const CURRENT_VERSION = 'v1.5.0';
+const CURRENT_THEME   = '咒术·最强之战Ⅱ·神魂';   // 1.5.0 新主题：神魂系统上线
 const CHANGELOG = [
-{ ver:'v1.4.10', items:[
+{ ver:'v1.5.0', theme:'咒术·最强之战Ⅱ·神魂', items:[
+/* ---- 神魂系统（本版主题）---- */
+'新增：神魂系统 —— 战斗外养成，开战前一次性结算进角色基础属性；每个角色 1/2/3 号位各装 1 个。',
+'新增：6 套神魂套装，各有 1 件套（属性）与 2 件套（战斗内效果）：无双、心魔、百穿、束缚、怒源、招财。',
+'新增：神魂抽卡（每 10 抽必出史诗、每 30 抽必出传说）、合成、重铸、分解与锁定。',
+'新增：教程新增「神魂」标签页，可点击套装卡片查看效果与判定细节。',
+'新增：角色详情属性以「基础值+金色加成」显示，并补齐效果命中 / 效果抵抗卡片。',
+'新增：战斗中携带 2 件套的角色，其套装名以金色标签显示在状态栏。',
+/* ---- 沿用上一版（原 v1.4.10，已并入本版）---- */
 '新增：联机对战模式 —— 两台设备各控一方，房主生成房间码，对手输入即连。',
 '新增：全局背景图 —— 主界面、选人、BP、战斗、结算统一生效，竖屏与横屏自动适配不同画面。',
 '调整：狐守、流光、雀之印、长星锁随施放者阵亡清空（仅清施加者一方的，双方同名角色互不影响）；放逐同步补充描述。',
 '调整：照君攻击提升 10% → 8%。',
+'调整：联机对战中双方各用自己设备上的神魂（两种 BP 模式均适用）。',
 ] },
 { ver:'v1.4.9', items:[
 '五条悟重做：普攻固定为「苍」120%；被动改为「六眼·无下限」（友方施放技能时附加「视」；受击时获得护盾）；新增机制「视」。',
@@ -1871,7 +1890,7 @@ const CHANGELOG = [
 function renderVersionTheme() {
 const el = document.getElementById('version-theme-text');
 if (!el) return;
-el.innerHTML = `${CURRENT_VERSION} · 主题<span class="theme-name">「${CURRENT_THEME}」</span> ——Qianrise`;
+el.innerHTML = `${CURRENT_VERSION} · 主题<span class="theme-name">「${CURRENT_THEME}」</span><br>——Qianrise`;
 }
 function renderChangelog() {
 const body = document.getElementById('changelog-body');
@@ -1884,6 +1903,122 @@ return `<div class="cl-ver">${e.ver}</div>${theme}${cur}<ul>${e.items.map(i => `
 }
 function openChangelog() { renderChangelog(); document.getElementById('changelog-overlay').classList.add('show'); }
 function closeChangelog() { document.getElementById('changelog-overlay').classList.remove('show'); }
+
+/* ==================== 后台调试面板 ====================
+   进入方式：在更新日志面板中连点「当前版本」文字 3 次（2 秒内）。
+   无点击反馈，普通用户无法察觉。 */
+(function initDevPanel() {
+  var clickCount = 0;
+  var timer = null;
+
+  function openDev() {
+    refreshDev();
+    var ov = document.getElementById('dev-overlay');
+    if (ov) ov.classList.add('show');
+  }
+  function closeDev() {
+    var ov = document.getElementById('dev-overlay');
+    if (ov) ov.classList.remove('show');
+  }
+  function refreshDev() {
+    var ticketEl = document.getElementById('dev-val-ticket');
+    var stoneEl = document.getElementById('dev-val-stone');
+    var infoEl = document.getElementById('dev-save-info');
+    if (ticketEl && typeof SHENHUN !== 'undefined') {
+      var items = SHENHUN.getItem();
+      ticketEl.textContent = '券: ' + (items.ticket || 0);
+      stoneEl.textContent = '石: ' + (items.recastStone || 0);
+    }
+    if (infoEl) {
+      var count = 0;
+      for (var k in localStorage) { if (localStorage.hasOwnProperty(k)) count++; }
+      infoEl.textContent = '存档项：' + count;
+    }
+  }
+
+  function bindDevOnce() {
+    var addTicketBtn = document.getElementById('dev-add-ticket');
+    var addStoneBtn = document.getElementById('dev-add-stone');
+    var clearBtn = document.getElementById('dev-clear-cache');
+    var closeBtn = document.getElementById('dev-close');
+    var ov = document.getElementById('dev-overlay');
+
+    if (addTicketBtn && !addTicketBtn._devBound) {
+      addTicketBtn._devBound = true;
+      addTicketBtn.onclick = function () {
+        if (typeof SHENHUN !== 'undefined') {
+          var n = SHENHUN.addTicket(100);
+          var el = document.getElementById('dev-val-ticket');
+          if (el) el.textContent = '券: ' + n;
+          if (typeof refreshHeader === 'function') refreshHeader();
+        }
+      };
+    }
+    if (addStoneBtn && !addStoneBtn._devBound) {
+      addStoneBtn._devBound = true;
+      addStoneBtn.onclick = function () {
+        if (typeof SHENHUN !== 'undefined') {
+          var n = SHENHUN.addStone(100);
+          var el = document.getElementById('dev-val-stone');
+          if (el) el.textContent = '石: ' + n;
+          if (typeof refreshHeader === 'function') refreshHeader();
+        }
+      };
+    }
+    if (clearBtn && !clearBtn._devBound) {
+      clearBtn._devBound = true;
+      clearBtn.onclick = function () {
+        try { localStorage.clear(); } catch (e) {}
+        location.reload();
+      };
+    }
+    if (closeBtn && !closeBtn._devBound) {
+      closeBtn._devBound = true;
+      closeBtn.onclick = closeDev;
+    }
+    if (ov && !ov._devBound) {
+      ov._devBound = true;
+      ov.addEventListener('click', function (ev) { if (ev.target === ov) closeDev(); });
+    }
+  }
+
+  function initTripleClick() {
+    /* 监听更新日志 body 渲染完成后的「当前版本」元素 */
+    var body = document.getElementById('changelog-body');
+    if (!body) return;
+
+    /* 使用事件委托：因为 changelog-body 内容是动态渲染的，
+       「当前版本」那个 div 的文本节点无法直接绑定事件，
+       改为监听整个 body 区域的点击事件并判断目标。 */
+    if (body._devDelegated) return;
+    body._devDelegated = true;
+
+    body.addEventListener('click', function (ev) {
+      var target = ev.target;
+      /* 只响应「当前版本」标签的点击 */
+      if (!target || target.className !== 'cl-cur') return;
+
+      clickCount++;
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(function () { clickCount = 0; }, 2000);
+
+      if (clickCount >= 3) {
+        clickCount = 0;
+        clearTimeout(timer);
+        bindDevOnce();
+        openDev();
+      }
+    });
+  }
+
+  /* 更新日志打开时绑定三击监听 */
+  var origOpen = openChangelog;
+  openChangelog = function () {
+    origOpen();
+    /* 延迟一帧等渲染完成 */
+    setTimeout(initTripleClick, 0);
+  };
+})();
 /* 按钮初始化：必须等到脚本末尾再执行 —— SPEED_MULTIPLIER 以 let 声明在下方，
    过早访问会触发 TDZ（暂时性死区）报错。函数声明会提升，位置无关。 */
 function initBattleUiButtons() {
@@ -2111,6 +2246,9 @@ checkStartButton();
 } else {
 switchToPlayer2Selection();
 }
+/* 进选人就把自己的神魂加成快照发给对端：覆盖全部角色，
+   之后无论普通选人还是 BP 换人，对端手里的数据都是齐的。 */
+netSendSouls();
 }
 /* ---------- 中继服务器：三选一 ----------
    cf     → 自建 Cloudflare Worker（不丢包，默认）
@@ -2617,9 +2755,39 @@ const typeLine = `<div class="skill-type">类型：${SKILL_TYPE_LABEL[skill.type
 const castLine = castDesc ? `<div class="skill-desc" style="margin-top:6px"><span style="color:#ffd700">【施放】</span>${castDesc}</div>` : '';
 return `<div class="detail-section">${head}<div class="skill-block">${typeLine}<div class="skill-desc">${desc || ''}</div>${castLine}</div></div>`;
 }
+/* 数字格式化：整数不带小数位；一位小数够就只留一位，否则两位。
+   1.8 → "1.8"，0.15 → "0.15"，1100 → "1100"。 */
+function fmtStatNum(v) {
+const r = Math.round(Number(v || 0) * 100) / 100;
+if (r % 1 === 0) return String(r);
+return (Math.round(r * 100) % 10 === 0) ? r.toFixed(1) : r.toFixed(2);
+}
+/* 属性 + 神魂加成：加成部分以金色「+xxx」后缀显示，未装神魂时只显示基础值。
+   pct=true 表示该项是百分比类（暴击率 / 效果命中 / 效果抵抗），
+   此时 base 为小数（0.24）、add 为百分点（15），统一按整数百分点显示。 */
+function statWithSoulBonus(base, add, pct) {
+const b = pct ? Math.round(Number(base || 0) * 100) : Number(base || 0);
+const out = fmtStatNum(b) + (pct ? '%' : '');
+const a = Number(add || 0);
+if (!a) return out;                       // 无加成 → 不显示后缀
+const sign = a > 0 ? '+' : '';            // 负数自带减号
+return out + `<span class="stat-soul">${sign}${fmtStatNum(a)}${pct ? '%' : ''}</span>`;
+}
+/* 读取角色当前神魂加成快照。神魂系统未加载时返回全 0，不影响详情页展示。 */
+function getHeroSoulBonus(name) {
+const d = HERO_DATA[name]; if (!d) return null;
+if (typeof SHENHUN === 'undefined' || !SHENHUN.getSoulBonus) return null;
+return SHENHUN.getSoulBonus(name, {
+atk: d.atk, def: d.def, hp: d.hp, spd: d.spd,
+critRate: d.critRate || 0, critDmg: d.critDmg || 0,
+effectHit: d.effectHit || 0, effectResist: d.effectResist || 0, maxHp: d.hp
+});
+}
 function showHeroDetail(name) {
 const d = HERO_DATA[name]; const overlay = document.getElementById('hero-detail-overlay');
 const tagClass = d.tag==='攻击'?'tag-atk':d.tag==='防御'?'tag-def':d.tag==='辅助'?'tag-sup':'tag-spd';
+/* 神魂加成：装了的项在数值后追加金色 +xxx；一项没装则全为 0，视觉上与原来一致。 */
+const shb = getHeroSoulBonus(name) || {};
 let mechanicsHtml = '';
 if (d.mechanics && d.mechanics.length > 0) {
 mechanicsHtml = `<div class="detail-section"><h3>相关机制</h3>` +
@@ -2636,14 +2804,16 @@ document.getElementById('hero-detail-content').innerHTML = `
 <div class="detail-avatar" style="background:linear-gradient(135deg,${d.color}99,${d.color}44);border-color:${d.color}88;">${heroAvatarInner(name)}</div>
 <div><div class="detail-name">${name}</div><span class="detail-tag ${tagClass}">${d.tag}</span></div>
 </div>
-<div class="detail-section"><h3>基础属性</h3>
+<div class="detail-section"><h3>基础属性${Object.keys(shb.shenhunSets || {}).length ? '<span class="detail-soul-tip">（金色为神魂加成）</span>' : ''}</h3>
 <div class="detail-stats">
-<div><div class="stat-label">攻击</div><div class="stat-val">${d.atk}</div></div>
-<div><div class="stat-label">防御</div><div class="stat-val">${d.def}</div></div>
-<div><div class="stat-label">生命</div><div class="stat-val">${d.hp}</div></div>
-<div><div class="stat-label">速度</div><div class="stat-val">${d.spd}</div></div>
-<div><div class="stat-label">暴击率</div><div class="stat-val">${Math.round(d.critRate*100)}%</div></div>
-<div><div class="stat-label">暴击伤害</div><div class="stat-val">${d.critDmg}</div></div>
+<div><div class="stat-label">攻击</div><div class="stat-val">${statWithSoulBonus(d.atk, shb.atk, false)}</div></div>
+<div><div class="stat-label">防御</div><div class="stat-val">${statWithSoulBonus(d.def, shb.def, false)}</div></div>
+<div><div class="stat-label">生命</div><div class="stat-val">${statWithSoulBonus(d.hp, shb.hp, false)}</div></div>
+<div><div class="stat-label">速度</div><div class="stat-val">${statWithSoulBonus(d.spd, shb.spd, false)}</div></div>
+<div><div class="stat-label">暴击率</div><div class="stat-val">${statWithSoulBonus(d.critRate, shb.critRate, true)}</div></div>
+<div><div class="stat-label">暴击伤害</div><div class="stat-val">${statWithSoulBonus(d.critDmg, shb.critDmg, false)}</div></div>
+<div><div class="stat-label">效果命中</div><div class="stat-val">${statWithSoulBonus(d.effectHit || 0, shb.effectHit, true)}</div></div>
+<div><div class="stat-label">效果抵抗</div><div class="stat-val">${statWithSoulBonus(d.effectResist || 0, shb.effectResist, true)}</div></div>
 </div></div>
 <div class="detail-section"><h3>普攻 · ${d.normal.name}</h3>
 <div class="skill-block"><div class="skill-type">类型：单体${d.normal.type==='single'&&d.normal.healRate?'治疗':'攻击'}</div><div class="skill-desc">${d.descNormal}</div></div></div>
@@ -2788,6 +2958,7 @@ closeConfirmDialog(false); // 清掉可能残留的确认弹窗
 if (typeof Net !== 'undefined' && Net.active) {
 if (Net.role === 'guest') {
 if (enemySelection.length < 6) { Net.setStatus('⚠️ 请先选满 6 人（必选主角）'); return; }
+netSendSouls();          // 兜底：开战前再补发一次自己的神魂
 Net.send({ t:'roster', names: enemySelection.slice() });
 Net.setStatus('✅ 阵容已提交，等待房主开始…');
 const gb = document.getElementById('start-battle-btn');
@@ -2796,6 +2967,11 @@ return;
 }
 if (Net.guestRoster && Net.guestRoster.length === 6) enemySelection = Net.guestRoster.slice();
 if (enemySelection.length < 6) { Net.setStatus('⏳ 等待对手选人…'); return; }
+/* 房主：把自己的神魂发给对端（客机要据此还原房主阵容），
+   并索取客机的 —— 正常情况下客机进选人时已发过，这里立刻返回；
+   万一没收到（如中途改过装备、消息丢失），最多等一会儿再开局。 */
+netSendSouls();
+await netAwaitPeerSouls(1200);
 }
 if (gameMode === 'pvp' && enemySelection.length < 6) {
 // 双人对战：第一玩家选完后，轮到第二玩家选人
@@ -3395,10 +3571,85 @@ markSkill(d.skill, 'active');
 if (d.skill2) markSkill(d.skill2, 'active');
 // 注：已移除 windWalkStacks / galeWindStacks / dragonDanceStacks / thunderPressActive /
 //     protectTargets / snapshotHp / darkStacks 等从未被读取的僵尸字段，叠层一律以 marks 为准
-return { name, side, pos, atk:d.atk, def:d.def, maxHp:d.hp, hp:d.hp, spd:d.spd, critRate:d.critRate, critDmg:d.critDmg, effectHit:d.effectHit||0, effectResist:d.effectResist||0, finalDmgRate:1.0, finalDmgReduction:0, healBonus:1.0, healReduction:0, rage:2, actionValue:0, alive:true, states:[], marks:[], rules:[], color:d.color, normalSkill:d.normal, activeSkill:d.skill, activeSkill2:d.skill2 || null,
+const u = { name, side, pos, atk:d.atk, def:d.def, maxHp:d.hp, hp:d.hp, spd:d.spd, critRate:d.critRate, critDmg:d.critDmg, effectHit:d.effectHit||0, effectResist:d.effectResist||0, finalDmgRate:1.0, finalDmgReduction:0, healBonus:1.0, healReduction:0, rage:2, actionValue:0, alive:true, states:[], marks:[], rules:[], color:d.color, normalSkill:d.normal, activeSkill:d.skill, activeSkill2:d.skill2 || null,
 extraSkills:d.extraSkills || null, passiveSkill:d.passive || null, shield:0, banishedBy:null, pendingSnapshot:false, intangible:false, banished:false, banishedActionValue:0, pendingActionBonus:0, sukunaForm:'jie', skillCooldown:0, skillCooldowns:{}, wanfaTurnsLeft:0,
 statsDamageDealt:0, statsDamageTaken:0, statsHealDone:0, statsRestoreDone:0, statsShieldDone:0,
+/* 束缚 2 件套：施放技能时额外消耗怒气换来的本回合最终伤害加成（回合结束清零） */
+shufuFinalDmg:0,
+/* 招财 2 件套：记录上次判定的回合号，防止同一回合重复触发 */
+zhaocaiCheckedTurn:0,
 buquUsed:false };
+/* ============ 神魂：战斗外数据，开战前一次性结算进基础属性 ============
+   只以角色面板（HERO_DATA 原始值）为准，神魂加成之间不互相放大。
+   战斗核心完全感知不到神魂存在 —— 它只看到一个已算好最终面板的单位。
+   ★ 联机例外：对端（客机/房主）的阵容要套用【它自己】的神魂存档，
+     本机仓库里没有它的神魂，只能按它发来的「加成增量」还原。 */
+u.shenhunSets = {};
+const peerSide = (typeof Net !== 'undefined' && Net.active) ? netPeerSide() : null;
+if (peerSide && side === peerSide && Net.peerSouls) {
+const b = Net.peerSouls[name];
+if (b) {
+u.atk += Number(b.atk) || 0;
+u.def += Number(b.def) || 0;
+const addHp = Number(b.hp) || 0;
+u.maxHp += addHp; u.hp = u.maxHp;      // 开局满血：上限涨多少，当前血就跟着涨
+u.spd += Number(b.spd) || 0;
+u.critRate += (Number(b.critRate) || 0) / 100;   // 传输用百分点，还原成小数
+u.critDmg += Number(b.critDmg) || 0;
+u.effectHit += (Number(b.effectHit) || 0) / 100;
+u.effectResist += (Number(b.effectResist) || 0) / 100;
+u.shenhunSets = b.shenhunSets || {};
+}
+} else if (typeof SHENHUN !== 'undefined' && SHENHUN.aggregateStats) {
+const baseStats = { atk:d.atk, def:d.def, hp:d.hp, spd:d.spd, critRate:d.critRate, critDmg:d.critDmg, effectHit:d.effectHit||0, effectResist:d.effectResist||0, maxHp:d.hp };
+const agg = SHENHUN.aggregateStats(name, baseStats);
+u.atk = agg.atk; u.def = agg.def; u.maxHp = agg.maxHp; u.hp = agg.hp;
+u.spd = agg.spd; u.critRate = agg.critRate; u.critDmg = agg.critDmg;
+u.effectHit = agg.effectHit; u.effectResist = agg.effectResist;
+u.shenhunSets = agg.shenhunSets || {};
+}
+return u;
+}
+/* 联机下「对端操控的那一方」：房主操控 player，客机操控 enemy。
+   联机未开启时返回 null（单机一律用本机存档）。 */
+function netPeerSide() {
+if (typeof Net === 'undefined' || !Net.active) return null;
+return Net.role === 'guest' ? 'player' : 'enemy';
+}
+/* 等待对端的神魂快照到位。绝大多数情况下进选人时就已收到，这里立刻返回；
+   超时则按「对端没装神魂」处理，不阻塞开局。 */
+function netAwaitPeerSouls(ms) {
+return new Promise(function (resolve) {
+if (typeof Net === 'undefined' || !Net.active) return resolve(false);
+if (Net.peerSouls) return resolve(true);
+Net.send({ t:'soulsReq' });
+const t0 = Date.now();
+const timer = setInterval(function () {
+if (Net.peerSouls || !Net.active || Date.now() - t0 >= ms) {
+clearInterval(timer);
+resolve(!!Net.peerSouls);
+}
+}, 100);
+});
+}
+/* 采集本机的神魂加成快照并广播给对端。
+   发的是「相对角色面板的增量 + 套装达成情况」而非存档本身 ——
+   对端仓库里没有本机神魂的 ID，发 ID 无意义；增量则可直接套用。
+   覆盖全部角色：对端随时可能换人（含 BP），一次发全就不用担心时序。 */
+function netSendSouls() {
+if (typeof Net === 'undefined' || !Net.active) return;
+if (typeof SHENHUN === 'undefined' || !SHENHUN.getSoulBonus) return;
+const map = {};
+Object.keys(HERO_DATA).forEach(function (name) {
+const d = HERO_DATA[name];
+if (!d) return;
+map[name] = SHENHUN.getSoulBonus(name, {
+atk: d.atk, def: d.def, hp: d.hp, spd: d.spd,
+critRate: d.critRate || 0, critDmg: d.critDmg || 0,
+effectHit: d.effectHit || 0, effectResist: d.effectResist || 0, maxHp: d.hp
+});
+});
+Net.send({ t:'souls', map: map });
 }
 /* 联机下客机（玩家2）的视角翻转：自己的阵容在下方、自己的边框为绿色。
    双人对战（同一设备轮流操作）不翻转 —— 那样反而不方便两人共看一屏。 */
@@ -3473,6 +3724,29 @@ if (rageFill) rageFill.style.width = Math.min((u.rage/10*100),100) + '%';
 const rageText = el.querySelector('.unit-rage-text');
 if (rageText) rageText.textContent = `怒:${u.rage}`;
 }
+/* 神魂 2 件套标签：金色描边，与「状态蓝 / 印记紫 / 规则橙」区分开。
+   2 件套是整场战斗都在生效的常驻效果，所以（未被放逐时）在栏中恒常显示，
+   鼠标悬停（title）给出该套 2 件的具体效果说明。
+   未达成 2 件的套装不显示 —— 1 件套是纯属性加成，已并入面板数值，不属于「效果」。
+   ★ 放逐期间不显示：规则上「神魂失效」（指 2 件套），显示出来会与实装不符。 */
+function buildShenhunTags(u) {
+const out = [];
+if (!u || u.banished) return out;          // 放逐：2 件套失效，标签一并隐藏
+const sets = u && u.shenhunSets;
+if (!sets) return out;
+Object.keys(sets).forEach(name => {
+const s = sets[name];
+if (!s || !s.twoPiece) return;
+const set = (typeof SHENHUN !== 'undefined' && SHENHUN.SET_BY_TYPE) ? SHENHUN.SET_BY_TYPE[name] : null;
+const desc = set ? (set.two || set['2'] || '') : '';
+const t = document.createElement('span');
+t.className = 'buff-tag buff-shenhun';
+t.textContent = name;                       // 只显示套装名；「2件」的含义由金框 + 悬停说明承载
+if (desc) t.title = '神魂套装 · ' + name + '（2件）：' + desc;
+out.push(t);
+});
+return out;
+}
 function updateBuffDisplay(idx) {
 const u = gameState.units[idx]; const container = document.getElementById(`buffs-${idx}`); if (!container) return;
 container.innerHTML = '';
@@ -3484,6 +3758,8 @@ if (((u.states||[]).length || (u.marks||[]).length || (u.rules||[]).length || (N
 container.innerHTML = ''; container.style.display = 'none'; return;
 }
 container.style.display = '';
+/* 神魂 2 件套标签：放逐期间由 buildShenhunTags 自行隐藏（神魂失效）。 */
+buildShenhunTags(u).forEach(t => container.appendChild(t));
 /* 被放逐：规则上「目标相关所有状态与印记失效」，因此状态与印记不显示；
    但**「放逐」这条规则本身必须显示** —— 否则玩家看不出该单位为何不动、不可选中。
    这里单独渲染放逐标签后直接返回。 */
@@ -3619,6 +3895,9 @@ updateActionBarDots();
 async function endTurn(unit) {
 // ── ③ 回合结束 ──────────────────────────────────────────
 await processTurnEnd(unit);
+/* 束缚 2 件套的 +30% 最终伤害到「回合结束」为止：
+   放在回合结束结算【之后】清零，这样回合末触发的效果仍吃得到这 30%。 */
+if (unit.shufuFinalDmg) { unit.shufuFinalDmg = 0; refreshUnit(unit); }
 // ── ④ 行动条更新 ────────────────────────────────────────
 // 行动条清零 → 再落地本回合登记的所有待生效加成（维迦击杀、带土放逐结束等都走这条）
 const pending = Number(unit.pendingActionBonus) || 0;
@@ -3679,27 +3958,18 @@ const lockCaster = anyCaster && !cannotAct(anyCaster) ? anyCaster : null;
 let casted = false;
 if (lockCaster) { casted = await castExtraSkill(lockCaster, 'miYe', unit); }
 else if (anyCaster) logCannotAct(anyCaster, '鬼宿奇惊·谜夜');
-/* 关键改动：只在谜夜【成功施放后】才移除长星锁。
-   若鬼金羊被放逐 / 眩晕而没能施放，印记保留 —— 携带者下次行动条满时再次尝试（且本次不跳过回合）。 */
+/* 只在谜夜【成功施放后】才移除长星锁：
+   若鬼金羊被放逐 / 眩晕而没能施放，印记保留 —— 携带者下次行动条满时再次尝试。 */
 if (casted) { removeMark(unit, '长星锁'); refreshUnit(unit); }
 else {
-log(`${getSideLabel(unit)}${unit.name} 的「长星锁」未能触发（施法者无法行动），印记保留！`, 'log-buff');
+/* 谜夜未施放 → 视为携带者本轮拥有【完整回合】，照常走 ①回合开始 → ②行动阶段。
+   ★ 这里不再复制一份行动逻辑后 return（旧写法会漏掉回合开始的全部结算：
+     技能冷却递减、「预知未来」、被动回合开始（流光追月神「绮罗舞」）、
+     神魂招财 2 件套等）。改为直接落到下方正常流程，保证两处口径完全一致。 */
+log(`${getSideLabel(unit)}${unit.name} 的「长星锁」未能触发（施法者无法行动），印记保留，本回合正常行动！`, 'log-buff');
 refreshUnit(unit);
-/* 未施放成功 → 不跳过回合，本回合正常行动 */
-const idx0 = idxOf(unit);
-gameState.currentActor = unit;
-document.getElementById(`unit-${idx0}`)?.classList.add('acting');
-if (hasState(unit, '混乱')) {
-const acted = await performChaosAction(unit);
-document.getElementById(`unit-${idx0}`)?.classList.remove('acting');
-if (acted) { await endTurn(unit); return; }
 }
-const needIn = !isAutoUnit(unit) && (unit.side === 'player' || (unit.side === 'enemy' && gameMode === 'pvp'));
-await flushPendingCasts();
-if (needIn) { showControlPanel(unit); gameState.currentActor = unit; }
-else { if (unit.side === 'enemy') await sleep(1000); await executeAutoAction(unit); }
-return;
-}
+if (casted) {
 if (!unit.pendingSkip) {
 log(`${getSideLabel(unit)}${unit.name} 受到长星锁影响，跳过本回合！`, 'log-buff');
 unit.pendingSkip = true;
@@ -3712,6 +3982,8 @@ if (typeof Net !== 'undefined' && Net.active && Net.role === 'host' && unit.side
 if (checkBattleEnd()) { gameState.animating = false; return; }
 gameState.paused = false; gameState.animating = false; gameState.currentActor = null; gameState.vayneKillThisTurn = false;
 return;
+}
+/* 未施放成功：不 return，继续往下走 ① 回合开始（与正常回合完全同路） */
 }
 // ── ① 回合开始 ──────────────────────────────────────────
 /* 技能冷却（禅心云外镜「万法皆空」）：自身回合开始递减，归零后方可再次施放。
@@ -3755,6 +4027,10 @@ const idx = idxOf(unit); document.getElementById(`unit-${idx}`)?.classList.add('
 /* 被动：自身回合开始时结算（如流光追月神「绮罗舞」的流光转化）。
    放在上述各「回合开始」结算之后、行动阶段之前。 */
 await applyPassiveTurnStart(unit);
+/* 神魂套装的回合开始效果（招财 2 件套）。
+   与角色被动分开：神魂不吃「被动失效」，且要在行动阶段前给到怒气，
+   否则本回合的技能按钮会按旧怒气判断可用性。 */
+await applyShenhunTurnStart(unit);
 // ── ② 行动阶段 ──────────────────────────────────────────
 /* 无法行动：跳过【行动阶段】（不能施放技能，也不能普攻）。
    统一走 cannotAct —— 覆盖放逐与眩晕两种来源。
@@ -4147,6 +4423,12 @@ const idx = idxOf(unit); const el = document.getElementById(`unit-${idx}`); unit
 const cost = Number(skill.cost) || 0;
 if (isNormal) gainRage(unit, RAGE_PER_NORMAL);
 else if (!isExtra && cost > 0) spendRage(unit, cost);
+/* 束缚 2 件套：行动阶段施放【主动技能】时，若剩余怒气足够，额外消耗 1 点
+   → 本回合最终伤害 +30%（至回合结束，endTurn 时清零）。
+   限定主动技（__kind === 'active'）：普攻不算「施放技能」；额外技能多为他人回合内触发
+   （如守势反击的「一誓归心」），不属于「行动阶段施放」，同样不触发。
+   判定放在技能结算【之前】：本回合这次技能本身就能吃到 30% 加成。 */
+if (!isNormal && !isExtra) await tryApplyShufu(unit);
 // 技能演出：技能（含 0 怒气技能）必播；普攻由 SKILL_CUTIN_FOR_NORMAL 控制（默认关）
 await playSkillCutin(unit, skill.name, isNormal);
 log(`${getSideLabel(unit)}${unit.name} 使用了 ${skill.name}！`, isNormal ? 'log-normal' : 'log-skill');
@@ -4169,6 +4451,21 @@ unitAnimOff(idx, 'attack-anim'); el?.classList.remove('acting');
    放在 endTurn 之前 —— 此时仍处在该单位的行动期间。 */
 await afterAnyUnitAction(unit, skill);
 if (!isExtra) await endTurn(unit);   // 额外技能在他人回合触发，不能结束回合
+}
+/* 束缚 2 件套：施放主动技能时额外消耗 1 点怒气，换来本回合最终伤害 +30%。
+   「若怒气足够」= 付完技能 cost 之后还剩至少 1 点 —— 与「额外消耗」的语义一致：
+   怒气刚好够放技能时不触发（否则会变成「放不出技能」），有余量才自动加码。 */
+async function tryApplyShufu(unit) {
+if (typeof SHENHUN === 'undefined' || !SHENHUN.hasSetTwoPiece) return;
+if (!SHENHUN.hasSetTwoPiece(unit, '束缚')) return;
+const extra = Number(SHENHUN.SHUFU_RAGE_COST) || 1;
+if ((Number(unit.rage) || 0) < extra) return;
+if (!spendRage(unit, extra)) return;
+unit.shufuFinalDmg = Number(SHENHUN.SHUFU_FINAL_DMG_RATE) || 0.3;
+const pct = Math.round(unit.shufuFinalDmg * 100);
+log(`⛓️ ${getSideLabel(unit)}${unit.name} 的束缚触发！额外消耗 ${extra} 点怒气，本回合最终伤害 +${pct}%`, 'log-buff');
+refreshUnit(unit);
+await sleep(200);
 }
 // 参数顺序遵循全局约定：(施法者, 伤害包, 目标)
 async function applyDamageWithShield(attacker, result, target) {
@@ -4289,6 +4586,16 @@ if ((unit.states || []).some(s => s.type === '百豪')) atk += Math.floor(atk * 
 if (has('龙之舞')) finalDmgRate += 0.15 * stacksOf('龙之舞');
 if (has('雷压')) { finalDmgRate += 0.2; critRate += 0.3; }
 if (has('大妖之力')) finalDmgRate += clamp01(1 - ((Number(unit.hp) || 0) / (Number(unit.maxHp) || 1)));
+/* 无双 2 件套：自身每损失 1% 最大生命值，提升 0.5% 暴击伤害。
+   走「有效属性」层而非基础层 —— 暴伤随血量实时变化，基础层只在开局算一次。 */
+if (typeof SHENHUN !== 'undefined' && SHENHUN.calcWushuangCritDmgBonus) {
+critDmg += SHENHUN.calcWushuangCritDmgBonus(unit);
+}
+/* 束缚 2 件套：行动阶段施放技能时额外消耗 1 点怒气 → 本回合最终伤害 +30%。
+   同样走「有效属性」层：有效期只有一回合，战斗层在回合结束时把标记清 0。 */
+if (typeof SHENHUN !== 'undefined' && SHENHUN.calcShufuFinalDmgBonus) {
+finalDmgRate += SHENHUN.calcShufuFinalDmgBonus(unit);
+}
 return { atk, critRate, critDmg, finalDmgRate };
 }
 // 守方防御 / 最终免伤的统一入口
@@ -4317,7 +4624,18 @@ return { def, finalReduction };
 function calculateDamage(attacker, skill, target) {
 // 攻防属性统一取「有效值」，速度加成不参与伤害计算（走 getEffectiveSpd）
 const { atk, critRate, critDmg, finalDmgRate } = getEffectiveCombatStats(attacker);
-const { def, finalReduction } = getEffectiveDefStats(target);
+const { def: rawDef, finalReduction } = getEffectiveDefStats(target);
+/* 百穿 2 件套：攻击时 50% 直接概率无视目标 50% 防御。
+   只影响【直接伤害】的免伤率 —— 真实伤害本就无视防御，无需参与。
+   逐段独立判定（与暴击同口径）：多段技能每一段各自 roll 一次。 */
+let def = rawDef;
+if (typeof SHENHUN !== 'undefined' && SHENHUN.rollBaichuanDefFactor) {
+const factor = SHENHUN.rollBaichuanDefFactor(attacker);
+if (factor < 1) {
+def = def * factor;
+log(`🛡️ ${getSideLabel(attacker)}${attacker.name} 的百穿触发！无视 ${getSideLabel(target)}${target.name} ${Math.round((1 - factor) * 100)}% 防御`, 'log-buff');
+}
+}
 const results = [];
 // 公式③：免伤率 = 防御 ÷ (防御 + 目标攻击)；防御与攻击均已套用印记/状态修正
 const dodgeRate = (def + atk) > 0 ? def / (def + atk) : 0;
@@ -4667,6 +4985,18 @@ victims.push({ unit: u, killer: killer || attacker });
 upsertVictim(finalTarget, attacker, false);
 upsertVictim(target, kamuiKiller, !lethalByMain);
 for (const v of victims) await resolveLethal(v.unit, v.killer);
+/* 心魔 2 件套：攻击方穿戴「心魔」2 件时，造成伤害后 20% 基础概率给目标附加混乱（持续 1 回合）。
+   走战斗内钩子而非基础层：概率触发是运行时效果。
+   时机：死亡判定【之后】、目标仍存活且有实际掉血时 —— 击杀不产生控制收益。
+   概率走「基础概率」口径：实际 = 20% × (1 + 攻击方效果命中 − 目标效果抵抗)，
+   与教程、五条悟「无量空处」的结算方式一致（心魔 1 件套给的 +15% 效果命中因此才有用）。 */
+if (attacker && attacker.alive && finalTarget.alive && hpLossAcc > 0 && typeof SHENHUN !== 'undefined' && SHENHUN.maybeApplyXinmo) {
+SHENHUN.maybeApplyXinmo(attacker, finalTarget, function (tgt, dur) {
+tryApplyControl(tgt, '混乱', dur || GOJO_HUNLUAN_DURATION, 'xinmo');
+}, function (baseChance) {
+return calculateControlChance(attacker, finalTarget, baseChance);
+});
+}
 /* 受击后被动统一入口（放逐期间失效）。
    放在死亡判定【之后】：已阵亡的单位不再结算恢复，超量伤害能正常击杀。 */
 if (finalTarget.alive && hpLossAcc > 0) await applyPassiveOnDamaged(finalTarget, attacker);
@@ -5498,6 +5828,22 @@ if (!isPassiveActive(unit)) return;
 const key = (HERO_DATA[unit.name] || {}).passive?.turnStart;
 if (key && PASSIVE_TURN_START[key]) await PASSIVE_TURN_START[key](unit);
 }
+/* 神魂套装的「回合开始」效果：招财 2 件套 —— 50% 概率获得 2 点怒气。
+   与角色被动分开：神魂不属于被动，不受【被动失效】影响（那是角色被动的约束）。
+   每次进入该单位的回合计一次，用 turnSeq 防重复（长星锁等分支可能重入）。 */
+async function applyShenhunTurnStart(unit) {
+if (typeof SHENHUN === 'undefined' || !SHENHUN.rollZhaocaiRage) return;
+const seq = Number(unit.turnSeq) || 0;
+if (unit.zhaocaiCheckedTurn === seq) return;   // 本回合已判定过
+unit.zhaocaiCheckedTurn = seq;
+if (!SHENHUN.rollZhaocaiRage(unit)) return;
+const amount = Number(SHENHUN.ZHAOCAI_RAGE) || 2;
+const got = gainRage(unit, amount);
+if (got <= 0) return;   // 已满怒气：不触发提示，避免刷屏
+log(`💰 ${getSideLabel(unit)}${unit.name} 的招财触发！获得 ${got} 点怒气（当前 ${unit.rage}）`, 'log-buff');
+refreshUnit(unit);
+await sleep(200);
+}
 const PASSIVE_TURN_START = {
 /* 绮罗舞（回合开始）：所有携带流光的友方 → 获得 1 层照君 + 驱散随机 1 个减益状态 + 移除流光。
    这是流光转化为照君的主出口（另一出口是「携带者怒气减少」）。 */
@@ -5522,6 +5868,28 @@ gameState.units.forEach(u => {
 const key = (HERO_DATA[u.name] || {}).opening;   // 先机：独立字段，与被动无关
 if (key && OPENING_EFFECTS[key]) OPENING_EFFECTS[key](u);
 });
+/* 角色先机全部结算完，再结算神魂先机。
+   顺序固定：这样怒源给的 2 点怒气不会被前面角色先机（如流光的先机给怒气）顶掉上限。 */
+applyShenhunOpenings();
+}
+/* 神魂套装的先机效果：怒源 2 件套 —— 自身与随机 1 名其他友方各获得 2 点怒气。
+   放在角色先机之后：先跑完角色侧的开局动作，神魂侧再加怒气，结果更可预期。 */
+function applyShenhunOpenings() {
+if (typeof SHENHUN === 'undefined' || !SHENHUN.hasSetTwoPiece) return;
+const amount = Number(SHENHUN.NUYUAN_RAGE) || 2;
+gameState.units.forEach(u => {
+if (!u.alive || !SHENHUN.hasSetTwoPiece(u, '怒源')) return;
+const got = gainRage(u, amount);
+if (got > 0) log(`🔮 ${getSideLabel(u)}${u.name} 的怒源触发！获得 ${got} 点怒气（当前 ${u.rage}）`, 'log-buff');
+const others = getAliveAllies(u, false);
+if (others.length > 0) {
+const ally = others[Math.floor(Math.random() * others.length)];
+const got2 = gainRage(ally, amount);
+if (got2 > 0) log(`🔮 怒源：${getSideLabel(ally)}${ally.name} 也获得 ${got2} 点怒气（当前 ${ally.rage}）`, 'log-buff');
+}
+refreshUnit(u);
+});
+gameState.units.forEach(u => refreshUnit(u));
 }
 /* ===== 被动：受到伤害后 =====
    注册表与 OPENING_EFFECTS / PASSIVE_TURN_END 同构，由 passive.onDamaged 指定键。
@@ -6110,6 +6478,57 @@ html: `<h3>行动条规则详解</h3>
 <h4>六、锁定</h4>
 <p>处于「放逐」的角色，其行动条被<span class="k">锁定在放逐前的位置</span>（而非归零）。锁定期间，任何推进、击退与设定数值的效果均不生效。</p>
 <div class="warn">锁定的优先级高于一切行动条改变效果。若放逐的施放者阵亡，该放逐立即解除，被放逐者自锁定位置继续。</div>`
+},
+{
+key: 'shenhun', label: '神魂',
+html: `<h3>神魂系统</h3>
+<p>神魂是<span class="k">战斗外</span>的养成系统：在开战前一次性结算进角色基础属性，<span class="k">战斗过程中不再变化</span>。</p>
+
+<h4>一、神魂的构成</h4>
+<p>每个神魂有三项要素：</p>
+<ul>
+<li><span class="k">套装</span>：决定套装效果（共 6 套）。</li>
+<li><span class="k">号位</span>：1 / 2 / 3 号位，每个角色每个号位只能装 1 个，共 3 个槽位。</li>
+<li><span class="k">稀有度</span>：普通 / 罕见 / 珍贵 / 史诗 / 传说 / 神话，决定数值高低。</li>
+</ul>
+
+<h4>二、主属性与副属性</h4>
+<p><span class="k">主属性</span>只会出现百分比类属性，按号位限定池子随机：</p>
+<ul>
+<li><span class="b">1 号位</span>：攻击加成 / 防御加成 / 生命加成</li>
+<li><span class="b">2 号位</span>：上述三种 + 效果命中 / 效果抵抗</li>
+<li><span class="b">3 号位</span>：上述三种 + 暴击率 / 暴击伤害</li>
+</ul>
+<p><span class="k">副属性</span>固定 4 条、互不重复，从 8 条属性中随机抽取，各自在对应稀有度的区间内独立取值。<span class="g">速度</span>只能作为副属性出现，不会成为主属性。</p>
+<div class="formula"><span class="fname">属性结算</span>
+<code>百分比类：最终值 = 面板基数 × (1 + 各加成之和)</code>
+<code>速度：最终值 = 面板基数 + 各加成之和</code>
+<span class="note">加成之间互不放大 —— 全部以角色面板为基数分别计算后相加。</span></div>
+
+<h4>三、获取与养成</h4>
+<ul>
+<li><span class="g">抽卡</span>：每次消耗 1 张神魂券。每 10 抽必出史诗及以上，每 30 抽必出传说及以上；命中保底后计数归零。</li>
+<li><span class="g">每日登录</span>：发放神魂券 20 张（= 20 抽）、重铸石 2 个。</li>
+<li><span class="g">合成</span>：两个「同套装 + 同稀有度」的神魂合成为高一阶同套装神魂。神话已达顶，不可再合成。</li>
+<li><span class="g">重铸</span>：消耗 1 个重铸石，保留稀有度，重随套装 / 号位 / 主副属性。</li>
+<li><span class="g">分解</span>：已锁定或已装备的神魂无法分解，需先解锁 / 卸下。</li>
+</ul>
+
+<h4>四、套装效果一览</h4>
+<p>每个套装都有 <span class="k">1 件套</span>（纯属性加成，开战前结算）与 <span class="k">2 件套</span>（战斗内生效）两档。同一套装装备 2 件即触发 2 件套。</p>
+<div class="buff-cards">
+<div class="buff-card bc-shenhun" data-s="无双"><div class="bn">无双</div><div class="bd">1件 暴击率+15%　·　2件 每损失1%生命 +0.5%暴伤</div></div>
+<div class="buff-card bc-shenhun" data-s="心魔"><div class="bn">心魔</div><div class="bd">1件 效果命中+15%　·　2件 伤害后20%基础概率混乱</div></div>
+<div class="buff-card bc-shenhun" data-s="百穿"><div class="bn">百穿</div><div class="bd">1件 攻击+15%　·　2件 攻击时50%概率无视50%防御</div></div>
+<div class="buff-card bc-shenhun" data-s="束缚"><div class="bn">束缚</div><div class="bd">1件 攻击+15%　·　2件 额外耗1怒气，本回合最终伤害+30%</div></div>
+<div class="buff-card bc-shenhun" data-s="怒源"><div class="bn">怒源</div><div class="bd">1件 防御+15%　·　2件 先机：自身与随机1友方各+2怒气</div></div>
+<div class="buff-card bc-shenhun" data-s="招财"><div class="bn">招财</div><div class="bd">1件 生命+15%　·　2件 回合开始50%概率+2怒气</div></div>
+</div>
+<div class="demo-out" id="shenhun-out">点击上方任一套装，查看其效果详解与判定细节。</div>
+
+<div class="tip">角色<span class="k">详情界面</span>的属性会以「基础值<span style="color:#ffd700;font-weight:bold">+神魂加成</span>」的形式显示，金色部分即神魂带来的增量。</div>
+
+<div class="warn">联机对战时，双方阵容的神魂都读取<span class="k">房主设备</span>的存档（伤害只在房主端计算），客机自己存的神魂在联机战斗中不参与结算。</div>`
 }
 ];
 
@@ -6169,6 +6588,36 @@ if (key === 'damage') {
 document.getElementById('b-direct').onclick = () => calcDemo('direct');
 document.getElementById('b-crit').onclick = () => calcDemo('crit');
 document.getElementById('b-true').onclick = () => calcDemo('true');
+}
+else if (key === 'shenhun') {
+/* 套装详解：1件/2件文案直接读 shenhun.js 的 SETS 配置，
+   避免教程与实装脱节；逻辑层未加载时退化为内置静态说明。 */
+const detail = {
+'无双': '· 2 件套走「有效属性」层：暴伤随当前血量实时变化，不是开局算一次\n· 半血时约 +25% 暴伤，残血收益最高',
+'心魔': '· 走「基础概率」口径：实际 = 20% × (1 + 效果命中 − 目标效果抵抗)\n· 因此 1 件套给的 +15% 效果命中会直接提高 2 件套的触发率\n· 击杀、未造成掉血时不触发；走统一控制入口，免疫控制与虚化可挡',
+'百穿': '· 只影响【直接伤害】的免伤率，真实伤害本就无视防御，不受影响\n· 逐段独立判定：多段技能每一段各自 roll 一次\n· 50% 为「直接概率」，不受效果命中 / 效果抵抗影响',
+'束缚': '· 「怒气足够」= 付完技能 cost 后还剩 ≥1 点\n· 判定在技能结算之前，因此本次技能本身立刻吃到 30%\n· 仅主动技能触发：普攻不算「施放技能」，额外技能多为他人回合触发，同样不算\n· 加成至回合结束清除',
+'怒源': '· 在角色先机全部结算之后才执行，不会被角色先机给的怒气顶掉上限\n· 只给存活友方，不给敌方；怒气已满时自动截断',
+'招财': '· 每个回合只判定一次（回合内分支重入不会重复触发）\n· 50% 为「直接概率」，不受效果命中 / 效果抵抗影响\n· 怒气已满时不触发提示，避免刷屏'
+};
+host.querySelectorAll('.buff-card[data-s]').forEach(c => {
+c.onclick = () => {
+host.querySelectorAll('.buff-card').forEach(x => x.classList.remove('on'));
+c.classList.add('on');
+const out = document.getElementById('shenhun-out');
+if (!out) return;
+const k = c.dataset.s;
+const set = (typeof SHENHUN !== 'undefined' && SHENHUN.SET_BY_TYPE) ? SHENHUN.SET_BY_TYPE[k] : null;
+const lines = [];
+if (set && (set.one || set['1'])) lines.push(`1件：${set.one || set['1']}`);
+if (set && (set.two || set['2'])) lines.push(`2件：${set.two || set['2']}`);
+const extra = detail[k] || '';
+out.innerHTML = '<b style="color:#ce93d8">' + k + '</b>' +
+(lines.length ? '\n' + lines.join('\n') : '') +
+(extra ? '\n\n判定细节\n' + extra : '');
+out.style.whiteSpace = 'pre-wrap';
+};
+});
 }
 else if (key === 'buff') {
 const info = {
@@ -6237,6 +6686,14 @@ checkStartButton(); }
 initSelection();
 initBattleUiButtons();
 renderVersionTheme();
+/* ==================== 神魂系统初始化 ====================
+   必须在 HERO_DATA / gameState 之后、UI 渲染之前完成 load。
+   神魂是战斗外数据，开战前一次性结算进角色基础属性。 */
+if (typeof SHENHUN !== 'undefined') {
+SHENHUN.load();
+SHENHUN.dailyLogin();          // 每天首次登录发放神魂券 20 / 重铸石 2
+if (typeof initShenhunUI === 'function') initShenhunUI();   // 绑定仓库 / 装备 / 抽卡界面
+}
 document.getElementById('changelog-btn').onclick = openChangelog;
 document.getElementById('changelog-close').onclick = closeChangelog;
 document.getElementById('changelog-overlay').addEventListener('click', (e) => { if (e.target === document.getElementById('changelog-overlay')) closeChangelog(); });
