@@ -370,6 +370,10 @@ pointer-events: none; white-space: nowrap; text-shadow: 0 1px 3px rgba(0,0,0,.9)
 
 /* ---- 按钮 ---- */
 .sh-actions { margin-top: 8px; display: flex; gap: 6px; flex-wrap: wrap; }
+/* 列表行内的按钮组（合成 / 装备 / 重铸共用 buildSoulRow）：
+   取消上边距、禁止被左侧信息挤压；保留 wrap 让窄屏上必要时换行，避免溢出 */
+.sh-pick-item .sh-actions { margin-top: 0; flex-shrink: 0; }
+.sh-pick-item .sh-actions .sh-btn { padding: 6px 10px; }
 .sh-btn { padding: 5px 12px; font-size: 12px; border-radius: 5px; border: 1px solid #555; background: #1a1a3e; color: #cfd8dc; cursor: pointer; font-family: inherit; transition: border-color .2s, opacity .2s; }
 .sh-btn:hover { border-color: #8e24aa; }
 .sh-btn.primary { background: #6a1b9a; color: #fff; border-color: #8e24aa; }
