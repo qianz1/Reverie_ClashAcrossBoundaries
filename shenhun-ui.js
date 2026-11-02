@@ -242,14 +242,18 @@
         if (s && s.setType === soul.setType) cnt++;
       });
     }
+    /* 3 件同套装 = 一组 2 件套（内含一次 1 件套）+ 1 个散件 → 1 件套共生效 2 次。
+       角标带上次数，避免界面看起来仍只加了一次。 */
+    var oneStacks = SH.onePieceStacks ? SH.onePieceStacks(cnt) : (cnt >= 1 ? 1 : 0);
     [['1', set.one || set['1']], ['2', set.two || set['2']]].forEach(function (p) {
       if (!p[1]) return;
       var need = Number(p[0]);
       var on = cnt >= need;
+      var times = need === 1 ? oneStacks : 1;   // 2 件套只激活一次
       var row = el('div', 'sh-setfx-row' + (on ? ' on' : ''));
       row.innerHTML = '<span class="sh-setfx-piece">' + need + '件</span>' +
         '<span class="sh-setfx-desc">' + p[1] + '</span>' +
-        (on ? '<span class="sh-setfx-on">已生效</span>' : '');
+        (on ? '<span class="sh-setfx-on">已生效' + (times > 1 ? ' ×' + times : '') + '</span>' : '');
       box.appendChild(row);
     });
     /* 注意：el() 第三个参数是 textContent，会原样显示标签，
@@ -498,7 +502,10 @@
            并保留对 '1' / '2' 写法的兼容。 */
         var one = set && (set.one || set['1']);
         var two = set && (set.two || set['2']);
-        if (cnt >= 1 && one) eff.push('1件：' + one);
+        /* 1 件套生效次数：3 件同套装 = 2 次（2 件套内含 1 次 + 散件 1 次）。
+           多次时在描述后标 ×N，与实战结算保持一致。 */
+        var oneStacks = SH.onePieceStacks ? SH.onePieceStacks(cnt) : (cnt >= 1 ? 1 : 0);
+        if (cnt >= 1 && one) eff.push('1件：' + one + (oneStacks > 1 ? ' ×' + oneStacks : ''));
         if (cnt >= 2 && two) eff.push('2件：' + two);
         /* 2 件套已达成时加个角标，方便一眼看出哪套生效了 */
         var badge = cnt >= 2 ? ' <span class="sh-2pc">2件已生效</span>' : '';

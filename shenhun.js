@@ -375,8 +375,23 @@ function countSets(souls) {
   }
   return c;
 }
-/* 判断某套装是否触发了 2 件套效果。 */
+/* 判断某套装是否触发了 2 件套效果。
+   2 件套【只激活一次】—— 装 3 件也只是一组 2 件套，不会变成两组。 */
 function hasTwoPiece(setType, souls) { return (countSets(souls)[setType] || 0) >= 2; }
+
+/* 套装 1 件套效果的【生效次数】。
+   规则：每 2 件组成一组「2 件套」，这一组自身即包含一次 1 件套效果；
+         剩下不足 2 件的散件，再按「1 件套」各算一次。
+   于是：
+     1 件 → 0 组 + 1 散 = 1 次
+     2 件 → 1 组 + 0 散 = 1 次（2 件套内含的那一次）
+     3 件 → 1 组 + 1 散 = 2 次  ★ 用户要的「3 件同套装 = 两次 1 件套」
+   即 Math.ceil(n / 2)。2 件套效果本身仍只激活一次（见 hasTwoPiece），
+   这里只负责「1 件套纯属性加成」叠加几次。 */
+function onePieceStacks(count) {
+  const n = Math.max(0, Math.floor(Number(count) || 0));
+  return Math.floor(n / 2) + (n % 2);
+}
 
 /* ==================== 十二、属性聚合（战斗外，开局一次性） ==================== */
 /* 把角色自身面板 + 神魂主/副属性 + 套装 1 件套效果 合并为最终基础属性。
@@ -385,7 +400,9 @@ function hasTwoPiece(setType, souls) { return (countSets(souls)[setType] || 0) >
      · 百分比类按角色面板基数计算：final = base × (1 + Σpct)；
      · speed 为固定值累加：final = base + Σspeed；
      · 套装 1 件套的纯属性加成（攻击/防御/生命+15%、暴击率+15%、效果命中+15%）并入基础层；
-     · 套装 2 件套的效果（无双的暴伤随血量、心魔的混乱）不走基础层，由战斗钩子处理。 */
+       每 2 件组成的一组「2 件套」自身含一次 1 件套，余下散件再各算一次 → 3 件同套装共 2 次；
+     · 套装 2 件套的效果（无双的暴伤随血量、心魔的混乱）不走基础层，由战斗钩子处理，
+       且只激活一次，不随件数叠加。 */
 function aggregateStats(roleName, baseStats) {
   const souls = getEquippedSouls(roleName);
   const setCount = countSets(souls);
@@ -421,13 +438,18 @@ function aggregateStats(roleName, baseStats) {
     }
   }
 
-  /* 套装 1 件套：纯属性加成 */
-  if ((setCount['百穿'] || 0) >= 1) addAtkPct += 0.15;
-  if ((setCount['束缚'] || 0) >= 1) addAtkPct += 0.15;
-  if ((setCount['无双'] || 0) >= 1) addCritRate += 0.15;
-  if ((setCount['怒源'] || 0) >= 1) addDefPct += 0.15;
-  if ((setCount['招财'] || 0) >= 1) addHpPct += 0.15;
-  if ((setCount['心魔'] || 0) >= 1) addEffectHit += 0.15;
+  /* 套装 1 件套：纯属性加成，按「生效次数」叠加。
+     ★ 3 件同套装 = 一组 2 件套（内含一次 1 件套）+ 1 个散件 1 件套 = 共 2 次，
+       例如无双 3 件给 +30% 暴击率，而不是 +15%。
+     2 件套效果仍只触发一次（hasTwoPiece >= 2），不随件数叠加。 */
+  const ONE_PCT = 0.15;                    // 六套 1 件套统一为 +15%
+  const stacks = {};
+  Object.keys(setCount).forEach(function (t) { stacks[t] = onePieceStacks(setCount[t]); });
+  addAtkPct    += ((stacks['百穿'] || 0) + (stacks['束缚'] || 0)) * ONE_PCT;
+  addCritRate  += (stacks['无双'] || 0) * ONE_PCT;
+  addDefPct    += (stacks['怒源'] || 0) * ONE_PCT;
+  addHpPct     += (stacks['招财'] || 0) * ONE_PCT;
+  addEffectHit += (stacks['心魔'] || 0) * ONE_PCT;
 
   /* 合并：百分比按角色面板基数，speed 为固定值累加。
      取整口径：
@@ -455,7 +477,11 @@ function aggregateStats(roleName, baseStats) {
   const setTypes = Object.keys(setCount);
   for (let i = 0; i < setTypes.length; i++) {
     const t = setTypes[i];
-    if (setCount[t] > 0) out.shenhunSets[t] = { count: setCount[t], twoPiece: hasTwoPiece(t, souls) };
+    if (setCount[t] > 0) out.shenhunSets[t] = {
+      count: setCount[t],
+      oneStacks: stacks[t],                 // 1 件套生效次数（3 件时为 2）
+      twoPiece: hasTwoPiece(t, souls)      // 2 件套只激活一次
+    };
   }
   return out;
 }
@@ -741,7 +767,7 @@ root.SHENHUN = {
   getSoulBonus: getSoulBonus, XINMO_BASE_CHANCE: XINMO_BASE_CHANCE, findEquipOwner: findEquipOwner,
   isEquipped: isEquipped, getSoul: getSoul,
   /* 套装 */
-  countSets: countSets, hasTwoPiece: hasTwoPiece,
+  countSets: countSets, hasTwoPiece: hasTwoPiece, onePieceStacks: onePieceStacks,
   /* 属性聚合 */
   aggregateStats: aggregateStats,
   /* 战斗钩子 */

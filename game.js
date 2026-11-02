@@ -6553,7 +6553,10 @@ html: `<h3>神魂系统</h3>
 </ul>
 
 <h4>四、套装效果一览</h4>
-<p>每个套装都有 <span class="k">1 件套</span>（纯属性加成，开战前结算）与 <span class="k">2 件套</span>（战斗内生效）两档。同一套装装备 2 件即触发 2 件套。</p>
+<p>每个套装都有 <span class="k">1 件套</span>（纯属性加成，开战前结算）与 <span class="k">2 件套</span>（战斗内生效）两档。每凑齐 2 件组成一组 2 件套（<span class="k">2 件套只激活一次</span>），而这一组自身就包含一次 1 件套效果；剩下不足 2 件的散件，再各算一次 1 件套。</p>
+<div class="formula"><span class="fname">1 件套生效次数</span>
+<code>1 件 → 1 次　·　2 件 → 1 次　·　3 件 → 2 次</code>
+<span class="note">例如 3 件无双 = 暴击率 +30%（两次 1 件套）＋ 一组 2 件套的暴伤效果。</span></div>
 <div class="buff-cards">
 <div class="buff-card bc-shenhun" data-s="无双"><div class="bn">无双</div><div class="bd">1件 暴击率+15%　·　2件 每损失1%生命 +0.5%暴伤</div></div>
 <div class="buff-card bc-shenhun" data-s="心魔"><div class="bn">心魔</div><div class="bd">1件 效果命中+15%　·　2件 伤害后20%基础概率混乱</div></div>
@@ -6566,7 +6569,7 @@ html: `<h3>神魂系统</h3>
 
 <div class="tip">角色<span class="k">详情界面</span>的属性会以「基础值<span style="color:#ffd700;font-weight:bold">+神魂加成</span>」的形式显示，金色部分即神魂带来的增量。</div>
 
-<div class="warn">联机对战时，双方阵容的神魂都读取<span class="k">房主设备</span>的存档（伤害只在房主端计算），客机自己存的神魂在联机战斗中不参与结算。</div>`
+<div class="warn">联机对战（含两种 BP 模式）时，双方各自使用<span class="k">自己设备上</span>为该角色装备的神魂；伤害结算仍以房主为准。</div>`
 }
 ];
 
