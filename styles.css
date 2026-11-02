@@ -1,4 +1,3 @@
-
 /* ==================== 全局 ==================== */
 * { margin: 0; padding: 0; box-sizing: border-box; }
 /* ===== 全局背景图 =====
@@ -165,6 +164,9 @@ body { font-family: 'Microsoft YaHei', sans-serif; background-color: #0a0a1a; ba
 .buff-card .bd { font-size: 12px; color: #ccc; line-height: 1.5; }
 .bc-state { border-color: #1565c0; color: #42a5f5; } .bc-mark { border-color: #6a1b9a; color: #ce93d8; }
 .bc-rule { border-color: #e65100; color: #ffb74d; }
+/* 教程「神魂」页的套装卡片：紫色系，与神魂主色一致 */
+.buff-card.bc-shenhun { border-color: #8e24aa; color: #ce93d8; }
+.buff-card.bc-shenhun .bd { color: #b0bec5; }
 /* 步骤导航 */
 .tut-steps { display: flex; gap: 5px; margin-bottom: 12px; }
 .tut-dot { width: 9px; height: 9px; border-radius: 50%; background: #444; cursor: pointer; transition: all 0.2s; flex-shrink: 0; }
@@ -195,10 +197,18 @@ body { font-family: 'Microsoft YaHei', sans-serif; background-color: #0a0a1a; ba
 .detail-tag { display: inline-block; font-size: 11px; padding: 2px 8px; border-radius: 4px; margin-top: 4px; }
 .detail-section { margin: 12px 0; }
 .detail-section h3 { color: #4fc3f7; font-size: 14px; margin-bottom: 6px; border-left: 3px solid #4fc3f7; padding-left: 8px; }
-.detail-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; font-size: 12px; }
-.detail-stats div { background: #0d1525; padding: 6px 8px; border-radius: 4px; text-align: center; }
-.detail-stats .stat-label { color: #888; font-size: 10px; }
+/* 属性卡片整体缩一档：加了神魂「+xxx」后缀后横向空间变紧，
+   数值与内边距各让出一点，避免长数字（如 3800+1634）撑破卡片。 */
+.detail-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; font-size: 11px; }
+.detail-stats div { background: #0d1525; padding: 5px 4px; border-radius: 4px; text-align: center; }
+.detail-stats .stat-label { color: #888; font-size: 9px; }
+/* 数值允许在极端长数字时换行（不加 nowrap：换行只是把卡片顶高，
+   加了反而可能让文字直接溢出卡片外），字号已缩小，正常数值不会触发。 */
 .detail-stats .stat-val { color: #fff; font-weight: bold; }
+/* 神魂加成后缀：金色 +xxx，与基础值紧邻显示（如 1100+500 / 24%+15%） */
+.detail-stats .stat-soul { color: #ffd700; font-weight: bold; }
+/* 属性区标题右侧的引导说明：只在装了神魂时出现 */
+.detail-soul-tip { color: #ffd700; font-size: 10px; font-weight: normal; opacity: .85; margin-left: 6px; }
 .skill-block { background: #0d1525; padding: 10px 12px; border-radius: 6px; margin-bottom: 8px; }
 .skill-block .skill-name { color: #ffd700; font-weight: bold; font-size: 13px; margin-bottom: 4px; }
 .skill-block .skill-type { font-size: 10px; color: #888; }
@@ -264,6 +274,8 @@ body { font-family: 'Microsoft YaHei', sans-serif; background-color: #0a0a1a; ba
 .unit.dead ~ .buff-container { display: none !important; }
 .buff-tag { font-size: 9px; padding: 1px 4px; border-radius: 3px; color: #fff; white-space: nowrap; }
 .buff-state { background: #1565c0; } .buff-mark { background: #6a1b9a; } .buff-rule { background: #e65100; }
+/* 神魂 2 件套：金色描边 + 深色底，与状态/印记/规则三类区分开，标识「整场常驻」 */
+.buff-shenhun { background: #4a3a00; color: #ffd700; border: 1px solid #ffd700; font-weight: bold; }
 #action-bar-container { flex: 0 0 auto; width: 90%; max-width: 900px; height: 60px; margin: 0 auto; position: relative; z-index: 10; }
 #action-bar-track { width: 100%; height: 40px; background: #111; border: 2px solid #333; border-radius: 20px; position: relative; }
 #action-bar-fill { position: absolute; left: 0; top: 0; height: 100%; width: 0%; background: linear-gradient(90deg, #00e5ff33, #00e5ff66); border-radius: 20px; }
@@ -295,6 +307,187 @@ pointer-events: none; white-space: nowrap; text-shadow: 0 1px 3px rgba(0,0,0,.9)
 #back-btn:hover { color: #fff; }
 /* ==================== BP 模式 ==================== */
 /* 「BP模式」入口：选人界面右上角，仅双人对战可见 */
+
+/* 神魂入口按钮：风格与「教程」按钮保持一致 */
+#shenhun-btn { padding: 8px 20px; font-size: 14px; background: linear-gradient(135deg, #6a1b9a, #8e24aa); color: #fff; border: 2px solid #ab47bc; border-radius: 20px; cursor: pointer; transition: all 0.3s; touch-action: manipulation; }
+
+/* ==================== 神魂系统 ==================== */
+#shenhun-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.88); z-index: 540; display: none; align-items: center; justify-content: center; padding: 12px; }
+#shenhun-overlay.show { display: flex; }
+#shenhun-card { background: #12122e; border: 2px solid #8e24aa; border-radius: 14px; width: 100%; max-width: 640px; max-height: 88vh; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 0 40px rgba(142,36,170,.35); }
+#shenhun-header { display: flex; align-items: center; gap: 12px; padding: 12px 18px; border-bottom: 1px solid #333; background: linear-gradient(135deg, #4a148c44, #1a237e44); flex-shrink: 0; }
+#shenhun-title { font-size: 17px; font-weight: bold; color: #ffd700; }
+.sh-ticket { font-size: 13px; color: #ccc; }
+.sh-ticket b { color: #ffd700; }
+.sh-stone b { color: #69f0ae; }
+#shenhun-close { font-size: 26px; color: #aaa; cursor: pointer; line-height: 1; margin-left: auto; padding: 0 4px; background: none; border: 0; }
+#shenhun-close:hover { color: #fff; }
+#shenhun-tabs { display: flex; gap: 6px; padding: 10px 12px; border-bottom: 1px solid #222; flex-wrap: wrap; flex-shrink: 0; }
+.sh-tab { padding: 6px 16px; font-size: 13px; background: #16213e; color: #9e9e9e; border: 1px solid #333; border-radius: 6px; cursor: pointer; transition: all .2s; font-family: inherit; }
+.sh-tab:hover { border-color: #8e24aa; color: #cfd8dc; }
+.sh-tab.active { background: #3a1a5c; color: #ce93d8; border-color: #8e24aa; font-weight: bold; }
+#shenhun-body { padding: 14px 18px; overflow-y: auto; flex: 1 1 auto; -webkit-overflow-scrolling: touch; }
+/* 关键：同一时刻只显示一个 pane */
+.sh-pane { display: none; }
+.sh-pane.active { display: block; }
+
+/* ---- 通用 ---- */
+.sh-label { font-size: 13px; color: #9e9e9e; }
+.sh-muted { font-size: 12px; color: #777; margin-left: 8px; }
+.sh-empty { text-align: center; color: #777; padding: 40px 0; font-size: 14px; }
+.sh-empty.small { padding: 14px 0; font-size: 13px; }
+.sh-count { font-size: 12px; color: #777; margin-bottom: 8px; }
+.sh-warn { color: #ffb74d; font-size: 13px; padding: 8px 0; }
+
+/* ---- 神魂卡片（正方形） ----
+   稀有度信息由外框颜色表达：
+   - 普通：灰   - 罕见：绿   - 珍贵：蓝
+   - 史诗：紫   - 传说：橙   - 神话：红
+   卡片只显示「套装名 + 号位」，详细信息点击后进入详情弹窗。 */
+.sh-soul-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+@media (max-width: 420px) { .sh-soul-grid { grid-template-columns: repeat(3, 1fr); } }
+
+.sh-soul-card { position: relative; aspect-ratio: 1 / 1; background: #16213e; border: 2px solid #333; border-radius: 12px; padding: 6px; cursor: pointer; transition: transform .15s, box-shadow .2s, border-color .2s; overflow: hidden; }
+.sh-soul-card:hover { transform: translateY(-2px); filter: brightness(1.1); }
+.sh-soul-card:active { transform: translateY(0); }
+.sh-soul-card.equipped { border-color: #00e676; background: #1b3a2e; }
+.sh-soul-card.locked { box-shadow: 0 0 0 2px #ffd700 inset; }
+.sh-soul-card.sh-r神话 { border-color: #ff5252; box-shadow: 0 0 8px rgba(255,82,82,.45); }
+.sh-soul-card.sh-r传说 { border-color: #ff9800; box-shadow: 0 0 8px rgba(255,152,0,.4); }
+.sh-soul-card.sh-r史诗 { border-color: #ab47bc; box-shadow: 0 0 6px rgba(171,71,188,.35); }
+.sh-soul-card.sh-r珍贵 { border-color: #42a5f5; box-shadow: 0 0 6px rgba(66,165,245,.3); }
+.sh-soul-card.sh-r罕见 { border-color: #66bb6a; box-shadow: 0 0 6px rgba(102,187,106,.3); }
+.sh-soul-card.sh-r普通 { border-color: #9e9e9e; }
+.sh-card-inner { width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; text-align: center; }
+.sh-set { font-size: 14px; font-weight: bold; color: #e0e0e0; line-height: 1.2; word-break: break-all; }
+.sh-slot { font-size: 11px; color: #aaa; background: #1a1a3e; padding: 2px 8px; border-radius: 4px; }
+.sh-subs { font-size: 12px; color: #bbb; display: flex; flex-wrap: wrap; gap: 4px 10px; }
+.sh-subs .pct { color: #ffd700; }
+.sh-subs .flat { color: #69f0ae; }
+.sh-tag { display: inline-block; padding: 2px 8px; background: #1a1a3e; border: 1px solid #333; border-radius: 10px; font-size: 12px; color: #cfd8dc; }
+.sh-tag.main { color: #ffd700; border-color: #8e24aa; font-weight: bold; }
+.sh-equip-tag { font-size: 11px; color: #69f0ae; margin-top: 6px; }
+
+/* ---- 按钮 ---- */
+.sh-actions { margin-top: 8px; display: flex; gap: 6px; flex-wrap: wrap; }
+.sh-btn { padding: 5px 12px; font-size: 12px; border-radius: 5px; border: 1px solid #555; background: #1a1a3e; color: #cfd8dc; cursor: pointer; font-family: inherit; transition: border-color .2s, opacity .2s; }
+.sh-btn:hover { border-color: #8e24aa; }
+.sh-btn.primary { background: #6a1b9a; color: #fff; border-color: #8e24aa; }
+.sh-btn.danger { border-color: #c62828; color: #ef9a9a; }
+.sh-btn:disabled { opacity: .4; cursor: not-allowed; }
+
+/* ---- 筛选 ---- */
+.sh-filter { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; align-items: center; }
+.sh-filter select { padding: 5px 8px; background: #1a1a3e; border: 1px solid #4fc3f7; border-radius: 5px; color: #fff; font-size: 12px; font-family: inherit; }
+
+/* ---- 抽卡 ---- */
+.sh-draw-info { font-size: 13px; color: #bbb; margin-bottom: 14px; line-height: 1.8; }
+.sh-draw-info b { color: #ffd700; }
+.sh-pity { font-size: 12px; color: #9e9e9e; margin-bottom: 14px; text-align: center; }
+.sh-pity b { color: #ffd700; }
+.sh-draw-btns { display: flex; gap: 10px; justify-content: center; }
+.sh-draw-btn { padding: 9px 26px; font-size: 14px; }
+.sh-result { margin-top: 18px; }
+.sh-result-title { font-size: 13px; color: #9e9e9e; margin-bottom: 8px; }
+.sh-result-grid { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
+
+/* ---- 装备 ---- */
+.sh-equip-hero { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+.sh-equip-hero select { padding: 5px 8px; background: #1a1a3e; border: 1px solid #4fc3f7; border-radius: 5px; color: #fff; font-size: 13px; font-family: inherit; }
+.sh-equip-row { display: flex; align-items: center; gap: 10px; padding: 10px; background: #16213e; border-radius: 8px; margin-bottom: 8px; }
+.sh-equip-name { width: 90px; font-size: 13px; color: #fff; font-weight: bold; }
+.sh-slots { display: flex; gap: 8px; flex: 1; }
+.sh-slot-box { flex: 1; min-height: 52px; border: 2px dashed #444; border-radius: 8px; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 11px; color: #888; cursor: pointer; padding: 4px; text-align: center; transition: border-color .2s; }
+.sh-slot-box:hover { border-color: #8e24aa; color: #cfd8dc; }
+.sh-slot-box.filled { border-style: solid; }
+.sh-slot-box .sl { font-weight: bold; }
+.sh-slot-box .smain { font-size: 10px; color: #ffd700; margin-top: 2px; }
+.sh-slot-off { flex-shrink: 0; }
+.sh-preview { margin-top: 14px; background: #16213e; border-radius: 8px; padding: 10px 12px; }
+.sh-preview-title { font-size: 13px; font-weight: bold; color: #ce93d8; margin-bottom: 6px; }
+.sh-preview-line { font-size: 13px; color: #cfd8dc; line-height: 1.9; }
+.sh-preview-line b { margin-right: 6px; }
+/* 「2件已生效」角标：套装凑齐 2 件时显示，提示 2 件套效果已触发 */
+.sh-2pc { display: inline-block; font-size: 10px; padding: 1px 6px; border-radius: 3px; background: #ffd700; color: #3a2a00; font-weight: bold; vertical-align: middle; }
+
+/* ---- 合成 / 重铸 ---- */
+.sh-craft-tabs { display: flex; gap: 8px; margin-bottom: 14px; }
+.sh-craft-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px; background: #16213e; border-radius: 8px; margin-bottom: 8px; }
+.sh-craft-name { font-size: 13px; }
+.sh-craft-name span { font-weight: bold; }
+
+/* ---- 导入 / 导出 ---- */
+.sh-io-block { margin-bottom: 18px; padding-bottom: 14px; border-bottom: 1px solid #222; }
+.sh-io-title { font-size: 14px; font-weight: bold; color: #ce93d8; margin-bottom: 10px; }
+.sh-io-ta { width: 100%; height: 120px; box-sizing: border-box; background: #0a0a1a; border: 1px solid #333; border-radius: 6px; color: #cfd8dc; font-size: 12px; padding: 8px; font-family: Consolas, monospace; resize: vertical; }
+.sh-io-mode { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+.sh-io-mode select { padding: 5px 8px; background: #1a1a3e; border: 1px solid #4fc3f7; border-radius: 5px; color: #fff; font-size: 12px; font-family: inherit; }
+.sh-io-file { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+
+/* ---- 选择器弹窗 ---- */
+#sh-modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.75); z-index: 700; display: none; align-items: center; justify-content: center; padding: 12px; }
+#sh-modal-overlay.show { display: flex; }
+.sh-modal { background: #12122e; border: 2px solid #8e24aa; border-radius: 12px; width: 100%; max-width: 560px; max-height: 82vh; display: flex; flex-direction: column; overflow: hidden; }
+.sh-modal-lg { max-width: 640px; }
+.sh-modal-title { position: relative; padding: 12px 46px 12px 18px; font-size: 15px; font-weight: bold; color: #ffd700; background: linear-gradient(135deg,#4a148c44,#1a237e44); border-bottom: 1px solid #333; }
+.sh-modal-actions { display: inline-flex; gap: 6px; align-items: center; margin-left: 10px; }
+.sh-detail-act { padding: 3px 10px; font-size: 11px; }
+.sh-detail-act.on { border-color: #ffd700; color: #ffd700; }
+.sh-modal-close { position: absolute; right: 12px; top: 8px; font-size: 24px; color: #aaa; background: none; border: 0; cursor: pointer; line-height: 1; }
+.sh-modal-close:hover { color: #fff; }
+.sh-modal-body { padding: 14px 18px; overflow-y: auto; flex: 1 1 auto; }
+.sh-pick-list { display: flex; flex-direction: column; gap: 8px; }
+.sh-pick-item { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 9px 12px; background: #16213e; border-radius: 8px; border-left: 3px solid #333; }
+.sh-pick-item.sh-r神话 { border-left-color: #ff5252; }
+.sh-pick-item.sh-r传说 { border-left-color: #ff9800; }
+.sh-pick-item.sh-r史诗 { border-left-color: #ab47bc; }
+.sh-pick-item.sh-r珍贵 { border-left-color: #42a5f5; }
+.sh-pick-item.sh-r罕见 { border-left-color: #66bb6a; }
+.sh-pick-item.sh-r普通 { border-left-color: #9e9e9e; }
+.sh-pick-left { font-size: 13px; color: #fff; }
+.sh-pick-left b { color: #ce93d8; }
+.sh-pick-main { font-size: 12px; color: #ffd700; margin-top: 2px; }
+/* 候选行右侧按钮组：详情 + 装备并排，不换行 */
+.sh-pick-btns { display: flex; gap: 6px; flex-shrink: 0; }
+.sh-pick-btns .sh-btn { padding: 6px 10px; font-size: 12px; }
+
+/* 详情弹窗内的「套装效果」块：1件 / 2件 各一行，已达成的高亮 */
+.sh-detail-setfx { margin-top: 10px; background: #0d1525; border-radius: 6px; padding: 8px 10px; }
+.sh-detail-setfx .sh-detail-label { margin-top: 0; }
+.sh-setfx-row { display: flex; align-items: flex-start; gap: 6px; font-size: 12px; color: #9e9e9e; padding: 3px 0; }
+/* 已达成的行：文字提亮 + 左侧金线，一眼看出哪档生效 */
+.sh-setfx-row.on { color: #e0e0e0; border-left: 2px solid #ffd700; padding-left: 6px; }
+.sh-setfx-piece { flex-shrink: 0; color: #ce93d8; font-weight: bold; }
+.sh-setfx-desc { flex: 1 1 auto; line-height: 1.5; }
+.sh-setfx-on { flex-shrink: 0; font-size: 10px; padding: 1px 6px; border-radius: 3px; background: #ffd700; color: #3a2a00; font-weight: bold; }
+.sh-setfx-hint { font-size: 11px; color: #78909c; margin-top: 6px; line-height: 1.5; }
+.sh-setfx-hint b { color: #cfd8dc; }
+
+/* ---- 详情 ---- */
+/* 详情弹窗卡片：外框颜色随稀有度发光，头部只留套装名 */
+.sh-detail-card { background: #16213e; border: 2px solid #333; border-radius: 10px; padding: 12px; }
+.sh-detail-card.sh-r神话 { border-color: #ff5252; box-shadow: 0 0 10px rgba(255,82,82,.4); }
+.sh-detail-card.sh-r传说 { border-color: #ff9800; box-shadow: 0 0 10px rgba(255,152,0,.35); }
+.sh-detail-card.sh-r史诗 { border-color: #ab47bc; }
+.sh-detail-card.sh-r珍贵 { border-color: #42a5f5; }
+.sh-detail-card.sh-r罕见 { border-color: #66bb6a; }
+.sh-detail-card.sh-r普通 { border-color: #9e9e9e; }
+.sh-detail-head { font-size: 15px; font-weight: bold; margin-bottom: 4px; }
+.sh-detail-set { color: #ce93d8; }
+.sh-detail-slot { font-size: 12px; color: #9e9e9e; margin-bottom: 8px; }
+.sh-detail-main { font-size: 13px; color: #fff; margin-bottom: 8px; }
+.sh-detail-label { font-size: 12px; color: #9e9e9e; margin: 10px 0 6px; }
+.sh-detail-sub { display: flex; justify-content: space-between; font-size: 13px; color: #cfd8dc; padding: 3px 0; border-bottom: 1px dashed #2a2a4a; }
+.sh-detail-sub .sh-val { color: #ffd700; }
+.sh-detail-meta { margin-top: 12px; font-size: 12px; color: #777; }
+
+/* ---- 提示 ---- */
+.sh-toast { position: fixed; top: 20px; left: 50%; transform: translateX(-50%); background: #1b3a2e; border: 1px solid #2e7d32; color: #69f0ae; padding: 10px 20px; border-radius: 8px; font-size: 13px; z-index: 800; opacity: 0; transition: opacity .3s; pointer-events: none; }
+.sh-toast.show { opacity: 1; }
+.sh-toast.warn { background: #3e2723; border-color: #e65100; color: #ffb74d; }
+.sh-toast.rare { background: #311b3b; border-color: #8e24aa; color: #ffd700; box-shadow: 0 0 18px rgba(142,36,170,.5); }
+
+#shenhun-btn:hover { transform: scale(1.05); box-shadow: 0 0 18px rgba(171,71,188,0.5); }
 #bp-mode-btn { position: absolute; right: 14px; top: 12px; z-index: 10; padding: 8px 16px; font-size: 14px; background: linear-gradient(135deg, #6a1b9a, #8e24aa); color: #fff; border: 1px solid #ab47bc; border-radius: 18px; cursor: pointer; transition: all .3s; -webkit-tap-highlight-color: transparent; }
 #bp-mode-btn:hover { transform: scale(1.05); box-shadow: 0 0 18px rgba(171,71,188,.55); }
 #bp-screen { position: relative; width: 100%; height: 100%; padding: 16px; background: var(--bg-veil-bp); overflow-y: auto; display: none; }
@@ -572,3 +765,82 @@ word-break: break-word; }
 .result-table td { font-size: 10px; padding: 6px 4px; }
 .result-side-title { font-size: 14px; }
 }
+
+/* ---- 神魂 UI（重写后）共用类 ---- */
+.sh-r神话 { border-color: #ff5252; }
+.sh-r传说 { border-color: #ff9800; }
+.sh-r史诗 { border-color: #ab47bc; }
+.sh-r珍贵 { border-color: #42a5f5; }
+.sh-r罕见 { border-color: #66bb6a; }
+.sh-r普通 { border-color: #9e9e9e; }
+.sh-detail-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+.sh-set-info { background: #16213e; border-radius: 8px; padding: 8px 12px; }
+.sh-set-line { font-size: 13px; color: #cfd8dc; line-height: 1.9; }
+.sh-modal-foot { display: flex; gap: 8px; justify-content: flex-end; padding: 10px 18px; border-top: 1px solid #222; flex-shrink: 0; }
+.sh-btn.sm { padding: 4px 10px; font-size: 12px; }
+.sh-btn.lg { padding: 10px 22px; font-size: 14px; flex: 1; }
+/* 抽卡 */
+.sh-gacha-header { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; margin-bottom: 14px; font-size: 13px; color: #cfd8dc; }
+.sh-gacha-stat b { color: #ffd700; }
+.sh-gacha-stat { background: #16213e; border: 1px solid #333; border-radius: 6px; padding: 4px 10px; }
+.sh-gacha-pity { color: #ffb74d; font-size: 12px; }
+.sh-gacha-btns { display: flex; gap: 10px; margin-bottom: 16px; }
+.sh-result-label { text-align: center; color: #ffd700; margin-bottom: 10px; font-size: 14px; }
+.sh-result-list { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
+.sh-result-card { border: 2px solid #333; border-radius: 10px; padding: 10px 14px; text-align: center; min-width: 90px; animation: sh-pop .35s ease both; }
+@keyframes sh-pop { from { opacity: 0; transform: scale(.7) translateY(12px); } to { opacity: 1; transform: scale(1) translateY(0); } }
+.sh-result-rarity { font-weight: bold; font-size: 13px; margin-bottom: 4px; }
+.sh-result-set, .sh-result-slot { font-size: 11px; color: #bbb; }
+.sh-result-main { font-size: 12px; color: #ffd700; margin-top: 4px; }
+/* 装备 */
+.sh-equip-board { display: flex; gap: 10px; margin-bottom: 16px; }
+.sh-slot-box.filled { border-style: solid; }
+.sh-slot-box .sl { font-weight: bold; }
+.sh-slot-box .smain { font-size: 10px; }
+.sh-slot-box button { margin-top: 6px; }
+.sh-set-preview { background: #16213e; border-radius: 8px; padding: 10px 14px; }
+.sh-set-eff { color: #69f0ae; font-size: 12px; margin-left: 8px; }
+/* 合成 / 重铸 */
+.sh-craft-tip { font-size: 13px; color: #bbb; margin-bottom: 10px; line-height: 1.7; }
+.sh-syn-pick { cursor: pointer; transition: filter .15s; }
+.sh-syn-pick:hover { filter: brightness(1.12); }
+.sh-syn-tap { margin-top: 10px; font-size: 11px; color: #9e9e9e; text-align: center; }
+/* 合成面板「查看详情」按钮 */
+/* 详情卡片内部的锁定 / 分解按钮组：与截图一致，紧贴卡片内底部 */
+.sh-detail-card .sh-detail-actions { display: flex; gap: 8px; margin-top: 14px; padding-top: 12px; border-top: 1px solid #2a2a4a; }
+.sh-detail-card .sh-detail-actions .sh-btn { flex: 1; padding: 6px 14px; font-size: 12px; }
+.sh-craft-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 8px; border: 1px solid #333; border-radius: 8px; margin-bottom: 6px; }
+.sh-craft-arrow { color: #ffd700; }
+.sh-craft-max { color: #777; font-size: 12px; }
+/* 选择列表 */
+.sh-picker-row { display: flex; align-items: center; gap: 10px; padding: 8px; border: 1px solid #333; border-radius: 8px; margin-bottom: 6px; }
+.sh-picker-info { flex: 1; }
+.sh-picker-set { font-size: 13px; font-weight: bold; }
+.sh-picker-main { font-size: 12px; color: #ffd700; }
+.sh-picker-subs { font-size: 11px; color: #aaa; }
+/* 导入导出 */
+.sh-io { margin-bottom: 18px; }
+.sh-io-title { font-size: 14px; font-weight: bold; color: #fff; margin-bottom: 8px; }
+.sh-io-btns { display: flex; gap: 8px; margin-bottom: 8px; flex-wrap: wrap; }
+.sh-io-mode { margin-bottom: 8px; }
+.sh-select { padding: 5px 8px; background: #1a1a3e; border: 1px solid #4fc3f7; border-radius: 5px; color: #fff; font-size: 12px; }
+.sh-io-ta { width: 100%; height: 120px; background: #0a0a1a; border: 1px solid #333; border-radius: 6px; color: #cfd8dc; font-size: 12px; padding: 8px; font-family: Consolas, monospace; resize: vertical; box-sizing: border-box; }
+
+/* ==================== 后台调试面板 ==================== */
+#dev-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.92); z-index: 600; display: none; justify-content: center; align-items: center; padding: 12px; }
+#dev-overlay.show { display: flex; }
+#dev-card { background: #12122e; border: 2px solid #f44336; border-radius: 14px; width: 100%; max-width: 480px; max-height: 88vh; display: flex; flex-direction: column; overflow: hidden; }
+#dev-header { display: flex; justify-content: space-between; align-items: center; padding: 13px 18px; border-bottom: 1px solid #333; background: linear-gradient(135deg, #4a1a1a44, #7a0a0a44); flex-shrink: 0; }
+#dev-title { font-size: 17px; font-weight: bold; color: #f44336; }
+#dev-close { font-size: 26px; color: #aaa; cursor: pointer; line-height: 1; padding: 0 4px; }
+#dev-close:hover { color: #fff; }
+#dev-body { padding: 16px 18px; overflow-y: auto; -webkit-overflow-scrolling: touch; font-size: 13px; line-height: 1.75; }
+.dev-section { margin-bottom: 20px; }
+.dev-section-title { color: #f44336; font-weight: bold; font-size: 14px; margin-bottom: 10px; border-left: 3px solid #f44336; padding-left: 8px; }
+.dev-row { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; }
+.dev-btn { padding: 8px 16px; font-size: 13px; background: #1a1a3e; color: #4fc3f7; border: 1px solid #4fc3f7; border-radius: 8px; cursor: pointer; transition: all .2s; }
+.dev-btn:hover { background: #4fc3f7; color: #000; }
+.dev-btn-danger { background: #4a1a1a; color: #f44336; border-color: #f44336; }
+.dev-btn-danger:hover { background: #f44336; color: #fff; }
+.dev-val { color: #ffd700; font-size: 13px; }
+#dev-save-info { color: #dcdcdc; }

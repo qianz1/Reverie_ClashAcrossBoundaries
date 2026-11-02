@@ -47,6 +47,36 @@
 <div id="changelog-body"></div>
 </div>
 </div>
+<!-- 后台调试面板 -->
+<div id="dev-overlay">
+<div id="dev-card">
+<div id="dev-header">
+<span id="dev-title">🔧 后台管理</span>
+<span id="dev-close">&times;</span>
+</div>
+<div id="dev-body">
+<div class="dev-section">
+<div class="dev-section-title">道具发放</div>
+<div class="dev-row">
+<button class="dev-btn" id="dev-add-ticket">+100 抽卡券</button>
+<span class="dev-val" id="dev-val-ticket">券: 0</span>
+</div>
+<div class="dev-row">
+<button class="dev-btn" id="dev-add-stone">+100 重铸石</button>
+<span class="dev-val" id="dev-val-stone">石: 0</span>
+</div>
+</div>
+<div class="dev-section">
+<div class="dev-section-title">缓存管理</div>
+<button class="dev-btn dev-btn-danger" id="dev-clear-cache">清理缓存</button>
+</div>
+<div class="dev-section">
+<div class="dev-section-title">存档状态</div>
+<div id="dev-save-info">存档项：0</div>
+</div>
+</div>
+</div>
+</div>
 <!-- 联机设置面板 -->
 <div id="net-overlay">
 <div id="net-card">
@@ -79,6 +109,7 @@
 <div id="selection-topbar">
 <div id="selection-mode-badge"></div>
 <button id="tutorial-btn" type="button">教程</button>
+<button id="shenhun-btn" type="button">神魂</button>
 </div>
 <div class="select-section" id="player-selection-section">
 <h2>🟢 我方阵容 (<span id="player-count">1</span>/6 - 主角已锁定)</h2>
@@ -93,6 +124,31 @@
 <div class="hero-grid" id="enemy-hero-grid"></div>
 </div>
 <button id="start-battle-btn" disabled>开始战斗！</button>
+</div>
+<!-- 神魂系统界面 -->
+<div id="shenhun-overlay">
+<div id="shenhun-card">
+<div id="shenhun-header">
+<span id="shenhun-title">神魂</span>
+<span class="sh-ticket">券 <b id="sh-ticket">0</b></span>
+<span class="sh-ticket sh-stone">石 <b id="sh-stone">0</b></span>
+<span id="shenhun-close">&times;</span>
+</div>
+<div id="shenhun-tabs">
+<button class="sh-tab active" data-tab="bag" type="button">仓库</button>
+<button class="sh-tab" data-tab="gacha" type="button">抽卡</button>
+<button class="sh-tab" data-tab="equip" type="button">装备</button>
+<button class="sh-tab" data-tab="craft" type="button">合成 / 重铸</button>
+<button class="sh-tab" data-tab="io" type="button">导入 / 导出</button>
+</div>
+<div id="shenhun-body">
+  <div class="sh-pane active" id="sh-pane-bag"></div>
+  <div class="sh-pane" id="sh-pane-gacha"></div>
+  <div class="sh-pane" id="sh-pane-equip"></div>
+  <div class="sh-pane" id="sh-pane-craft"></div>
+  <div class="sh-pane" id="sh-pane-io"></div>
+</div>
+</div>
 </div>
 <div id="tutorial-overlay">
 <div id="tutorial-card">
@@ -222,6 +278,11 @@
 <button id="btn-quit-net">退出</button>
 </div>
 </div>
+<!-- 加载顺序很重要：shenhun-ui.js 必须在 game.js 之前。
+     game.js 末尾会同步调用 initShenhunUI() 绑定神魂入口按钮，
+     若 ui 脚本在后，此时 initShenhunUI 尚未定义，入口按钮就会绑空、点不开。 -->
+<script src="shenhun.js"></script>
+<script src="shenhun-ui.js"></script>
 <script src="game.js"></script>
 </body>
 </html>
