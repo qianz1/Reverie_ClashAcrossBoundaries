@@ -71,7 +71,7 @@ const SETS = [
   { type: '无双', name: '无双', one: '暴击率+15%', two: '自身每损失1%最大生命值，提升0.5%暴击伤害', impl: true },
   { type: '怒源', name: '怒源', one: '防御+15%', two: '先机：自身与随机1名其他友方各获得2点怒气', impl: true },
   { type: '招财', name: '招财', one: '生命+15%', two: '回合开始时50%概率获得2点怒气', impl: true },
-  { type: '心魔', name: '心魔', one: '效果命中+15%', two: '造成伤害时20%基础概率附加混乱', impl: true }
+  { type: '心魔', name: '心魔', one: '效果命中+15%', two: '造成伤害时25%基础概率使目标附加混乱（持续1回合）', impl: true }
 ];
 const SET_BY_TYPE = SETS.reduce(function (o, s) { o[s.type] = s; return o; }, {});
 
@@ -521,7 +521,7 @@ function round2(v) { return Math.round(Number(v || 0) * 100) / 100; }
 /* ==================== 十三、战斗钩子 ==================== */
 /* 六个套装的 2 件套都在这里挂接口：
    · 无双  → calcWushuangCritDmgBonus：自身每损失 1% 最大生命值 → +0.5% 暴击伤害（动态读取）。
-   · 心魔  → maybeApplyXinmo：造成伤害时 20% 基础概率附加混乱（持续 1 回合）。
+   · 心魔  → maybeApplyXinmo：造成伤害时 25% 基础概率附加混乱（持续 1 回合）。
    · 百穿  → rollBaichuanDefFactor：攻击时 50% 概率无视目标 50% 防御（返回防御系数）。
    · 束缚  → SHUFU_* 常量 + calcShufuFinalDmgBonus：额外消耗 1 怒气换 +30% 最终伤害至回合结束。
       怒气扣除与「是否施放技能」由战斗层判定，本层只提供常量与加成读取。
@@ -580,8 +580,11 @@ function calcWushuangCritDmgBonus(unit) {
   return lostPct * 0.5;                       // 每损失 1% 最大生命 → +0.5% 暴伤（50% 损失 = +25%）
 }
 
-/* 心魔 2 件套的基础概率（描述口径：20%基础概率）。 */
-const XINMO_BASE_CHANCE = 0.20;
+/* 心魔 2 件套：基础概率 25%（走「基础概率」口径，受效果命中/抵抗影响）。
+   混乱持续时间显式定为 1 回合，与套装描述「（持续1回合）」同源，
+   由本层通过 onApply 的第二参数传给战斗层，避免各处写死字面量。 */
+const XINMO_BASE_CHANCE = 0.25;
+const XINMO_HUNLUAN_DURATION = 1;
 /* 心魔：伤害结算后尝试附加混乱。attacker 须含 shenhunSets。
    onApply 为外部注入的施加函数（本层不依赖 DOM，也不假设 tryApplyControl 存在）。
    chanceFn 为外部注入的概率换算函数：接收基础概率，返回实际生效概率。
@@ -595,7 +598,7 @@ function maybeApplyXinmo(attacker, target, onApply, chanceFn) {
     ? clamp01(Number(chanceFn(XINMO_BASE_CHANCE)) || 0)
     : XINMO_BASE_CHANCE;
   if (Math.random() >= chance) return false;
-  if (typeof onApply === 'function') onApply(target, 1);
+  if (typeof onApply === 'function') onApply(target, XINMO_HUNLUAN_DURATION);
   return true;
 }
 
@@ -764,7 +767,7 @@ root.SHENHUN = {
   /* 装备 */
   equipSoul: equipSoul, unequipSoul: unequipSoul,
   getEquip: getEquip, getEquippedSouls: getEquippedSouls, getSlotSoul: getSlotSoul, normSlot: normSlot,
-  getSoulBonus: getSoulBonus, XINMO_BASE_CHANCE: XINMO_BASE_CHANCE, findEquipOwner: findEquipOwner,
+  getSoulBonus: getSoulBonus, XINMO_BASE_CHANCE: XINMO_BASE_CHANCE, XINMO_HUNLUAN_DURATION: XINMO_HUNLUAN_DURATION, findEquipOwner: findEquipOwner,
   isEquipped: isEquipped, getSoul: getSoul,
   /* 套装 */
   countSets: countSets, hasTwoPiece: hasTwoPiece, onePieceStacks: onePieceStacks,

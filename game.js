@@ -86,7 +86,7 @@ descSkill: "对敌方目标造成 <span class='dmg'>340%</span> 伤害，并使�
 mechanics: [
 { type:'mark', name:'风行', desc:'增益印记：提升自身速度25点，最多叠加5层。' },
 { type:'mark', name:'狂风', desc:'增益印记：提升自身攻击150点、防御100点，最多叠加3层。' },
-{ type:'state', name:'眩晕', desc:'减益状态：控制效果，目标无法行动，持续1回合。不可叠加。' } ] },
+{ type:'state', name:'眩晕', desc:'减益状态：控制效果，目标无法行动。不可叠加。' } ] },
 "白藏主": { atk:450, def:600, hp:7000, spd:300, effectHit:0, effectResist:0, critRate:0.05, critDmg:1.5, color:'#26c6da', tag:'防御',   // 浅蓝（与鬼金羊同色）
 normal: { name:"炎影", type:"single", dmgRate:1.0, target:"enemy", effect:"rageDown" },
 skill: { name:"梦山狐影", cost:4, type:"buff", target:"ally", selfEffect:"foxGuard" },
@@ -110,11 +110,11 @@ normal: { name:"胖揍", type:"single", dmgRate:1.0, target:"enemy", effect:"stu
 skill: { name:"兄弟之绊", cost:4, type:"buff", target:"ally", selfEffect:"bond" },
 passive: { name:"人多势众", turnEnd:'renDuoShiZhong',
 desc:"回合结束后，有 <span class='buff'>30%</span> 概率使自身<span class='buff'>+100%行动条</span>。" },
-descNormal: "对敌方目标造成 <span class='dmg'>100%</span> 伤害，<span class='buff'>30%基础概率</span> 附加<span class='m-state'>眩晕</span>。",
+descNormal: "对敌方目标造成 <span class='dmg'>100%</span> 伤害，<span class='buff'>30%基础概率</span> 附加<span class='m-state'>眩晕</span>（持续1回合）。",
 descSkill: "全体行动条+<span class='buff'>30%</span>，同时全体获得 <span class='m-state'>牵绊</span>（持续2回合）。",
 mechanics: [
 { type:'state', name:'牵绊', desc:'增益状态：+25%攻击、+10%防御、+10%暴击率，持续2回合。不可叠加。' },
-{ type:'state', name:'眩晕', desc:'减益状态：控制效果，目标无法行动，持续1回合。不可叠加。' } ] },
+{ type:'state', name:'眩晕', desc:'减益状态：控制效果，目标无法行动。不可叠加。' } ] },
 "鬼王酒吞童子": { atk:620, def:300, hp:5800, spd:209, effectHit:0, effectResist:0, critRate:0.08, critDmg:1.5, color:'#ffd700', tag:'均衡',
 normal: { name:"焚天", type:"single", dmgRate:1.2, target:"enemy" },
 skill: { name:"天火怒焱", cost:4, type:"aoe", dmgRate:0, target:"enemy", effect:"dispelAndPush", selfEffect:"guiWangZiTai", requireNoMark:"鬼王姿态" },
@@ -136,9 +136,11 @@ mechanics: [] },
 "纲手": { atk:700, def:600, hp:5000, spd:142, effectHit:0, effectResist:0, critRate:0.2, critDmg:1.8, color:'#f48fb1', tag:'辅助',
 normal: { name:"怪力", type:"single", dmgRate:1.5, target:"enemy", effect:"guaiLi" },
 skill: { name:"百豪之术", cost:4, type:"buff", target:"ally", selfEffect:"hundredHeal" },
-descNormal: "对敌方单个目标造成 <span class='dmg'>150%</span> 伤害，<span class='buff'>30%基础概率</span>使目标附加 <span class='m-state'>眩晕</span>，并使当前生命值最低的友方<span class='buff'>+15%</span>行动条。",
+descNormal: "对敌方单个目标造成 <span class='dmg'>150%</span> 伤害，<span class='buff'>30%基础概率</span>使目标附加 <span class='m-state'>眩晕</span>（持续1回合），并使当前生命值最低的友方<span class='buff'>+15%</span>行动条。",
 descSkill: "<span class='heal'>治疗所有友方200%生命</span>，使所有友方获得 <span class='m-state'>百豪</span>（持续3回合），全体友方<span class='buff'>+20%行动条</span>。",
-mechanics: [{ type:'state', name:'百豪', desc:'增益状态：提升10%攻击、20%治疗加成，持续3回合。不可叠加。' }] },
+mechanics: [
+{ type:'state', name:'百豪', desc:'增益状态：提升10%攻击、20%治疗加成，持续3回合。不可叠加。' },
+{ type:'state', name:'眩晕', desc:'减益状态：控制效果，目标无法行动。不可叠加。' } ] },
 "裂空座": { atk:1050, def:240, hp:4100, spd:154, effectHit:0, effectResist:0, critRate:0.24, critDmg:1.8, color:'#00c853', tag:'攻击',
 normal: { name:"龙爪", type:"single", dmgRate:1.2, target:"enemy", selfEffect:"dragonDance" },
 skill: { name:"画龙点睛", cost:4, type:"aoe", dmgRate:2.6, target:"enemy", selfEffect:"defDownPerm" },
@@ -168,7 +170,7 @@ descNormal: "对敌方目标造成 <span class='dmg'>100%</span> 伤害，若造
 descSkill: "对敌方目标造成 <span class='dmg'>140%</span> 伤害，并附加<span class='m-state'>眩晕</span>（持续1回合），若造成击杀则获得 <span class='m-mark'>1层超凡邪力</span>。",
 descSkill2: "对敌方目标造成 <span class='dmg'>300%</span> 伤害，若造成击杀则获得 <span class='m-mark'>1层超凡邪力</span>，且回合结束后自身 <span class='buff'>+60%行动条</span>，获得 <span class='buff'>4点怒气</span>，<span class='restore'>恢复</span>自身最大生命值 <span class='heal'>30%</span> 的生命值。",
 mechanics: [{ type:'mark', name:'超凡邪力', desc:'增益印记：永久提升攻击20%、暴击率10%、暴击伤害20%、最终伤害率10%，最多叠加5层。' },
-{ type:'state', name:'眩晕', desc:'减益状态：控制效果，目标无法行动，持续1回合。不可叠加。' }] },
+{ type:'state', name:'眩晕', desc:'减益状态：控制效果，目标无法行动。不可叠加。' }] },
 "心友犬神": { atk:900, def:270, hp:3600, spd:154, effectHit:0, effectResist:0, critRate:0.12, critDmg:1.6, color:'#26c6da', tag:'均衡',   // 浅蓝（与鬼金羊同色）
 normal: { name:"天心斩", type:"single", dmgRate:1.2, target:"enemy", effect:"queZhiYin" },
 skill: { name:"浪客归刃", cost:4, type:"buff", target:"ally", selfEffect:"langKeGuiRen" },
@@ -5016,14 +5018,17 @@ victims.push({ unit: u, killer: killer || attacker });
 upsertVictim(finalTarget, attacker, false);
 upsertVictim(target, kamuiKiller, !lethalByMain);
 for (const v of victims) await resolveLethal(v.unit, v.killer);
-/* 心魔 2 件套：攻击方穿戴「心魔」2 件时，造成伤害后 20% 基础概率给目标附加混乱（持续 1 回合）。
+/* 心魔 2 件套：攻击方穿戴「心魔」2 件时，造成伤害后 25% 基础概率给目标附加混乱（持续 1 回合）。
    走战斗内钩子而非基础层：概率触发是运行时效果。
    时机：死亡判定【之后】、目标仍存活且有实际掉血时 —— 击杀不产生控制收益。
-   概率走「基础概率」口径：实际 = 20% × (1 + 攻击方效果命中 − 目标效果抵抗)，
-   与教程、五条悟「无量空处」的结算方式一致（心魔 1 件套给的 +15% 效果命中因此才有用）。 */
+   概率走「基础概率」口径：实际 = 25% × (1 + 攻击方效果命中 − 目标效果抵抗)，
+   与教程、五条悟「无量空处」的结算方式一致（心魔 1 件套给的 +15% 效果命中因此才有用）。
+   持续时间由逻辑层 SHENHUN.XINMO_HUNLUAN_DURATION 通过 onApply 第二参数传入，
+   不复用五条悟的 GOJO_HUNLUAN_DURATION —— 两者数值虽同为 1，但归属不同，避免以后互相牵连。 */
 if (attacker && attacker.alive && finalTarget.alive && hpLossAcc > 0 && typeof SHENHUN !== 'undefined' && SHENHUN.maybeApplyXinmo) {
 SHENHUN.maybeApplyXinmo(attacker, finalTarget, function (tgt, dur) {
-tryApplyControl(tgt, '混乱', dur || GOJO_HUNLUAN_DURATION, 'xinmo');
+const xinmoDur = (typeof SHENHUN !== 'undefined' && SHENHUN.XINMO_HUNLUAN_DURATION) || 1;
+tryApplyControl(tgt, '混乱', dur || xinmoDur, 'xinmo');
 }, function (baseChance) {
 return calculateControlChance(attacker, finalTarget, baseChance);
 });
@@ -6559,7 +6564,7 @@ html: `<h3>神魂系统</h3>
 <span class="note">例如 3 件无双 = 暴击率 +30%（两次 1 件套）＋ 一组 2 件套的暴伤效果。</span></div>
 <div class="buff-cards">
 <div class="buff-card bc-shenhun" data-s="无双"><div class="bn">无双</div><div class="bd">1件 暴击率+15%　·　2件 每损失1%生命 +0.5%暴伤</div></div>
-<div class="buff-card bc-shenhun" data-s="心魔"><div class="bn">心魔</div><div class="bd">1件 效果命中+15%　·　2件 伤害后20%基础概率混乱</div></div>
+<div class="buff-card bc-shenhun" data-s="心魔"><div class="bn">心魔</div><div class="bd">1件 效果命中+15%　·　2件 造成伤害时25%基础概率附加混乱（持续1回合）</div></div>
 <div class="buff-card bc-shenhun" data-s="百穿"><div class="bn">百穿</div><div class="bd">1件 攻击+15%　·　2件 攻击时50%概率无视50%防御</div></div>
 <div class="buff-card bc-shenhun" data-s="束缚"><div class="bn">束缚</div><div class="bd">1件 攻击+15%　·　2件 额外耗1怒气，本回合最终伤害+30%</div></div>
 <div class="buff-card bc-shenhun" data-s="怒源"><div class="bn">怒源</div><div class="bd">1件 防御+15%　·　2件 先机：自身与随机1友方各+2怒气</div></div>
@@ -6635,7 +6640,7 @@ else if (key === 'shenhun') {
    避免教程与实装脱节；逻辑层未加载时退化为内置静态说明。 */
 const detail = {
 '无双': '· 2 件套走「有效属性」层：暴伤随当前血量实时变化，不是开局算一次\n· 半血时约 +25% 暴伤，残血收益最高',
-'心魔': '· 走「基础概率」口径：实际 = 20% × (1 + 效果命中 − 目标效果抵抗)\n· 因此 1 件套给的 +15% 效果命中会直接提高 2 件套的触发率\n· 击杀、未造成掉血时不触发；走统一控制入口，免疫控制与虚化可挡',
+'心魔': '· 走「基础概率」口径：实际 = 25% × (1 + 效果命中 − 目标效果抵抗)\n· 因此 1 件套（3 件套则为 2 次）给的 +15% 效果命中会直接提高 2 件套的触发率\n· 混乱持续 1 回合，与套装描述一致\n· 击杀、未造成掉血时不触发；走统一控制入口，免疫控制与虚化可挡',
 '百穿': '· 只影响【直接伤害】的免伤率，真实伤害本就无视防御，不受影响\n· 逐段独立判定：多段技能每一段各自 roll 一次\n· 50% 为「直接概率」，不受效果命中 / 效果抵抗影响',
 '束缚': '· 「怒气足够」= 付完技能 cost 后还剩 ≥1 点\n· 判定在技能结算之前，因此本次技能本身立刻吃到 30%\n· 仅主动技能触发：普攻不算「施放技能」，额外技能多为他人回合触发，同样不算\n· 加成至回合结束清除',
 '怒源': '· 在角色先机全部结算之后才执行，不会被角色先机给的怒气顶掉上限\n· 只给存活友方，不给敌方；怒气已满时自动截断',
