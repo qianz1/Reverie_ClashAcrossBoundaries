@@ -68,7 +68,7 @@ normal: { name:"斩击", type:"single", dmgRate:1.0, target:"enemy" },
 skill: { name:"剑爆", cost:4, type:"aoe", dmgRate:1.4, target:"enemy", selfEffect:"rageAll1" },
 descNormal: "对敌方目标造成 <span class='dmg'>100%</span> 伤害。", descSkill: "对敌方全体造成 <span class='dmg'>140%</span> 伤害，恢复我方全体 <span class='buff'>1点怒气</span>。",
 mechanics: [] },
-"捷克罗姆": { atk:1100, def:350, hp:6500, spd:156, effectHit:0, effectResist:0, critRate:0.24, critDmg:1.8, color:'#1565c0', tag:'攻击',   // 深蓝
+"捷克罗姆": { atk:1100, def:350, hp:6300, spd:156, effectHit:0, effectResist:0, critRate:0.24, critDmg:1.8, color:'#1565c0', tag:'攻击',   // 深蓝
 normal: { name:"电击", type:"single", dmgRate:0.9, trueRate:0.3, target:"enemy" },
 skill: { name:"交错闪电", cost:4, type:"single_then_aoe", dmgRate:1.8, trueRate:0.9, aoeDmgRate:1.0, aoeTrueRate:0.5, target:"enemy", selfEffect:"thunderPress" },
 descNormal: "对敌方目标造成 <span class='dmg'>90%</span> 伤害和 <span class='true-dmg'>30%真实伤害</span>。",
@@ -87,7 +87,7 @@ mechanics: [
 { type:'mark', name:'风行', desc:'增益印记：提升自身速度25点，最多叠加5层。' },
 { type:'mark', name:'狂风', desc:'增益印记：提升自身攻击150点、防御100点，最多叠加3层。' },
 { type:'state', name:'眩晕', desc:'减益状态：控制效果，目标无法行动。不可叠加。' } ] },
-"白藏主": { atk:550, def:320, hp:6300, spd:300, effectHit:0, effectResist:0, critRate:0.05, critDmg:1.5, color:'#26c6da', tag:'防御',   // 浅蓝（与鬼金羊同色）
+"白藏主": { atk:550, def:320, hp:6400, spd:300, effectHit:0, effectResist:0, critRate:0.05, critDmg:1.5, color:'#26c6da', tag:'防御',   // 浅蓝（与鬼金羊同色）
 normal: { name:"炎影", type:"single", dmgRate:1.0, target:"enemy", effect:"rageDown" },
 skill: { name:"梦山狐影", cost:4, type:"buff", target:"ally", selfEffect:"foxGuard" },
 descNormal: "对敌方目标造成 <span class='dmg'>100%</span> 伤害，有 <span class='buff'>50%概率</span> 使目标减 <span class='buff'>1点怒气</span>。",
@@ -232,7 +232,7 @@ mechanics: [
 { type:'mark', name:'万法', desc:'增益印记：提升10%速度，不可叠加。' },
 { type:'note', name:'翻转', desc:'当前生命值与已损失生命值互换。' },
 { type:'note', name:'护盾', desc:'优先于生命值承受伤害。' } ] },
-"两面宿傩": { atk:1020, def:310, hp:6400, spd:180, effectHit:0, effectResist:0, critRate:0.15, critDmg:1.7, color:'#d50000', tag:'攻击',
+"两面宿傩": { atk:1020, def:310, hp:6200, spd:180, effectHit:0, effectResist:0, critRate:0.15, critDmg:1.7, color:'#d50000', tag:'攻击',
 normal: { name:"解·捌", type:"single", dmgRate:1.0, target:"enemy", sukunaForm:"jie" },
 skill: { name:"灶", cost:2, type:"single", dmgRate:1.34, trueRate:0.67, fixedMaxHpRate: 0.1, target:"enemy" },
 skill2: { name:"伏魔神龛", cost:4, type:"aoe", trueRate:1.0, fixedMaxHpRate: 0.1, target:"enemy", selfEffect:"fuMo", canExecute:true },   // 0.1 = SUKUNA_FIXED_MAXHP_RATE
@@ -245,7 +245,7 @@ mechanics: [
 { type:'mark', name:'伏魔', desc:'增益印记：强化两面宿傩的普攻，不可叠加。' },
 { type:'note', name:'斩杀', desc:'达成斩杀条件时，目标立即死亡。' },
 { type:'note', name:'固定伤害', desc:'造成固定数值的伤害，不受任何影响，无视护盾。' } ] },
-"五条悟": { atk:1010, def:300, hp:6300, spd:181, effectHit:0, effectResist:0, critRate:0.15, critDmg:1.7, color:'#40c4ff', tag:'攻击',
+"五条悟": { atk:1010, def:300, hp:5750, spd:181, effectHit:0, effectResist:0, critRate:0.10, critDmg:1.5, color:'#40c4ff', tag:'攻击',
 normal: { name:"苍", type:"single", dmgRate:1.2, target:"enemy" },
 skill: { name:"无量空处", cost:4, type:"aoe", trueRate:0.8, fixedMaxHpRate:0.08, target:"enemy", effect:"hunLuan" },
 /* 技能2「茈」：纯直接伤害的群体技。
@@ -4678,6 +4678,8 @@ const results = [];
 // 公式③：免伤率 = 防御 ÷ (防御 + 目标攻击)；防御与攻击均已套用印记/状态修正
 const dodgeRate = (def + atk) > 0 ? def / (def + atk) : 0;
 const actualDodge = clamp01(dodgeRate);
+/* 暴击率不做上限钳制：面板 + 神魂 + 雷压 / 超凡邪力等叠加后允许超过 100%，
+   留待后续「暴击抵抗」等减益在有效属性层抵消（溢出部分应能被抵抗吃回去）。 */
 const isCrit = Math.random() < critRate;
 const critMultiplier = isCrit ? critDmg : 1.0;
 // 公式①/②【直接伤害】：攻击 × 技能伤害率 × (1-免伤率) × 最终伤害率 × (1-最终免伤率) [× 暴击伤害率]
