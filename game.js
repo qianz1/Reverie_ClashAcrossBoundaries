@@ -1773,6 +1773,7 @@ const CHANGELOG = [
 '新增：云存档 —— 登录账号后可手动上传 / 下载神魂进度，换设备不用再来回传文件；不登录仍可离线游玩。',
 '移除：本地「导入 / 导出」页，跨设备同步统一由云存档承担。',
 '调整：平衡性优化 —— 全角色基础面板与部分技能数值统一调整，神魂套装效果与状态说明一并优化。',
+'优化：优化神魂系统的ui和交互逻辑，提升体验',
 ] },
 { ver:'v1.5.0', theme:'咒术·最强之战Ⅱ·神魂', items:[
 /* ---- 神魂系统（本版主题）---- */
@@ -2821,7 +2822,17 @@ critRate: d.critRate || 0, critDmg: d.critDmg || 0,
 effectHit: d.effectHit || 0, effectResist: d.effectResist || 0, maxHp: d.hp
 });
 }
-function showHeroDetail(name) {
+/* 角色详情：基础信息 / 神魂 两个标签。
+   ★ 每次从选人卡片点开都默认停在「基础信息」；在神魂页里装备 / 卸下后
+     只重绘详情（保留当前标签），基础信息里的金色加成也会跟着刷新。 */
+let heroDetailState = { name: null, tab: 'base' };
+function showHeroDetail(name, keepTab) {
+  if (!keepTab || heroDetailState.name !== name) heroDetailState = { name: name, tab: 'base' };
+  renderHeroDetail();
+}
+function renderHeroDetail() {
+const name = heroDetailState.name;
+if (!name || !HERO_DATA[name]) return;
 const d = HERO_DATA[name]; const overlay = document.getElementById('hero-detail-overlay');
 const tagClass = d.tag==='攻击'?'tag-atk':d.tag==='防御'?'tag-def':d.tag==='辅助'?'tag-sup':'tag-spd';
 /* 神魂加成：装了的项在数值后追加金色 +xxx；一项没装则全为 0，视觉上与原来一致。 */
@@ -2837,7 +2848,7 @@ if (d.note) {
 noteHtml = `<div class="detail-section"><h3>机制说明</h3>` +
 `<div class="mechanic-item"><span class="m-name m-note">独立机制</span>：${d.note}</div></div>`;
 }
-document.getElementById('hero-detail-content').innerHTML = `
+const baseHtml = `
 <div class="detail-header">
 <div class="detail-avatar" style="background:linear-gradient(135deg,${d.color}99,${d.color}44);border-color:${d.color}88;">${heroAvatarInner(name)}</div>
 <div><div class="detail-name">${name}</div><span class="detail-tag ${tagClass}">${d.tag}</span></div>
@@ -2866,6 +2877,30 @@ ${d.skill2 ? skillBlockHtml(d.skill2, d.descSkill2, d.skill2.castDesc, '技能2'
 ${d.extraSkills ? Object.values(d.extraSkills).map((sk, i) => skillBlockHtml(sk, Object.values(d.extraSkills).length === 1 ? (d.descExtra || '') : '', null, '')).join('') : ''}
 ${mechanicsHtml}
 ${noteHtml}`;
+const content = document.getElementById('hero-detail-content');
+const tab = heroDetailState.tab === 'soul' ? 'soul' : 'base';
+content.innerHTML = `
+<div class="hero-detail-tabs">
+<button type="button" class="hero-detail-tab ${tab === 'base' ? 'active' : ''}" data-tab="base">基础信息</button>
+<button type="button" class="hero-detail-tab ${tab === 'soul' ? 'active' : ''}" data-tab="soul">神魂</button>
+</div>
+<div class="hero-detail-pane ${tab === 'base' ? 'active' : ''}" id="hero-detail-pane-base">${baseHtml}</div>
+<div class="hero-detail-pane ${tab === 'soul' ? 'active' : ''}" id="hero-detail-pane-soul"></div>`;
+content.querySelectorAll('.hero-detail-tab').forEach(btn => {
+  btn.onclick = () => {
+    heroDetailState.tab = btn.getAttribute('data-tab') === 'soul' ? 'soul' : 'base';
+    renderHeroDetail();
+  };
+});
+if (tab === 'soul') {
+  const soulPane = content.querySelector('#hero-detail-pane-soul');
+  if (window.SHENHUN_UI && typeof window.SHENHUN_UI.renderHeroSoulConfig === 'function') {
+    /* 装备 / 卸下 / 详情操作后重绘本页，基础信息标签的金色加成同步刷新 */
+    window.SHENHUN_UI.renderHeroSoulConfig(name, soulPane, function () { renderHeroDetail(); });
+  } else {
+    soulPane.innerHTML = '<div class="detail-section">神魂模块未加载</div>';
+  }
+}
 overlay.classList.add('show');
 }
 function renderHeroGrid(side) {

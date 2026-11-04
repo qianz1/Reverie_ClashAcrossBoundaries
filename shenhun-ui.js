@@ -109,17 +109,29 @@
   }
 
   function rarityHex(r) { return RARITY_HEX[r] || '#bdbdbd'; }
+  /* 角色 key → 显示名（HERO_DATA 是 game.js 的顶层 const，运行时可见）。
+     拿不到时退回 key，避免历史存档 / 旧数据里出现陌生角色名时报错。 */
+  function heroDisplayName(key) {
+    try {
+      if (typeof HERO_DATA !== 'undefined' && HERO_DATA[key] && HERO_DATA[key].name) return HERO_DATA[key].name;
+    } catch (e) {}
+    return key;
+  }
 
-  /* 神魂卡片（正方形）：只显示「套装名 + 号位」，稀有度由外框发光颜色表达。
+  /* 神魂卡片（正方形）：套装名 + 号位；若已装备，在号位下方直接显示装备者名字。
+     稀有度仍由外框发光表达，但【已装备】优先用金色背景盖过稀有度配色。
      withActions 参数已废弃 —— 操作按钮统一移到详情弹窗右上角。 */
   function buildSoulCard(soul, withActions) {
+    var owner = SH.findEquipOwner ? SH.findEquipOwner(soul.id) : null;
     var card = el('div', 'sh-soul-card sh-r' + soul.rarity);
-    if (SH.isEquipped(soul.id)) card.classList.add('equipped');
+    if (owner || SH.isEquipped(soul.id)) card.classList.add('equipped');
     if (soul.locked) card.classList.add('locked');
 
     var inner = el('div', 'sh-card-inner');
     inner.appendChild(el('div', 'sh-set', soul.setType));
     inner.appendChild(el('div', 'sh-slot', soul.slot + '号位'));
+    /* 直接写装备者名字，不加「装备：」前缀 —— 正方形卡片空间有限 */
+    if (owner) inner.appendChild(el('div', 'sh-card-owner', heroDisplayName(owner.role)));
     card.appendChild(inner);
 
     /* 点击整张卡片 = 打开详情（与主入口保持一致） */
@@ -459,6 +471,7 @@
       var row = el('div', 'sh-equip-row');
       row.appendChild(el('span', 'sh-equip-name', slot + '号位'));
       var box = el('div', 'sh-slot-box');
+      var off = null, detail = null;
       /* 按「号位」取神魂：不能用 cur[slot] 直接下标数组（'1' 落在 0/1/2 的数组上是取不到的） */
       var soul = SH.getSlotSoul ? SH.getSlotSoul(equipState.hero, slot)
                                 : (SH.getSoul ? SH.getSoul((SH.getEquip(equipState.hero) || [])[Number(slot) - 1]) : null);
@@ -466,22 +479,34 @@
         box.classList.add('filled', 'sh-r' + soul.rarity);
         box.innerHTML = '<span class="sl" style="color:' + rarityHex(soul.rarity) + '">' + soul.setType + '</span>' +
           '<span class="smain">' + attrLabel(soul.main.key) + ' +' + h(soul.main.key, soul.main) + '</span>';
-        var off = el('button', 'sh-btn sh-slot-off', '卸下');
+        /* 装备页直接看该神魂详情。详情是上层弹窗，关闭后回到装备页并刷新，
+           这样在详情里做的锁定 / 分解等操作也会同步反映。 */
+        detail = el('button', 'sh-btn', '详情');
+        detail.onclick = function (ev) {
+          ev.stopPropagation();
+          showSoulDetail(soul, function () { refreshEquipViews(); });
+        };
+        off = el('button', 'sh-btn sh-slot-off', '卸下');
         off.onclick = function (ev) {
           ev.stopPropagation();
           SH.unequipSoul(equipState.hero, slot);
           toast('已卸下');
-          buildEquip();
+          refreshEquipViews();
         };
       } else {
         box.appendChild(el('span', 'sl', '+ 装备'));
       }
       box.onclick = function () { openEquipPicker(equipState.hero, slot); };
-      /* 顺序：槽位框在前，「卸下」在后。
+      /* 顺序：槽位框在前，按钮组在后。
          原来是先 append 卸下按钮、再 insertBefore 把框插到它前面，
          没装神魂时 lastChild 是「1号位」标签，框会被插到标签前面去。 */
       row.appendChild(box);
-      if (off) row.appendChild(off);
+      if (detail || off) {
+        var btns = el('div', 'sh-equip-btns');
+        if (detail) btns.appendChild(detail);
+        if (off) btns.appendChild(off);
+        row.appendChild(btns);
+      }
       pane.appendChild(row);
     });
 
@@ -523,7 +548,17 @@
      与合成（synState）、重铸（recastState）各自独立，互不污染。 */
   var pickState = { rarity: '全部', set: '全部' };
 
-  function openEquipPicker(hero, slot) {
+  /* 装备 / 卸下后刷新所有相关视图：装备页、仓库卡片（金色装备态）、资源条。
+     角色详情页传入 onChanged 时，由它再重绘自己的神魂标签页。 */
+  function refreshEquipViews(onChanged) {
+    buildEquip();
+    renderBag();
+    refreshHeader();
+    if (typeof onChanged === 'function') onChanged();
+  }
+
+  function openEquipPicker(hero, slot, onChanged) {
+    var changed = typeof onChanged === 'function' ? onChanged : null;
     /* 用函数取列表：装备/卸下之后仓库会变，刷新时重新取快照。
        选择器本身已限定号位，所以筛选维度只用「稀有度 + 套装」。 */
     var getList = function () {
@@ -544,8 +579,9 @@
           state: pickState,
           body: body,
           emptyText: '当前筛选条件下没有符合条件的神魂，可调回「全部」。',
-          /* 详情是二级弹窗，关闭后重建选择器形成「返回」，筛选条件仍在 */
-          onDetail: function () { openEquipPicker(hero, slot); },
+          /* 详情是二级弹窗，关闭后重建选择器形成「返回」，筛选条件仍在。
+             从角色详情进入时把 onChanged 一路带回去，装备成功后仍能重绘详情页。 */
+          onDetail: function () { openEquipPicker(hero, slot, changed); },
           refresh: function () { refresh(); },
           buttons: function (soul) {
             return [{ text: '装备', cls: 'sh-btn primary', onClick: function (s) {
@@ -553,13 +589,94 @@
               if (r && !r.ok) { toast(r.reason || '装备失败', 'warn'); return; }
               toast('已装备');
               closeModal();
-              buildEquip();
+              refreshEquipViews(changed);
             } }];
           }
         });
       };
       refresh();
     }, { large: true });
+  }
+
+  /* ==================== 角色详情 · 神魂标签页 ====================
+     由 game.js 的 showHeroDetail 调用：显示 3 个号位已装备的神魂 + 套装预览，
+     并在这里直接「装备 / 更换 / 卸下」。装备/卸下后通过 onChanged 让详情页重绘，
+     基础信息标签里的金色神魂加成也会跟着刷新。 */
+  function renderHeroSoulConfig(hero, container, onChange) {
+    if (!container) return;
+    container.innerHTML = '';
+    var changed = typeof onChange === 'function' ? onChange : function () {};
+    var souls = SH.getEquippedSouls ? SH.getEquippedSouls(hero) : [];
+    var count = souls.filter(Boolean).length;
+
+    container.appendChild(el('div', 'hero-soul-title', heroDisplayName(hero) + ' · 神魂配置'));
+    container.appendChild(el('div', 'hero-soul-tip',
+      '已装备的神魂不会出现在合成 / 重铸列表中；卸下后即可使用。'));
+    container.appendChild(el('div', 'hero-soul-summary', '已装备 ' + count + ' / 3 件'));
+
+    ['1', '2', '3'].forEach(function (slot) {
+      var soul = SH.getSlotSoul ? SH.getSlotSoul(hero, slot) : null;
+      var row = el('div', 'hero-soul-row');
+      row.appendChild(el('div', 'hero-soul-slot', slot + '号位'));
+
+      var info = el('div', 'hero-soul-info' + (soul ? ' filled sh-r' + soul.rarity : ''));
+      if (soul) {
+        var subs = (soul.subs || []).map(function (s) {
+          return attrLabel(s.key) + ' +' + h(s.key, s);
+        }).join(' · ');
+        info.innerHTML = '<div class="hero-soul-line"><b>' + soul.setType + '</b> · <span style="color:' + rarityHex(soul.rarity) + '">' + soul.rarity + '</span></div>' +
+          '<div class="hero-soul-main">主属性：' + attrLabel(soul.main.key) + ' +' + h(soul.main.key, soul.main) + '</div>' +
+          '<div class="hero-soul-subs">' + subs + '</div>';
+      } else {
+        info.innerHTML = '<div class="hero-soul-empty">未装备神魂</div>';
+      }
+      row.appendChild(info);
+
+      var btns = el('div', 'hero-soul-btns');
+      var equipBtn = el('button', 'sh-btn primary', soul ? '更换' : '装备');
+      equipBtn.onclick = function () { openEquipPicker(hero, slot, changed); };
+      btns.appendChild(equipBtn);
+      if (soul) {
+        var detailBtn = el('button', 'sh-btn', '详情');
+        /* 关闭详情后重绘本页：锁定 / 分解等操作也要同步反映 */
+        detailBtn.onclick = function () { showSoulDetail(soul, changed); };
+        btns.appendChild(detailBtn);
+        var offBtn = el('button', 'sh-btn danger', '卸下');
+        offBtn.onclick = function () {
+          SH.unequipSoul(hero, slot);
+          toast('已卸下');
+          refreshEquipViews(changed);
+        };
+        btns.appendChild(offBtn);
+      }
+      row.appendChild(btns);
+      container.appendChild(row);
+    });
+
+    var prev = el('div', 'sh-preview');
+    prev.appendChild(el('div', 'sh-preview-title', '套装加成预览'));
+    var setCount = SH.countSets ? SH.countSets(souls) : {};
+    var names = Object.keys(setCount);
+    if (names.length === 0) {
+      prev.appendChild(el('div', 'sh-empty small', '尚未装备神魂'));
+    } else {
+      names.forEach(function (name) {
+        var cnt = setCount[name];
+        var set = SET_BY_TYPE[name];
+        var line = el('div', 'sh-preview-line');
+        var eff = [];
+        var one = set && (set.one || set['1']);
+        var two = set && (set.two || set['2']);
+        var oneStacks = SH.onePieceStacks ? SH.onePieceStacks(cnt) : (cnt >= 1 ? 1 : 0);
+        if (cnt >= 1 && one) eff.push('1件：' + one + (oneStacks > 1 ? ' ×' + oneStacks : ''));
+        if (cnt >= 2 && two) eff.push('2件：' + two);
+        var badge = cnt >= 2 ? ' <span class="sh-2pc">2件已生效</span>' : '';
+        line.innerHTML = '<b style="color:' + (cnt >= 2 ? '#ffd700' : '#ce93d8') + '">' + name + ' ×' + cnt + '</b>' +
+          badge + (eff.length ? ' ' + eff.join(' / ') : '');
+        prev.appendChild(line);
+      });
+    }
+    container.appendChild(prev);
   }
 
   /* ==================== 合成 / 重铸 ==================== */
@@ -570,6 +687,12 @@
   var craftState = { mode: 'synthesize', first: null, second: null };
   /* 合成面板筛选状态（独立于仓库筛选） */
   var synState = { rarity: '全部', set: '全部' };
+
+  /* 合成 / 重铸候选统一口径：未锁定且未装备。
+     与逻辑层 canSynthesize / recast 的兜底判定一致，避免界面和逻辑各说各话。 */
+  function craftUsable(s) {
+    return !!s && !s.locked && !(SH.isEquipped && SH.isEquipped(s.id));
+  }
 
   function buildCraft() {
     var pane = $('sh-pane-craft');
@@ -587,14 +710,29 @@
 
     if (craftState.mode === 'synthesize') {
       var hint = el('div', 'sh-draw-info');
-      hint.innerHTML = '两个<b>相同套装、相同稀有度</b>的神魂，可合成一个更高一阶（稀有度 +1）的<b>同套装</b>神魂。<br>神话已达顶点，无法再合成。请先选一个神魂作为基准。';
+      hint.innerHTML = '两个<b>相同套装、相同稀有度</b>的神魂，可合成一个更高一阶（稀有度 +1）的<b>同套装</b>神魂。<br>神话已达顶点，无法再合成。<b>已锁定、已装备</b>的神魂不会出现在候选里。';
       pane.appendChild(hint);
+
+      /* 按钮行：手动两步合成 + 一键合成（按钮上直接标出可合成次数） */
+      var actions = el('div', 'sh-craft-actions');
       var go = el('button', 'sh-btn primary', '开始合成');
       go.onclick = openSynthesize;
-      pane.appendChild(go);
+      actions.appendChild(go);
+      var plan = (typeof SH.planAutoSynthesize === 'function') ? SH.planAutoSynthesize() : null;
+      var autoBtn = el('button', 'sh-btn auto-synth',
+        '⚡ 一键合成' + (plan && plan.total > 0 ? '（' + plan.total + '）' : ''));
+      autoBtn.id = 'sh-auto-synthesize';
+      autoBtn.disabled = !(plan && plan.total > 0);
+      autoBtn.onclick = openAutoSynthesize;
+      actions.appendChild(autoBtn);
+      pane.appendChild(actions);
+
+      /* 口径前置说明：链式合成、锁定/已装备不参与、执行前会二次确认 */
+      pane.appendChild(el('div', 'sh-auto-tip',
+        '一键合成会自动配对仓库里所有未锁定、未装备、可合成的神魂；新产出的神魂也会继续向上合成，直到没有可合成组合。已锁定、已装备的神魂不受影响，执行前会先确认。'));
     } else {
       var hint2 = el('div', 'sh-draw-info');
-      hint2.innerHTML = '将 1 个神魂<b>重铸</b>为另一个<b>同稀有度</b>的随机神魂（主/副属性随机）。每次消耗 <b>1 个重铸石</b>。已锁定的神魂无法重铸。';
+      hint2.innerHTML = '将 1 个神魂<b>重铸</b>为另一个<b>同稀有度</b>的随机神魂（主/副属性随机）。每次消耗 <b>1 个重铸石</b>。<b>已锁定、已装备</b>的神魂无法重铸。';
       pane.appendChild(hint2);
       var go2 = el('button', 'sh-btn primary', '打开重铸面板');
       go2.onclick = openRecast;
@@ -607,12 +745,48 @@
   /* 重置两步选择状态（切换 tab / 合成完成后调用） */
   function resetCraft() { craftState.first = null; craftState.second = null; }
 
+  /* ==================== 一键合成 ====================
+     先展示完整预览（次数 / 各阶明细 / 不受影响件数 / 仓库净变化）再执行。
+     口径与逻辑层 planAutoSynthesize 一致：链式合成，锁定 / 已装备一律跳过。 */
+  function openAutoSynthesize() {
+    var p = (typeof SH.planAutoSynthesize === 'function') ? SH.planAutoSynthesize() : null;
+    if (!p || p.total <= 0) { toast('当前没有可自动合成的神魂', 'warn'); return; }
+
+    var lines = [];
+    lines.push('共可合成 ' + p.total + ' 次（含新产出的神魂继续向上合成，直到没有可合成组合）。');
+    lines.push('明细：' + p.steps.map(function (s) {
+      return s.from + '→' + s.to + ' ' + s.pairs + '次';
+    }).join('、') + '。');
+    lines.push('消耗 ' + p.realConsumed + ' 件现有神魂，仓库净减少 ' + p.total +
+      ' 件（合成后共 ' + p.finalBagCount + ' 件）。');
+    lines.push('已锁定（' + (p.lockedKept || 0) + ' 件）、已装备（' + (p.equippedKept || 0) + ' 件）的神魂不受影响。');
+    lines.push('确定继续吗？');
+    var msg = lines.join('\n');
+
+    var run = function () {
+      /* 确认期间仓库可能被别的入口改动，重取一次快照 */
+      var fresh = (typeof SH.planAutoSynthesize === 'function') ? SH.planAutoSynthesize() : null;
+      if (!fresh || fresh.total <= 0) { toast('当前没有可自动合成的神魂', 'warn'); return; }
+      var r = SH.autoSynthesize();
+      if (!r || !r.ok) { toast('一键合成失败', 'warn'); return; }
+      toast('一键合成完成：共 ' + r.count + ' 次，仓库减少 ' + r.count + ' 件');
+      resetCraft();
+      buildCraft();
+      renderBag();
+    };
+
+    var confirmFn = (typeof window.showConfirmDialog === 'function') ? window.showConfirmDialog
+      : (typeof showConfirmDialog === 'function' ? showConfirmDialog : null);
+    if (confirmFn) confirmFn(msg, run);
+    else if (window.confirm && window.confirm(msg)) run();
+  }
+
   /* 判断两个神魂是否满足合成前置条件（纯前端判定，与逻辑层 canSynthesize 保持一致） */
   function canPair(a, b) {
     if (!a || !b) return false;
     if (a.id === b.id) return false;
     if (a.setType !== b.setType || a.rarity !== b.rarity) return false;
-    if (a.locked || b.locked) return false;
+    if (!craftUsable(a) || !craftUsable(b)) return false;
     return RARITY_ORDER.indexOf(a.rarity) < RARITY_ORDER.length - 1;
   }
 
@@ -704,11 +878,13 @@
 
   function openSynthesize() {
     resetCraft();
-    /* 神话为最高稀有度、无法合成，第 1 步候选同样排除 */
-    var candidates = SH.getBag().filter(function (s) { return !s.locked && s.rarity !== '神话'; });
+    /* 神话已达顶、锁定 / 已装备都不参与；第 1 步候选同样排除 */
+    var candidates = SH.getBag().filter(function (s) {
+      return craftUsable(s) && s.rarity !== '神话';
+    });
     openModal('合成神魂 · 第 1 步 / 共 2 步', function (body, close) {
       if (candidates.length === 0) {
-        body.appendChild(el('div', 'sh-empty', '仓库里没有未锁定的神魂可供合成。'));
+        body.appendChild(el('div', 'sh-empty', '仓库里没有未锁定、未装备的神魂可供合成。'));
         return;
       }
       var step = el('div', 'sh-craft-step', '请选择第 1 个神魂（将锁定「套装 + 稀有度」，第 2 个必须与之相同）');
@@ -739,8 +915,8 @@
     if (!a) { closeAll(); openSynthesize(); return; }
     var target = targetRarity(a, a);
     var candidates = SH.getBag().filter(function (s) {
-      /* 神话为最高稀有度，无法继续合成，排除出候选列表 */
-      return s.id !== a.id && !s.locked && s.setType === a.setType &&
+      /* 神话为最高稀有度，无法继续合成；锁定 / 已装备同样排除出候选列表 */
+      return s.id !== a.id && craftUsable(s) && s.setType === a.setType &&
              s.rarity === a.rarity && s.rarity !== '神话';
     });
     /* 复用同一个弹窗：只清空 body 并重建，不重建弹窗本身，避免丢失引用。
@@ -775,7 +951,7 @@
       list: candidates,
       body: body,
       state: synState, hideTop: true,   // 与第 1 步共用同一份筛选状态
-      emptyText: '没有符合条件的第 2 个神魂。需要另一个「' + a.setType + ' · ' + a.rarity + '」且未锁定的神魂。',
+      emptyText: '没有符合条件的第 2 个神魂。需要另一个「' + a.setType + ' · ' + a.rarity + '」且未锁定、未装备的神魂。',
       onDetail: backToStep2,
       refresh: function () { openSynthesizeStep2(closeAll); },
       buttons: function (soul) {
@@ -804,8 +980,9 @@
   var recastState = { rarity: '全部', set: '全部' };
 
   function openRecast() {
-    /* 函数取列表：重铸会改写这个神魂，成功后重新取快照才能看到新属性 */
-    var getList = function () { return SH.getBag().filter(function (s) { return !s.locked; }); };
+    /* 函数取列表：重铸会改写这个神魂，成功后重新取快照才能看到新属性。
+       已锁定 / 已装备的神魂不出现在候选里。 */
+    var getList = function () { return SH.getBag().filter(craftUsable); };
     openModal('重铸神魂（消耗 1 重铸石）', function (body) {
       var refresh = function () {
         body.innerHTML = '';
@@ -813,7 +990,7 @@
           body.appendChild(el('div', 'sh-warn', '重铸石不足，每日登录会发放 2 个。'));
         }
         if (getList().length === 0) {
-          body.appendChild(el('div', 'sh-empty', '没有可重铸的神魂（已锁定的除外）'));
+          body.appendChild(el('div', 'sh-empty', '没有可重铸的神魂（已锁定、已装备的除外）'));
           return;
         }
         renderSelectList({
@@ -901,7 +1078,9 @@
     open: openModal_, close: closeModal_, refreshHeader: refreshHeader,
     /* 供 cloud-save.js 复用：下载存档后立刻刷新仓库页与提示条 */
     renderBag: renderBag, toast: toast,
-    switchTab: switchTab
+    switchTab: switchTab,
+    /* 供 game.js 的角色详情「神魂」标签页使用 */
+    renderHeroSoulConfig: renderHeroSoulConfig
   };
 
   if (document.readyState === 'loading') {

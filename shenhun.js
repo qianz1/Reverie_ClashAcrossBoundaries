@@ -234,20 +234,26 @@ function pickDistinct(arr, count) {
 
 /* ==================== 九、合成 / 重铸 ==================== */
 /* 合成：两个相同类型、相同稀有度的神魂 → 高一阶同类型神魂。
-   神话已达顶，不可合成。 */
+   神话已达顶，不可合成。
+   ★ 已锁定、已装备的神魂不参与：界面会屏蔽，这里也兜底拒绝，
+     避免旧入口 / 残留引用把身上穿着的神魂合掉。 */
 function canSynthesize(a, b) {
   /* 兼容传 ID 字符串或对象两种调用方式 */
   if (typeof a === 'string') a = getSoul(a);
   if (typeof b === 'string') b = getSoul(b);
   if (!a || !b) return false;
   if (a.id === b.id) return false;
+  if (a.locked || b.locked) return false;
+  if (isEquipped(a.id) || isEquipped(b.id)) return false;
   if (a.setType !== b.setType) return false;
   if (a.rarity !== b.rarity) return false;
   return RARITY_ORDER.indexOf(a.rarity) < RARITY_ORDER.length - 1;
 }
-function synthesize(aId, bId) {
-  const a = getSoul(aId), b = getSoul(bId);
-  if (!canSynthesize(a, b)) return { ok: false, reason: 'invalid' };
+/* 内部：执行一次合成并改动内存数据，但【不】落盘 / 不广播。
+   单独抽出来是为了给「一键合成」批量复用 —— 批量时只在最后 save/emit 一次，
+   避免合成 N 次就写 N 次 localStorage、刷新 N 次界面。 */
+function _synthesizePair(a, b) {
+  if (!canSynthesize(a, b)) return null;
   const idxA = bag.indexOf(a), idxB = bag.indexOf(b);
   /* 从仓库移除被合成的两个（按索引从大到小，避免位移错位） */
   const lo = Math.max(idxA, idxB), hi = Math.min(idxA, idxB);
@@ -257,16 +263,125 @@ function synthesize(aId, bId) {
 
   const nextRarity = RARITY_ORDER[RARITY_ORDER.indexOf(a.rarity) + 1];
   const soul = generateSoul({ rarity: nextRarity, setType: a.setType });
-  bag.push(soul);
+  bag.push(soul);   // 新件追加到末尾：与 planAutoSynthesize 的模拟顺序一致
+  return soul;
+}
+function synthesize(aId, bId) {
+  const a = getSoul(aId), b = getSoul(bId);
+  if (!canSynthesize(a, b)) return { ok: false, reason: 'invalid' };
+  const soul = _synthesizePair(a, b);
+  if (!soul) return { ok: false, reason: 'invalid' };
   save(); emitChange();
   return { ok: true, soul: soul };
 }
 
-/* 重铸：将神魂转为同稀有度的随机神魂（保留稀有度，套装/位置/属性重随机）。 */
+/* ==================== 一键合成 ====================
+   规则（与手动合成一致）：两个「同套装 + 同稀有度」的未锁定、未装备神魂 → 高一阶同套装；
+   神话已达顶，不参与。已锁定 / 已装备的神魂一律跳过，不会被消耗或卸下。
+
+   ★ 口径：链式合成 —— 新产出的神魂会继续向上配对，直到全场再无可合成组合。
+     例：同套装 8 个普通 → 4 个罕见 → 2 个珍贵 → 1 个史诗，共 7 次合成。
+     执行前由 UI 用 planAutoSynthesize() 展示完整预览并二次确认。
+
+   遍历顺序固定为「稀有度从低到高 → 套装按 SETS 顺序」，且每组每次取袋中
+   前两件；plan 与 execute 用同一套顺序，保证预览的件数 / 仓库净变化精确一致。 */
+function _autoSynGroups() {
+  const groups = {};
+  for (let i = 0; i < bag.length; i++) {
+    const s = bag[i];
+    /* 锁定 / 已装备 / 神话都不参与 —— 与手动合成、重铸的候选口径一致 */
+    if (s.locked || isEquipped(s.id) || s.rarity === '神话') continue;
+    const key = s.setType + '|' + s.rarity;
+    if (!groups[key]) groups[key] = [];
+    groups[key].push({ id: s.id, virtual: false });
+  }
+  return groups;
+}
+/* 以 SETS 顺序为主，末尾补上仓库里出现的其它套装（历史存档 / 导入数据可能有），
+   避免一键合成漏掉这些神魂。plan 与 execute 共用本函数，顺序始终一致。 */
+function _autoSynSetOrder() {
+  const order = SETS.map(function (x) { return x.type; });
+  for (let i = 0; i < bag.length; i++) {
+    if (order.indexOf(bag[i].setType) < 0) order.push(bag[i].setType);
+  }
+  return order;
+}
+
+/* 纯计算预览：不修改任何数据。 */
+function planAutoSynthesize() {
+  const groups = _autoSynGroups();
+  const setOrder = _autoSynSetOrder();
+  const steps = [];                 // { from, to, pairs } 按稀有度汇总
+  let total = 0, realConsumed = 0;
+
+  for (let ri = 0; ri < RARITY_ORDER.length - 1; ri++) {
+    const from = RARITY_ORDER[ri], to = RARITY_ORDER[ri + 1];
+    let tierPairs = 0;
+    for (let si = 0; si < setOrder.length; si++) {
+      const set = setOrder[si];
+      const key = set + '|' + from;
+      const arr = groups[key] || [];
+      while (arr.length >= 2) {
+        const a = arr.shift(), b = arr.shift();
+        /* 消耗统计只算仓库里真实存在的件；虚拟件是本轮合成产出的，不算「消耗玩家已有资源」 */
+        [a, b].forEach(function (c) { if (!c.virtual) realConsumed++; });
+        /* 产出挂到高一阶组，后续 ri 会继续处理 → 链式 */
+        const nk = set + '|' + to;
+        if (!groups[nk]) groups[nk] = [];
+        groups[nk].push({ id: null, virtual: true });
+        tierPairs++;
+      }
+    }
+    if (tierPairs > 0) { steps.push({ from: from, to: to, pairs: tierPairs }); total += tierPairs; }
+  }
+  return {
+    total: total,
+    steps: steps,
+    consumed: total * 2,                  // 每次合成消耗 2 件（含链式产出的再消耗）
+    realConsumed: realConsumed,           // 其中来自玩家现有仓库的件数
+    netChange: -total,                   // 每次 2→1，仓库净减少 1 件
+    finalBagCount: bag.length - total,
+    lockedKept: bag.filter(function (s) { return s.locked; }).length,
+    equippedKept: bag.filter(function (s) { return isEquipped(s.id); }).length
+  };
+}
+
+/* 执行：按与预览完全相同的顺序合成，最后统一落盘 / 广播。 */
+function autoSynthesize() {
+  const setOrder = _autoSynSetOrder();
+  const results = [];
+  let count = 0;
+  const GUARD = 10000;                  // 死循环兜底（正常仓库远达不到）
+  outer:
+  for (let ri = 0; ri < RARITY_ORDER.length - 1; ri++) {
+    const from = RARITY_ORDER[ri];
+    for (let si = 0; si < setOrder.length; si++) {
+      const set = setOrder[si];
+      while (true) {
+        const pair = bag.filter(function (s) {
+          return !s.locked && !isEquipped(s.id) && s.setType === set && s.rarity === from;
+        }).slice(0, 2);
+        if (pair.length < 2) break;
+        const soul = _synthesizePair(pair[0], pair[1]);
+        if (!soul) break outer;
+        results.push(soul);
+        count++;
+        if (count >= GUARD) break outer;
+      }
+    }
+  }
+  if (count > 0) { save(); emitChange(); }
+  return { ok: true, count: count, results: results };
+}
+
+/* 重铸：将神魂转为同稀有度的随机神魂（保留稀有度，套装/位置/属性重随机）。
+   已锁定 / 已装备的神魂不参与：界面屏蔽 + 这里兜底，避免改到正在穿戴的神魂。 */
 function recast(id) {
   if ((items.recastStone || 0) <= 0) return { ok: false, reason: 'stone' };
   const s = getSoul(id);
   if (!s) return { ok: false, reason: 'notfound' };
+  if (s.locked) return { ok: false, reason: '已锁定的神魂无法重铸' };
+  if (isEquipped(s.id)) return { ok: false, reason: '已装备的神魂无法重铸' };
   items.recastStone--;
   const next = generateSoul({ rarity: s.rarity });
   s.setType = next.setType; s.slot = next.slot; s.main = next.main; s.subs = next.subs;
@@ -626,7 +741,9 @@ function todayStr() {
   return d.getFullYear() + '-' + (m < 10 ? '0' : '') + m + '-' + (day < 10 ? '0' : '') + day;
 }
 
-/* ==================== 十五、存档 / 导入 / 导出 ==================== */
+/* ==================== 十五、存档 / 云同步载荷 ====================
+   玩家侧「导入 / 导出」页已移除，但 exportJSON() / importJSON() 仍由
+   cloud-save.js 作为云端上传 / 下载的载荷与恢复入口使用，不可删除。 */
 function save() {
   const data = {
     version: 1,
@@ -764,6 +881,7 @@ root.SHENHUN = {
   generateSoul: generateSoul, drawOne: drawOne, drawMany: drawMany,
   /* 合成 / 重铸 */
   canSynthesize: canSynthesize, synthesize: synthesize, recast: recast,
+  planAutoSynthesize: planAutoSynthesize, autoSynthesize: autoSynthesize,
   /* 装备 */
   equipSoul: equipSoul, unequipSoul: unequipSoul,
   getEquip: getEquip, getEquippedSouls: getEquippedSouls, getSlotSoul: getSlotSoul, normSlot: normSlot,

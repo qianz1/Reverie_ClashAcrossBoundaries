@@ -191,6 +191,30 @@ body { font-family: 'Microsoft YaHei', sans-serif; background-color: #0a0a1a; ba
 #hero-detail-card { background: #16213e; border: 2px solid #4fc3f7; border-radius: 12px; padding: 24px; max-width: 560px; width: 100%; max-height: 85vh; overflow-y: auto; position: relative; }
 #hero-detail-close { position: absolute; top: 12px; right: 16px; font-size: 26px; color: #aaa; cursor: pointer; line-height: 1; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; }
 #hero-detail-close:hover { color: #fff; }
+/* ---- 角色详情：基础信息 / 神魂 双标签 ---- */
+.hero-detail-tabs { display: flex; gap: 8px; margin-bottom: 14px; padding-right: 36px; }
+.hero-detail-tab { flex: 1; padding: 8px 10px; font-size: 13px; font-weight: bold; color: #9fb3c8; background: #0d1525; border: 1px solid #334; border-radius: 8px; cursor: pointer; font-family: inherit; transition: border-color .2s, color .2s; }
+.hero-detail-tab:hover { border-color: #4fc3f7; color: #e0e0e0; }
+.hero-detail-tab.active { color: #fff; background: linear-gradient(135deg, #1e4d7b, #6a1b9a); border-color: #4fc3f7; }
+.hero-detail-pane { display: none; }
+.hero-detail-pane.active { display: block; }
+.hero-soul-title { font-size: 15px; font-weight: bold; color: #ffd700; margin-bottom: 4px; }
+.hero-soul-tip { font-size: 11px; color: #999; line-height: 1.6; margin-bottom: 6px; }
+.hero-soul-summary { font-size: 12px; color: #cfd8dc; margin-bottom: 10px; }
+.hero-soul-row { display: flex; align-items: stretch; gap: 8px; padding: 10px; background: #16213e; border-radius: 8px; margin-bottom: 8px; }
+.hero-soul-slot { flex: 0 0 52px; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: bold; color: #fff; }
+.hero-soul-info { flex: 1; min-width: 0; border: 1px solid #333; border-radius: 6px; padding: 6px 8px; font-size: 11px; line-height: 1.5; color: #bbb; overflow: hidden; }
+.hero-soul-info.filled { background: #0d1525; border-color: #6b5200; }
+.hero-soul-line { font-size: 12px; color: #e0e0e0; }
+.hero-soul-main { color: #ffd700; margin-top: 2px; }
+.hero-soul-subs { color: #9e9e9e; margin-top: 2px; word-break: break-all; }
+.hero-soul-empty { color: #777; }
+.hero-soul-btns { flex: 0 0 auto; display: flex; flex-direction: column; gap: 4px; }
+.hero-soul-btns .sh-btn { padding: 4px 8px; font-size: 11px; }
+@media (max-width: 420px) {
+  .hero-soul-row { flex-wrap: wrap; }
+  .hero-soul-btns { flex-direction: row; flex: 1 0 100%; justify-content: flex-end; }
+}
 .detail-header { display: flex; align-items: center; gap: 14px; margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid #333; }
 .detail-avatar { position: relative; overflow: hidden; width: 56px; height: 56px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 26px; font-weight: bold; color: #fff; border: 2px solid rgba(255,255,255,0.3); flex-shrink: 0; }
 .detail-name { font-size: 20px; font-weight: bold; color: #fff; }
@@ -343,14 +367,19 @@ pointer-events: none; white-space: nowrap; text-shadow: 0 1px 3px rgba(0,0,0,.9)
    稀有度信息由外框颜色表达：
    - 普通：灰   - 罕见：绿   - 珍贵：蓝
    - 史诗：紫   - 传说：橙   - 神话：红
-   卡片只显示「套装名 + 号位」，详细信息点击后进入详情弹窗。 */
+   卡片显示「套装名 + 号位」；已装备时再在号位下方显示装备者名字，
+   且这两处【文字】改为金色，不做金底标签；卡片底色与外框不变（外框仍按稀有度）。
+   详细信息点击后进入详情弹窗。 */
 .sh-soul-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
 @media (max-width: 420px) { .sh-soul-grid { grid-template-columns: repeat(3, 1fr); } }
 
 .sh-soul-card { position: relative; aspect-ratio: 1 / 1; background: #16213e; border: 2px solid #333; border-radius: 12px; padding: 6px; cursor: pointer; transition: transform .15s, box-shadow .2s, border-color .2s; overflow: hidden; }
 .sh-soul-card:hover { transform: translateY(-2px); filter: brightness(1.1); }
 .sh-soul-card:active { transform: translateY(0); }
-.sh-soul-card.equipped { border-color: #00e676; background: #1b3a2e; }
+/* 已装备：卡片底色保持原样（不整片染金，避免刺眼）。
+   只把「x号位」与「装备者名字」的【文字】改成金色 —— 不加金底、不加金边
+   （见下方 .sh-slot / .sh-card-owner 规则）。
+   外框与发光一律不碰、不加 !important，交给后面 .sh-rX 的稀有度规则决定。 */
 .sh-soul-card.locked { box-shadow: 0 0 0 2px #ffd700 inset; }
 .sh-soul-card.sh-r神话 { border-color: #ff5252; box-shadow: 0 0 8px rgba(255,82,82,.45); }
 .sh-soul-card.sh-r传说 { border-color: #ff9800; box-shadow: 0 0 8px rgba(255,152,0,.4); }
@@ -361,6 +390,17 @@ pointer-events: none; white-space: nowrap; text-shadow: 0 1px 3px rgba(0,0,0,.9)
 .sh-card-inner { width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; text-align: center; }
 .sh-set { font-size: 14px; font-weight: bold; color: #e0e0e0; line-height: 1.2; word-break: break-all; }
 .sh-slot { font-size: 11px; color: #aaa; background: #1a1a3e; padding: 2px 8px; border-radius: 4px; }
+/* 直接显示装备者名字，位于「x号位」下方；名字过长时省略，不撑破正方形卡片 */
+.sh-card-owner { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 9px; padding: 1px 5px; border-radius: 4px; }
+.sh-soul-card.equipped .sh-card-inner { gap: 3px; }
+/* 只有这两处【文字】是金色：不加背景、不加边框，避免整块发亮刺眼。
+   .sh-slot 原有的中性深底 #1a1a3e 保持不变，.sh-card-owner 本来就是透明底。
+   套装名 .sh-set 保持默认 #e0e0e0，卡片整体背景仍是 #16213e。 */
+.sh-soul-card.equipped .sh-slot,
+.sh-soul-card.equipped .sh-card-owner {
+  color: #ffd700;
+  font-weight: bold;
+}
 .sh-subs { font-size: 12px; color: #bbb; display: flex; flex-wrap: wrap; gap: 4px 10px; }
 .sh-subs .pct { color: #ffd700; }
 .sh-subs .flat { color: #69f0ae; }
@@ -407,6 +447,13 @@ pointer-events: none; white-space: nowrap; text-shadow: 0 1px 3px rgba(0,0,0,.9)
 .sh-slot-box .sl { font-weight: bold; }
 .sh-slot-box .smain { font-size: 10px; color: #ffd700; margin-top: 2px; }
 .sh-slot-off { flex-shrink: 0; }
+/* 装备页「详情 / 卸下」竖排成一组，避免两个按钮把槽位框挤窄 */
+.sh-equip-btns { display: flex; flex-direction: column; gap: 4px; flex-shrink: 0; }
+.sh-equip-btns .sh-btn { padding: 4px 9px; font-size: 11px; }
+@media (max-width: 420px) {
+  .sh-equip-row { gap: 6px; padding: 8px; }
+  .sh-equip-name { width: 58px; font-size: 12px; }
+}
 .sh-preview { margin-top: 14px; background: #16213e; border-radius: 8px; padding: 10px 12px; }
 .sh-preview-title { font-size: 13px; font-weight: bold; color: #ce93d8; margin-bottom: 6px; }
 .sh-preview-line { font-size: 13px; color: #cfd8dc; line-height: 1.9; }
@@ -416,6 +463,12 @@ pointer-events: none; white-space: nowrap; text-shadow: 0 1px 3px rgba(0,0,0,.9)
 
 /* ---- 合成 / 重铸 ---- */
 .sh-craft-tabs { display: flex; gap: 8px; margin-bottom: 14px; }
+/* 合成页两个入口并排；窄屏时可换行，按钮自动等宽 */
+.sh-craft-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
+.sh-craft-actions .sh-btn { flex: 1; min-width: 130px; padding: 10px 12px; font-size: 13px; }
+.sh-btn.auto-synth { background: linear-gradient(135deg, #8d6e00, #b8860b); border-color: #d4af37; color: #fff; }
+.sh-btn.auto-synth:hover { border-color: #ffe082; }
+.sh-auto-tip { font-size: 11px; color: #8a8a9a; line-height: 1.6; margin-bottom: 10px; }
 .sh-craft-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px; background: #16213e; border-radius: 8px; margin-bottom: 8px; }
 .sh-craft-name { font-size: 13px; }
 .sh-craft-name span { font-weight: bold; }
@@ -696,7 +749,7 @@ word-break: break-word; }
 #confirm-overlay.notice #confirm-no { display: none; }
 #confirm-overlay.notice #confirm-card { border-color: #ffb74d; }
 #confirm-card { background: #16213e; border: 2px solid #4fc3f7; border-radius: 12px; padding: 22px 20px; width: 100%; max-width: 340px; text-align: center; }
-#confirm-text { color: #e0e0e0; font-size: 15px; line-height: 1.7; margin-bottom: 18px; }
+#confirm-text { color: #e0e0e0; font-size: 15px; line-height: 1.7; margin-bottom: 18px; white-space: pre-line; }
 #confirm-actions { display: flex; gap: 12px; justify-content: center; }
 #confirm-actions button { padding: 10px 26px; font-size: 14px; font-weight: bold; border: none; border-radius: 8px; cursor: pointer; transition: all .2s; -webkit-tap-highlight-color: transparent; }
 #confirm-no { background: #455a64; color: #fff; }
