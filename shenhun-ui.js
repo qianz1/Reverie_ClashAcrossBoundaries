@@ -838,96 +838,16 @@
     }, { large: true });
   }
 
-  /* ==================== 导入 / 导出 ==================== */
-  var ioJSON = '';
-  var ioMode = 'merge';
-
-  function buildIO() {
-    var pane = $('sh-pane-io');
+  /* ==================== 云存档（模块在 cloud-save.js） ====================
+     本地存档仍是主数据；未登录时不发任何请求，纯本地游玩不受影响。
+     原先的「导入 / 导出」页已移除 —— 换设备改用云存档的上传 / 下载。
+     底层 SH.exportJSON() / SH.importJSON() 保留，由 cloud-save.js 作为同步载荷使用。 */
+  TAB_BUILDERS.cloud = function () {
+    var pane = $('sh-pane-cloud');
     if (!pane) return;
-    pane.innerHTML = '';
-
-    /* 导出 */
-    var outBox = el('div', 'sh-io-block');
-    outBox.appendChild(el('div', 'sh-io-title', '导出数据'));
-    var gen = el('button', 'sh-btn primary', '生成 JSON');
-    gen.onclick = function () {
-      ioJSON = SH.exportJSON();
-      ta.value = ioJSON;
-      toast('已生成，可复制或下载');
-    };
-    outBox.appendChild(gen);
-    var dl = el('button', 'sh-btn', '下载文件');
-    dl.onclick = function () {
-      if (!ioJSON) { toast('请先生成 JSON', 'warn'); return; }
-      var blob = new Blob([ioJSON], { type: 'application/json' });
-      var url = URL.createObjectURL(blob);
-      var a = document.createElement('a');
-      a.href = url;
-      a.download = 'shenhun-data.json';
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
-      toast('已开始下载');
-    };
-    outBox.appendChild(dl);
-    var ta = el('textarea', 'sh-io-ta', '点击「生成 JSON」后将显示可复制的数据，也可直接下载为文件。');
-    outBox.appendChild(ta);
-    pane.appendChild(outBox);
-
-    /* 导入 */
-    var inBox = el('div', 'sh-io-block');
-    inBox.appendChild(el('div', 'sh-io-title', '导入数据'));
-    var modeRow = el('div', 'sh-io-mode');
-    modeRow.appendChild(el('span', 'sh-label', '模式：'));
-    var sel = el('select');
-    [['merge', '合并（跳过 ID 冲突项，保留现有数据）'], ['overwrite', '覆盖（用导入数据替换全部神魂数据）']].forEach(function (p) {
-      var op = el('option', null, p[1]);
-      op.value = p[0];
-      if (p[0] === ioMode) op.selected = true;
-      sel.appendChild(op);
-    });
-    sel.onchange = function () { ioMode = sel.value; };
-    modeRow.appendChild(sel);
-    inBox.appendChild(modeRow);
-
-    var fileRow = el('div', 'sh-io-file');
-    var fileBtn = el('button', 'sh-btn', '选择文件');
-    var fileName = el('span', 'sh-muted', '未选择任何文件');
-    var fileInput = el('input');
-    fileInput.type = 'file';
-    fileInput.accept = '.json,application/json';
-    fileInput.style.display = 'none';
-    fileBtn.onclick = function () { fileInput.click(); };
-    fileInput.onchange = function () {
-      var f = fileInput.files && fileInput.files[0];
-      if (!f) return;
-      fileName.textContent = f.name;
-      var reader = new FileReader();
-      reader.onload = function (ev) {
-        var r = SH.importJSON(String(ev.target.result || ''), { mode: ioMode });
-        if (r && r.ok) toast('导入成功：新增 ' + (r.added || 0) + ' 项');
-        else toast('导入失败：' + (r && r.reason || '格式错误'), 'warn');
-        renderBag();
-      };
-      reader.readAsText(f);
-    };
-    fileRow.appendChild(fileBtn);
-    fileRow.appendChild(fileName);
-    fileRow.appendChild(fileInput);
-    inBox.appendChild(fileRow);
-
-    var imp = el('button', 'sh-btn primary', '导入（来自文本框）');
-    imp.onclick = function () {
-      var r = SH.importJSON(ta.value.trim(), { mode: ioMode });
-      if (r && r.ok) { toast('导入成功：新增 ' + (r.added || 0) + ' 项'); renderBag(); }
-      else toast('导入失败：' + (r && r.reason || '格式错误'), 'warn');
-    };
-    inBox.appendChild(imp);
-    pane.appendChild(inBox);
-  }
-  TAB_BUILDERS.io = buildIO;
+    if (window.CLOUD_SAVE && typeof window.CLOUD_SAVE.render === 'function') window.CLOUD_SAVE.render(pane);
+    else pane.innerHTML = '<div class="sh-empty">云存档模块未加载（请确认 cloud-save.js 已引入）</div>';
+  };
 
   /* ==================== 弹窗开关 ==================== */
   function openModal_() {
@@ -977,7 +897,12 @@
   /* 暴露给 game.js（game.js 末尾会调用） */
   window.initShenhunUI = init;
   window.openShenhun = openModal_;
-  window.SHENHUN_UI = { open: openModal_, close: closeModal_, refreshHeader: refreshHeader };
+  window.SHENHUN_UI = {
+    open: openModal_, close: closeModal_, refreshHeader: refreshHeader,
+    /* 供 cloud-save.js 复用：下载存档后立刻刷新仓库页与提示条 */
+    renderBag: renderBag, toast: toast,
+    switchTab: switchTab
+  };
 
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', init);

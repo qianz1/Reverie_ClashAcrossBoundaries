@@ -420,14 +420,6 @@ pointer-events: none; white-space: nowrap; text-shadow: 0 1px 3px rgba(0,0,0,.9)
 .sh-craft-name { font-size: 13px; }
 .sh-craft-name span { font-weight: bold; }
 
-/* ---- 导入 / 导出 ---- */
-.sh-io-block { margin-bottom: 18px; padding-bottom: 14px; border-bottom: 1px solid #222; }
-.sh-io-title { font-size: 14px; font-weight: bold; color: #ce93d8; margin-bottom: 10px; }
-.sh-io-ta { width: 100%; height: 120px; box-sizing: border-box; background: #0a0a1a; border: 1px solid #333; border-radius: 6px; color: #cfd8dc; font-size: 12px; padding: 8px; font-family: Consolas, monospace; resize: vertical; }
-.sh-io-mode { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
-.sh-io-mode select { padding: 5px 8px; background: #1a1a3e; border: 1px solid #4fc3f7; border-radius: 5px; color: #fff; font-size: 12px; font-family: inherit; }
-.sh-io-file { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
-
 /* ---- 选择器弹窗 ---- */
 #sh-modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.75); z-index: 700; display: none; align-items: center; justify-content: center; padding: 12px; }
 #sh-modal-overlay.show { display: flex; }
@@ -822,13 +814,8 @@ word-break: break-word; }
 .sh-picker-set { font-size: 13px; font-weight: bold; }
 .sh-picker-main { font-size: 12px; color: #ffd700; }
 .sh-picker-subs { font-size: 11px; color: #aaa; }
-/* 导入导出 */
-.sh-io { margin-bottom: 18px; }
-.sh-io-title { font-size: 14px; font-weight: bold; color: #fff; margin-bottom: 8px; }
-.sh-io-btns { display: flex; gap: 8px; margin-bottom: 8px; flex-wrap: wrap; }
-.sh-io-mode { margin-bottom: 8px; }
+/* 通用下拉框 */
 .sh-select { padding: 5px 8px; background: #1a1a3e; border: 1px solid #4fc3f7; border-radius: 5px; color: #fff; font-size: 12px; }
-.sh-io-ta { width: 100%; height: 120px; background: #0a0a1a; border: 1px solid #333; border-radius: 6px; color: #cfd8dc; font-size: 12px; padding: 8px; font-family: Consolas, monospace; resize: vertical; box-sizing: border-box; }
 
 /* ==================== 后台调试面板 ==================== */
 #dev-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.92); z-index: 600; display: none; justify-content: center; align-items: center; padding: 12px; }
@@ -848,3 +835,26 @@ word-break: break-word; }
 .dev-btn-danger:hover { background: #f44336; color: #fff; }
 .dev-val { color: #ffd700; font-size: 13px; }
 #dev-save-info { color: #dcdcdc; }
+
+/* ==================== 云存档（cloud-save.js） ==================== */
+.sh-cloud-block { margin-bottom: 18px; padding-bottom: 14px; border-bottom: 1px solid #222; }
+.sh-cloud-block:last-child { border-bottom: 0; margin-bottom: 0; }
+.sh-cloud-title { font-size: 14px; font-weight: bold; color: #ce93d8; margin-bottom: 10px; }
+.sh-cloud-tip { font-size: 12px; line-height: 1.7; color: #9e9e9e; background: #12122a; border-left: 3px solid #4fc3f7; padding: 8px 10px; border-radius: 0 6px 6px 0; margin-bottom: 12px; }
+.sh-cloud-src { font-size: 11px; line-height: 1.6; padding: 7px 10px; border-radius: 6px; margin-bottom: 12px; word-break: break-all; }
+.sh-cloud-src.bad { color: #ef9a9a; background: #2a1212; border-left: 3px solid #c62828; }
+.sh-cloud-field { display: flex; align-items: center; gap: 10px; margin-bottom: 9px; }
+.sh-cloud-field label { flex: 0 0 92px; font-size: 12px; color: #b0bec5; text-align: right; }
+.sh-cloud-field input { flex: 1 1 auto; min-width: 0; padding: 7px 9px; box-sizing: border-box; background: #0a0a1a; border: 1px solid #333; border-radius: 6px; color: #fff; font-size: 12px; font-family: inherit; }
+.sh-cloud-field input:focus { outline: none; border-color: #8e24aa; }
+.sh-cloud-field input::placeholder { color: #616161; }
+.sh-cloud-btns { display: flex; gap: 8px; flex-wrap: wrap; margin: 12px 0 0; }
+.sh-cloud-state { margin-top: 12px; font-size: 12px; color: #9e9e9e; line-height: 1.6; }
+.sh-cloud-state.ok { color: #69f0ae; }
+.sh-cloud-info { font-size: 12px; line-height: 1.9; color: #cfd8dc; background: #12122a; border-radius: 6px; padding: 8px 10px; }
+.sh-cloud-warn { margin-top: 12px; font-size: 11px; line-height: 1.7; color: #ef9a9a; border-left: 3px solid #c62828; padding-left: 10px; }
+@media (max-width: 420px) {
+  .sh-cloud-field { flex-wrap: wrap; }
+  .sh-cloud-field label { flex: 0 0 100%; text-align: left; }
+  .sh-cloud-field input { flex: 0 0 100%; }
+}
