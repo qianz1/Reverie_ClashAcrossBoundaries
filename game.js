@@ -63,12 +63,12 @@ if (!src) return name.charAt(0);
 return `${name.charAt(0)}<img class="avatar-img" src="${src}" alt="${alt || name}" loading="lazy" onerror="this.classList.add('avatar-img-fail');this.onerror=null;">`;
 }
 const HERO_DATA = {
-"主角": { atk:800, def:300, hp:5700, spd:150, effectHit:0, effectResist:0, critRate:0.1, critDmg:1.5, color:'#ffd700', tag:'均衡',
+"主角": { atk:800, def:300, hp:6840, spd:150, effectHit:0, effectResist:0, critRate:0.1, critDmg:1.5, color:'#ffd700', tag:'均衡',
 normal: { name:"斩击", type:"single", dmgRate:1.0, target:"enemy" },
 skill: { name:"剑爆", cost:4, type:"aoe", dmgRate:1.4, target:"enemy", selfEffect:"rageAll1" },
 descNormal: "对敌方目标造成 <span class='dmg'>100%</span> 伤害。", descSkill: "对敌方全体造成 <span class='dmg'>140%</span> 伤害，恢复我方全体 <span class='buff'>1点怒气</span>。",
 mechanics: [] },
-"捷克罗姆": { atk:1100, def:350, hp:6300, spd:156, effectHit:0, effectResist:0, critRate:0.24, critDmg:1.8, color:'#1565c0', tag:'攻击',   // 深蓝
+"捷克罗姆": { atk:1100, def:350, hp:7560, spd:156, effectHit:0, effectResist:0, critRate:0.24, critDmg:1.8, color:'#1565c0', tag:'攻击',   // 深蓝
 normal: { name:"电击", type:"single", dmgRate:0.9, trueRate:0.3, target:"enemy" },
 skill: { name:"交错闪电", cost:4, type:"single_then_aoe", dmgRate:1.8, trueRate:0.9, aoeDmgRate:1.0, aoeTrueRate:0.5, target:"enemy", selfEffect:"thunderPress" },
 descNormal: "对敌方目标造成 <span class='dmg'>90%</span> 伤害和 <span class='true-dmg'>30%真实伤害</span>。",
@@ -76,7 +76,7 @@ descSkill: "对敌方目标造成 <span class='dmg'>180%</span> 伤害和 <span 
 mechanics: [
 { type:'mark', name:'雷压', desc:'增益印记：提升自身30%速度、20%最终伤害、30%暴击率，不可叠加。' },
 { type:'note', name:'护盾', desc:'优先于生命值承受伤害。' }] },
-"东丈": { atk:945, def:270, hp:5715, spd:161, effectHit:0, effectResist:0, critRate:0.15, critDmg:1.6, color:'#ffd700', tag:'攻击',   // 黄（与主角同色）
+"东丈": { atk:945, def:270, hp:6858, spd:161, effectHit:0, effectResist:0, critRate:0.15, critDmg:1.6, color:'#ffd700', tag:'攻击',   // 黄（与主角同色）
 normal: { name:"风拳", type:"single", dmgRate:1.2, target:"enemy", selfEffect:"windWalk" },
 skill: { name:"龙卷风", cost:4, type:"single", dmgRate:3.4, target:"enemy", effect:"stun", selfEffect:"galeWind" },
 /* 「不屈」每局游戏限触发一次：次数记在单位上（buquUsed），startBattle 时随单位重建归零。 */
@@ -87,7 +87,7 @@ mechanics: [
 { type:'mark', name:'风行', desc:'增益印记：提升自身速度25点，最多叠加5层。' },
 { type:'mark', name:'狂风', desc:'增益印记：提升自身攻击150点、防御100点，最多叠加3层。' },
 { type:'state', name:'眩晕', desc:'减益状态：控制效果，目标无法行动。不可叠加。' } ] },
-"白藏主": { atk:550, def:320, hp:6400, spd:300, effectHit:0, effectResist:0, critRate:0.05, critDmg:1.5, color:'#26c6da', tag:'防御',   // 浅蓝（与鬼金羊同色）
+"白藏主": { atk:550, def:320, hp:7680, spd:300, effectHit:0, effectResist:0, critRate:0.05, critDmg:1.5, color:'#26c6da', tag:'防御',   // 浅蓝（与鬼金羊同色）
 normal: { name:"炎影", type:"single", dmgRate:1.0, target:"enemy", effect:"rageDown" },
 skill: { name:"梦山狐影", cost:4, type:"buff", target:"ally", selfEffect:"foxGuard" },
 descNormal: "对敌方目标造成 <span class='dmg'>100%</span> 伤害，有 <span class='buff'>50%概率</span> 使目标减 <span class='buff'>1点怒气</span>。",
@@ -96,7 +96,7 @@ mechanics: [
 { type:'mark', name:'狐守', desc:'增益印记：提升20%最终免伤率；拥有印记的友方所受伤害由白藏主代为承受。随施放者阵亡清空。不可叠加。' },
 { type:'mark', name:'狐佑', desc:'增益印记：提升自身25%最终免伤率，不可叠加。' }
 ] },
-"宇智波带土": { atk:1000, def:250, hp:5700, spd:182, effectHit:0, effectResist:0, critRate:0.15, critDmg:1.6, color:'#d32f2f', tag:'攻击',
+"宇智波带土": { atk:1000, def:250, hp:6840, spd:182, effectHit:0, effectResist:0, critRate:0.15, critDmg:1.6, color:'#d32f2f', tag:'攻击',
 normal: { name:"突袭", type:"single", dmgRate:0.63, hitCount:2, target:"enemy", effect:"kamuiMark" },
 skill: { name:"神威·虚化", cost:4, type:"banish", target:"enemy", selfEffect:"intangibility" },
 descNormal: "对敌方目标造成两段 <span class='dmg'>63%</span> 伤害，并使目标附加 <span class='m-mark'>1层神威</span>。",
@@ -105,7 +105,7 @@ mechanics: [
 { type:'mark', name:'神威', desc:'减益印记：受到攻击时，每层额外附加施加者12%真实伤害（该伤害不可转移），同时施加者+12%行动条，最多叠加3层。随施放者阵亡清空。' },
 { type:'rule', name:'放逐', desc:'规则：视为离开战局。期间无法行动，无法选中，无法被治疗、恢复，行动条锁定；目标相关的所有状态、印记失效，神魂失效（2件套效果），免疫伤害，取消效果buff的变化。随施放者阵亡清空。' },
 { type:'rule', name:'虚化', desc:'规则：免疫伤害与减益效果。进入时移除自身所有减益状态与减益印记，持续期间免疫减益状态与减益印记。' } ] },
-"镰鼬": { atk:700, def:285, hp:5650, spd:272, effectHit:0, effectResist:0, critRate:0.08, critDmg:1.5, color:'#aed581', tag:'辅助',
+"镰鼬": { atk:700, def:285, hp:6780, spd:272, effectHit:0, effectResist:0, critRate:0.08, critDmg:1.5, color:'#aed581', tag:'辅助',
 normal: { name:"胖揍", type:"single", dmgRate:1.0, target:"enemy", effect:"stunChance" },
 skill: { name:"兄弟之绊", cost:4, type:"buff", target:"ally", selfEffect:"bond" },
 passive: { name:"人多势众", turnEnd:'renDuoShiZhong',
@@ -115,7 +115,7 @@ descSkill: "全体行动条+<span class='buff'>30%</span>，同时全体获得 <
 mechanics: [
 { type:'state', name:'牵绊', desc:'增益状态：+25%攻击、+10%防御、+10%暴击率，持续2回合。不可叠加。' },
 { type:'state', name:'眩晕', desc:'减益状态：控制效果，目标无法行动。不可叠加。' } ] },
-"鬼王酒吞童子": { atk:800, def:300, hp:5800, spd:209, effectHit:0, effectResist:0, critRate:0.08, critDmg:1.5, color:'#ffd700', tag:'均衡',
+"鬼王酒吞童子": { atk:800, def:300, hp:6960, spd:209, effectHit:0, effectResist:0, critRate:0.08, critDmg:1.5, color:'#ffd700', tag:'均衡',
 normal: { name:"焚天", type:"single", dmgRate:1.2, target:"enemy" },
 skill: { name:"天火怒焱", cost:4, type:"aoe", dmgRate:0, target:"enemy", effect:"dispelAndPush", selfEffect:"guiWangZiTai", requireNoMark:"鬼王姿态" },
 opening: 'jiutunMarks',
@@ -127,13 +127,13 @@ mechanics: [
 { type:'mark', name:'大妖之力', desc:'增益印记：每损失1%最大生命值，提升1%最终伤害率与0.5%最终免伤率。随施放者阵亡清空。不可叠加。' },
 { type:'mark', name:'鬼王姿态', desc:'增益印记：强化自身普攻。不可叠加。' },
 { type:'note', name:'先机', desc:'战斗开始时，触发一次相应效果。' } ] },
-"雪拉比": { atk:500, def:310, hp:6000, spd:220, effectHit:0, effectResist:0, critRate:0.08, critDmg:1.5, color:'#69f0ae', tag:'辅助',
+"雪拉比": { atk:500, def:310, hp:7200, spd:220, effectHit:0, effectResist:0, critRate:0.08, critDmg:1.5, color:'#69f0ae', tag:'辅助',
 normal: { name:"治愈", type:"single", healRate:1.8, target:"ally", healEffect:"targetRageUp1" },
 skill: { name:"预知未来", cost:4, type:"damageLog", target:"ally", cooldown: 2 },
 descNormal: "<span class='heal'>治疗</span>单个友方 <span class='heal'>180%</span> 生命，并使目标获得 <span class='buff'>1点怒气</span>。",
 descSkill: "施放后记录所有友方受到的总伤害值至雪拉比下回合开始，雪拉比下回合开始时，将记录值的 <span class='heal'>80%</span> 平均分配<span class='restore'>恢复</span>至所有存活友方，并使所有存活友方<span class='restore'>恢复</span>雪拉比最大生命值 <span class='heal'>9%</span> 的生命值。若记录期间友方阵亡，则雪拉比的恢复结算后额外复活记录期间阵亡友方至 <span class='buff'>1点</span>生命。技能冷却：2回合。",
 mechanics: [] },
-"纲手": { atk:700, def:360, hp:6800, spd:142, effectHit:0, effectResist:0, critRate:0.2, critDmg:1.8, color:'#f48fb1', tag:'辅助',
+"纲手": { atk:700, def:360, hp:8160, spd:142, effectHit:0, effectResist:0, critRate:0.2, critDmg:1.8, color:'#f48fb1', tag:'辅助',
 normal: { name:"怪力", type:"single", dmgRate:1.5, target:"enemy", effect:"guaiLi" },
 skill: { name:"百豪之术", cost:4, type:"buff", target:"ally", selfEffect:"hundredHeal" },
 descNormal: "对敌方单个目标造成 <span class='dmg'>150%</span> 伤害，<span class='buff'>30%基础概率</span>使目标附加 <span class='m-state'>眩晕</span>（持续1回合），并使当前生命值最低的友方<span class='buff'>+15%</span>行动条。",
@@ -141,13 +141,13 @@ descSkill: "<span class='heal'>治疗所有友方200%生命</span>，使所有�
 mechanics: [
 { type:'state', name:'百豪', desc:'增益状态：提升10%攻击、20%治疗加成，持续3回合。不可叠加。' },
 { type:'state', name:'眩晕', desc:'减益状态：控制效果，目标无法行动。不可叠加。' } ] },
-"裂空座": { atk:1050, def:270, hp:6200, spd:154, effectHit:0, effectResist:0, critRate:0.24, critDmg:1.8, color:'#00c853', tag:'攻击',
+"裂空座": { atk:1050, def:270, hp:7440, spd:154, effectHit:0, effectResist:0, critRate:0.24, critDmg:1.8, color:'#00c853', tag:'攻击',
 normal: { name:"龙爪", type:"single", dmgRate:1.2, target:"enemy", selfEffect:"dragonDance" },
 skill: { name:"画龙点睛", cost:4, type:"aoe", dmgRate:2.6, target:"enemy", selfEffect:"defDownPerm" },
 descNormal: "对敌方目标造成 <span class='dmg'>120%</span> 伤害，获得 <span class='m-mark'>1层龙之舞</span>。",
 descSkill: "对敌方全体造成 <span class='dmg'>260%</span> 伤害。自身防御永久降低 <span class='dmg'>80</span>。",
 mechanics: [{ type:'mark', name:'龙之舞', desc:'增益印记：提升15%最终伤害率、10点速度，最多叠加3层。' }] },
-"流光追月神": { atk:550, def:296, hp:6100, spd:256, effectHit:0, effectResist:0, critRate:0.05, critDmg:1.5, color:'#9575cd', tag:'辅助',
+"流光追月神": { atk:550, def:296, hp:7320, spd:256, effectHit:0, effectResist:0, critRate:0.05, critDmg:1.5, color:'#9575cd', tag:'辅助',
 normal: { name:"流明", type:"single", dmgRate:1.0, target:"enemy", effect:"rageDown" },
 skill: { name:"飞彩凝辉", cost:4, type:"buff", target:"ally", selfEffect:"flowingLight" },
 opening: 'liuguangRage',
@@ -159,7 +159,7 @@ mechanics: [
 { type:'mark', name:'流光', desc:'增益印记：携带者怒气减少时（不包括技能消耗的怒气），恢复1点怒气，然后移除此印记。随施放者阵亡清空。不可叠加。' },
 { type:'mark', name:'照君', desc:'增益印记：提升8%攻击、5点速度，最多叠加5层。' },
 { type:'note', name:'先机', desc:'战斗开始时，触发一次相应效果。' } ] },
-"维迦": { atk:1000, def:250, hp:5400, spd:155, effectHit:0, effectResist:0, critRate:0.5, critDmg:2.0, color:'#6a1b9a', tag:'攻击',
+"维迦": { atk:1000, def:250, hp:6480, spd:155, effectHit:0, effectResist:0, critRate:0.5, critDmg:2.0, color:'#6a1b9a', tag:'攻击',
 normal: { name:"黑暗祭祀", type:"single", dmgRate:1.0, target:"enemy", selfEffect:"darkEssence" },
 /* 技能1「扭曲空间」cost 2：击杀只给 1 层超凡邪力（无全套收益）。
    技能2「能量爆裂」cost 4：击杀给全套（超凡邪力 + 4怒气 + 行动条60% + 恢复30%）。
@@ -171,7 +171,7 @@ descSkill: "对敌方目标造成 <span class='dmg'>140%</span> 伤害，并附�
 descSkill2: "对敌方目标造成 <span class='dmg'>300%</span> 伤害，若造成击杀则获得 <span class='m-mark'>1层超凡邪力</span>，且回合结束后自身 <span class='buff'>+60%行动条</span>，获得 <span class='buff'>4点怒气</span>，<span class='restore'>恢复</span>自身最大生命值 <span class='heal'>30%</span> 的生命值。",
 mechanics: [{ type:'mark', name:'超凡邪力', desc:'增益印记：永久提升攻击20%、暴击率10%、暴击伤害20%、最终伤害率10%，最多叠加5层。' },
 { type:'state', name:'眩晕', desc:'减益状态：控制效果，目标无法行动。不可叠加。' }] },
-"心友犬神": { atk:900, def:270, hp:5600, spd:154, effectHit:0, effectResist:0, critRate:0.12, critDmg:1.6, color:'#26c6da', tag:'均衡',   // 浅蓝（与鬼金羊同色）
+"心友犬神": { atk:900, def:270, hp:6720, spd:154, effectHit:0, effectResist:0, critRate:0.12, critDmg:1.6, color:'#26c6da', tag:'均衡',   // 浅蓝（与鬼金羊同色）
 normal: { name:"天心斩", type:"single", dmgRate:1.2, target:"enemy", effect:"queZhiYin" },
 skill: { name:"浪客归刃", cost:4, type:"buff", target:"ally", selfEffect:"langKeGuiRen" },
 opening: 'langKeOpening',
@@ -187,7 +187,7 @@ mechanics: [
 { type:'mark', name:'守势', desc:'增益印记：获得270点防御。拥有护盾的友方单位受到攻击时，施放「一誓归心」。不可叠加。' },
 { type:'note', name:'先机', desc:'战斗开始时，触发一次相应效果。' },
 { type:'note', name:'护盾', desc:'优先于生命值承受伤害。' } ] },
-"鬼金羊": { atk:510, def:340, hp:6150, spd:274, effectHit:0, effectResist:0, critRate:0.08, critDmg:1.5, color:'#26c6da', tag:'辅助',
+"鬼金羊": { atk:510, def:340, hp:7380, spd:274, effectHit:0, effectResist:0, critRate:0.08, critDmg:1.5, color:'#26c6da', tag:'辅助',
 normal: { name:"奇袭", type:"single", dmgRate:1.0, target:"enemy" },
 /* 技能1「宿影暗渡」：同时具备【被动效果】与【主动施放】两部分。
    被动部分写在 passive.desc；主动部分写在 castDesc，详情页分开渲染。
@@ -212,7 +212,7 @@ mechanics: [
 { type:'mark', name:'宿影阵', desc:'增益印记：上限5层。达到上限时，施放「宿影暗渡」，移除所有层数。' },
 { type:'mark', name:'长星锁', desc:'减益印记：携带者行动条达到100%时，鬼金羊对其施放「鬼宿奇惊·谜夜」，然后移除此印记。随施放者阵亡清空。不可叠加。' },
 { type:'note', name:'先机', desc:'战斗开始时，触发一次相应效果。' } ] },
-"禅心云外镜": { atk:500, def:302, hp:6280, spd:240, effectHit:0, effectResist:0, critRate:0.05, critDmg:1.5, color:'#8d6e63', tag:'防御',   // 棕（心友犬神改前用色）
+"禅心云外镜": { atk:500, def:302, hp:7536, spd:240, effectHit:0, effectResist:0, critRate:0.05, critDmg:1.5, color:'#8d6e63', tag:'防御',   // 棕（心友犬神改前用色）
 normal: { name:"水无垠", type:"single", dmgRate:1.0, target:"enemy", selfEffect:"shuiWuYin" },
 /* 技能1「心净明」：与鬼金羊「宿影暗渡」同一模式 ——
    被动部分（行动阶段重新分配友方生命）写在 passive.desc 且用 boundSkill 绑定，
@@ -232,7 +232,7 @@ mechanics: [
 { type:'mark', name:'万法', desc:'增益印记：提升10%速度，不可叠加。' },
 { type:'note', name:'翻转', desc:'当前生命值与已损失生命值互换。' },
 { type:'note', name:'护盾', desc:'优先于生命值承受伤害。' } ] },
-"两面宿傩": { atk:1020, def:310, hp:6200, spd:180, effectHit:0, effectResist:0, critRate:0.15, critDmg:1.7, color:'#d50000', tag:'攻击',
+"两面宿傩": { atk:1020, def:310, hp:7450, spd:180, effectHit:0, effectResist:0, critRate:0.15, critDmg:1.7, color:'#d50000', tag:'攻击',
 normal: { name:"解·捌", type:"single", dmgRate:1.0, target:"enemy", sukunaForm:"jie" },
 skill: { name:"灶", cost:2, type:"single", dmgRate:1.34, trueRate:0.67, fixedMaxHpRate: 0.1, target:"enemy" },
 skill2: { name:"伏魔神龛", cost:4, type:"aoe", trueRate:1.0, fixedMaxHpRate: 0.1, target:"enemy", selfEffect:"fuMo", canExecute:true },   // 0.1 = SUKUNA_FIXED_MAXHP_RATE
@@ -245,7 +245,7 @@ mechanics: [
 { type:'mark', name:'伏魔', desc:'增益印记：强化两面宿傩的普攻，不可叠加。' },
 { type:'note', name:'斩杀', desc:'达成斩杀条件时，目标立即死亡。' },
 { type:'note', name:'固定伤害', desc:'造成固定数值的伤害，不受任何影响，无视护盾。' } ] },
-"五条悟": { atk:1010, def:300, hp:5750, spd:181, effectHit:0, effectResist:0, critRate:0.10, critDmg:1.5, color:'#40c4ff', tag:'攻击',
+"五条悟": { atk:1010, def:300, hp:6900, spd:181, effectHit:0, effectResist:0, critRate:0.10, critDmg:1.5, color:'#40c4ff', tag:'攻击',
 normal: { name:"苍", type:"single", dmgRate:1.2, target:"enemy" },
 skill: { name:"无量空处", cost:4, type:"aoe", trueRate:0.8, fixedMaxHpRate:0.08, target:"enemy", effect:"hunLuan" },
 /* 技能2「茈」：纯直接伤害的群体技。
