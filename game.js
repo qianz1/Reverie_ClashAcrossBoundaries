@@ -1,12 +1,19 @@
 
-/* ===== 角色头像图片 =====
-   用法：把图片按「英文名去空格 + .png」命名（如 ObitoUchiha.png），
-   放到 HERO_IMG_BASE 指定的位置即可自动生效。
+/* ===== 角色图片：头像 / 战斗图 双通道 =====
+   【原路径】把图片按「英文名去空格 + .png」命名（如 ObitoUchiha.png），
+   放到 HERO_IMG_BASE 指定的位置即可自动生效。这是所有角色的默认图。
      - HERO_IMG_BASE 留空   → 图片与本 html 放同一目录
      - 改成 './heroes/'     → 图片放在 heroes 子目录
      - 改成 'https://xxx/'  → 图片走 CDN / 外部图床
-   兜底：任一图片加载失败，自动隐藏该 <img>，露出底下的首字母头像，
-        因此缺图、断网、文件名写错都不会影响界面。
+
+   【两条可配置的新通道】互不干扰，未配置的角色一律保持原路径不变：
+     · HERO_AVATAR_CYCLE —— 角色头像多图轮换（选人页、角色详情）
+     · HERO_BATTLE_IMG   —— 战斗界面专用图（角色卡片、行动条圆点、技能演出），
+                            可带按规则触发的变体（如虎杖进入「未来」后换图）
+
+   【回退链】新路径的图片加载失败时，自动改用【原路径图片】；
+   原路径也失败才隐藏 <img>，露出底下的首字母头像。
+   因此缺图、断网、文件名写错都不会影响界面，也不会出现破图。
    ================================ */
 const HERO_IMG_BASE = 'assets/character/';
 const HERO_IMG_EXT  = '.png';
@@ -43,24 +50,500 @@ probe.onload = () => setFavicon(FAVICON_FILE, 'image/png');
 probe.onerror = () => setFavicon(FAVICON_FALLBACK, 'image/svg+xml');
 probe.src = FAVICON_FILE;
 })();
-// 中文名 → 图片文件名（英文名去空格 + 扩展名）
+// 中文名 → 图片文件名（英文名去空格 + 扩展名）—— 所有角色的【原路径】
 const HERO_IMG_FILE = {
 '主角':'Protagonist', '捷克罗姆':'Zekrom', '东丈':'JoeHigashi', '白藏主':'Hakuzosu',
 '宇智波带土':'ObitoUchiha', '镰鼬':'Kamaitachi', '鬼王酒吞童子':'DemoniacShutenDoji',
 '雪拉比':'Celebi', '纲手':'Tsunade', '裂空座':'Rayquaza', '维迦':'Veigar', '流光追月神':'LuminaryOitsuki',
 '心友犬神':'BosombuddyInugami', '鬼金羊':'Guijinyang', '禅心云外镜':'ZenshinUngaikyo', '两面宿傩':'RyomenSukuna',
-'五条悟':'GojoSatoru'
+'五条悟':'GojoSatoru', '虎杖悠仁':'ItadoriYuji', '钉崎野蔷薇':'KugisakiNobara'
 };
 function heroImgSrc(name) {
 const file = HERO_IMG_FILE[name];
 return file ? (HERO_IMG_BASE + file + HERO_IMG_EXT) : '';
 }
-/* 头像内部 HTML：先放首字母（永久兜底），再叠一层 <img>；
-   图片加载失败时 onerror 给它加 .avatar-img-fail 隐藏，首字母自然露出。 */
+
+/* ===== 通道 A：角色头像轮换（选人页 / 角色详情）=====
+   只在此处列出的角色启用；没列的一律单张原路径、行为完全不变。
+   值是有序图片路径数组，运行时按 AVATAR_CYCLE_MS 依次切换。 */
+const HERO_AVATAR_CYCLE = {
+'虎杖悠仁': [
+'assets/avatar/ItadoriYuji_avatar.png',
+'assets/avatar/ItadoriYuji_avatar2.png',
+'assets/avatar/ItadoriYuji_avatar3.png'
+]
+};
+const AVATAR_CYCLE_MS = 3000;
+
+/* ===== 通道 B：战斗界面专用图 =====
+   覆盖角色卡片背景、行动条圆点、技能演出立绘等【战斗界面内一切图片】。
+   只在此处列出的角色启用；没列的一律用原路径 heroImgSrc，行为完全不变。
+     base      —— 默认战斗图
+     variants  —— 按顺序命中的条件变体；rule 用 hasRule(unit,'…') 判定，
+                  也可给 test(unit) 自定义条件，命中即返回对应 src。
+     miraiPick —— 进入「未来」时从数组里【随机选一张】并保持到战斗结束；
+                  结果记在 unit.miraiBattlePick（下标 0/1），随联机快照同步，
+                  房主与客机永远显示同一张，不会各掷一次。 */
+const HERO_BATTLE_IMG = {
+'虎杖悠仁': {
+base: 'assets/character_battle/ItadoriYuji_battle1.png',
+miraiPick: [
+'assets/character_battle/ItadoriYuji_battle2.png',
+'assets/character_battle/ItadoriYuji_battle3.png'
+]
+}
+};
+function battleImgSrc(unit) {
+if (!unit) return '';
+const orig = heroImgSrc(unit.name);
+const cfg = HERO_BATTLE_IMG[unit.name];
+if (!cfg) return orig;                       // 没有特殊说明 → 原路径
+/* 「未来」随机图：只在第一次黑闪时掷一次，之后整场不再变。
+   下标还没同步到（客机等快照）时先用第 1 张，快照来了自动校正。 */
+if (cfg.miraiPick && cfg.miraiPick.length && hasRule(unit, '未来')) {
+const p = Number(unit.miraiBattlePick);
+return cfg.miraiPick[(p === 1) ? 1 : 0];
+}
+for (const v of (cfg.variants || [])) {
+try {
+if (v.rule && hasRule(unit, v.rule)) return v.src;
+if (typeof v.test === 'function' && v.test(unit)) return v.src;
+} catch (e) { /* 条件判定异常时继续看下一个变体，不影响战斗 */ }
+}
+return cfg.base || orig;
+}
+
+/* ===== 图片回退链 =====
+   srcList 依次为「主图 → … → 原路径」。首个加载失败就顺延到下一个，
+   全部失败才隐藏 <img>，露出底下的首字母。路径里不会出现引号或竖线。
+   ★ 回退时留 data-img-fallback 标记，并对同一 URL 在控制台提示一次：
+     Pages 对文件名大小写敏感，缺图 / 漏传 / 后缀写错时能立刻定位，
+     不再出现「静默显示原路径图，看起来像没换图」。 */
+function escAttr(s) { return String(s == null ? '' : s).replace(/"/g, '&quot;'); }
+const IMG_BAD_WARNED = new Set();
+function warnBadImg(url, why) {
+if (!url || IMG_BAD_WARNED.has(url)) return;
+IMG_BAD_WARNED.add(url);
+try { console.warn('[角色图片] ' + why + '：' + url); } catch (e) {}
+}
+function imgWithFallback(srcList, cls, alt, extra) {
+const list = (srcList || []).filter(Boolean);
+if (!list.length) return '';
+const fb = list.slice(1);
+return `<img class="${cls}" src="${escAttr(list[0])}" alt="${escAttr(alt)}"` +
+(fb.length ? ` data-fb="${escAttr(fb.join('|'))}"` : '') +
+(extra ? ' ' + extra : '') +
+` onerror="imgFallbackOnError(this)">`;
+}
+/* 全局函数：内联 onerror 调用。每次换到新路径后仍保留 onerror，
+   因此可以连续回退多级；链走完才加失败类隐藏。 */
+function imgFallbackOnError(img) {
+warnBadImg(img.getAttribute('src') || '', '加载失败，改用回退图');
+const fb = img.getAttribute('data-fb');
+if (fb) {
+const parts = fb.split('|');
+img.setAttribute('src', parts[0]);
+img.setAttribute('data-img-fallback', parts[0]);
+if (parts.length > 1) img.setAttribute('data-fb', parts.slice(1).join('|'));
+else img.removeAttribute('data-fb');
+return;
+}
+img.classList.add(img.classList.contains('unit-bg') ? 'unit-bg-fail' : 'avatar-img-fail');
+img.onerror = null;
+}
+
+/* 头像内部 HTML（选人页 / 角色详情）：首字母永久兜底 + <img>。
+   配了轮换的角色额外带 data-cycle / data-cycle-name / data-orig，由统一定时器切换。 */
 function heroAvatarInner(name, alt) {
-const src = heroImgSrc(name);
-if (!src) return name.charAt(0);
-return `${name.charAt(0)}<img class="avatar-img" src="${src}" alt="${alt || name}" loading="lazy" onerror="this.classList.add('avatar-img-fail');this.onerror=null;">`;
+const lead = (name || '').charAt(0);
+const orig = heroImgSrc(name);
+const cyc = HERO_AVATAR_CYCLE[name];
+if (!cyc || !cyc.length) return lead + imgWithFallback(orig ? [orig] : [], 'avatar-img', alt || name, 'loading="lazy"');
+/* 预探测完成前用完整列表；完成后收敛到真正能加载的那几张。 */
+const ok = AVATAR_CYCLE_OK[name];
+const list = (ok && ok.length) ? ok : cyc.slice();
+const extra = `data-cycle="${escAttr(list.join('|'))}" data-cycle-name="${escAttr(name)}" data-orig="${escAttr(orig)}" loading="lazy"`;
+return lead + imgWithFallback(orig ? [list[0], orig] : [list[0]], 'avatar-img avatar-cycle', alt || name, extra);
+}
+
+/* 战斗界面头像 HTML（行动条圆点 / 技能演出）：用 battleImgSrc，
+   新路径失败自动回退原路径。首字母同样永久兜底。 */
+function battleAvatarInner(unit, alt, overrideSrc) {
+if (!unit) return '';
+const lead = (unit.name || '').charAt(0);
+const orig = heroImgSrc(unit.name);
+/* overrideSrc：联机客机演出用房主随消息发来的图源，避免等下一份快照才换图。 */
+const main = overrideSrc || battleImgSrc(unit);
+const list = (main && main !== orig) ? [main, orig] : (orig ? [orig] : []);
+return lead + imgWithFallback(list, 'avatar-img', alt || unit.name, '');
+}
+/* 角色卡片背景图 HTML。 */
+function unitBgHtml(u) {
+const orig = heroImgSrc(u.name);
+const main = battleImgSrc(u);
+const list = (main && main !== orig) ? [main, orig] : (orig ? [orig] : []);
+return imgWithFallback(list, 'unit-bg', u.name, 'loading="lazy"');
+}
+
+/* ===== 头像轮换：全场一个定时器 =====
+   不开 19 个 interval；每次 tick 统一把所有带 data-cycle 的 <img> 切到下一张。
+   ★ 启动先预探测：只把【真正能加载】的图放进循环，坏图不再占位，
+     也不会在切换中途冒出原路径图造成「只有第 1、3 张生效」的错觉。 */
+const AVATAR_CYCLE_OK = {};      // name → 预探测成功的图片数组
+let avatarCycleTimer = null, avatarCycleTick = 0;
+function probeAvatarCycles() {
+Object.keys(HERO_AVATAR_CYCLE).forEach(name => {
+const list = HERO_AVATAR_CYCLE[name];
+Promise.all(list.map(src => new Promise(resolve => {
+const im = new Image();
+im.onload = () => resolve(src);
+im.onerror = () => { warnBadImg(src, '头像图找不到'); resolve(null); };
+im.src = src;
+}))).then(good => {
+AVATAR_CYCLE_OK[name] = good.filter(Boolean);
+/* 页面上已渲染的头像，立刻把轮换列表收敛到可用图。 */
+document.querySelectorAll('img.avatar-img[data-cycle-name]').forEach(img => {
+if (img.getAttribute('data-cycle-name') !== name) return;
+const ok = AVATAR_CYCLE_OK[name];
+if (ok.length) {
+img.setAttribute('data-cycle', ok.join('|'));
+const fb = img.getAttribute('data-orig') || '';
+if (fb) img.setAttribute('data-fb', fb); else img.removeAttribute('data-fb');
+img.removeAttribute('data-img-fallback');
+img.setAttribute('src', ok[avatarCycleTick % ok.length]);
+} else {
+img.removeAttribute('data-cycle');
+img.setAttribute('src', heroImgSrc(name) || '');
+}
+});
+});
+});
+}
+/* ===== 图片交叉淡入（头像轮换 / 战斗图状态切换共用）=====
+   新 <img> 叠在旧图之上淡入，过渡结束才移除旧图，全程不露首字母 / 底色。
+   · 过渡期间给 owner 打 data-img-fading，防止每帧渲染重复插入；
+   · 若上一个过渡还没结束又来一次切换（或用户开了「减少动态效果」），
+     直接硬切收尾，【状态正确优先于动画完整】；
+   · onFinish 会再校正一次图源，避免过渡途中规则又变导致画面滞留。 */
+const IMG_FADE_MS = 420;      // 与 styles.css 的 .42s 保持一致
+function prefersReducedMotion() {
+try { return typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches; }
+catch (e) { return false; }
+}
+function crossFadeImgNode(oldImg, newImg, owner, onFinish) {
+if (!newImg) return false;
+const parent = (oldImg && oldImg.parentNode) || owner;
+if (!parent) return false;
+const busy = !!(owner && owner.hasAttribute('data-img-fading'));
+if (busy || prefersReducedMotion() || IMG_FADE_MS <= 0) {
+/* 硬切：清掉残留的过渡节点，保证最终画面一定是最新图。 */
+parent.querySelectorAll('img').forEach(n => { if (n !== oldImg) n.remove(); });
+if (oldImg && oldImg.parentNode) parent.replaceChild(newImg, oldImg);
+else parent.insertBefore(newImg, parent.firstChild);
+if (owner) owner.removeAttribute('data-img-fading');
+if (onFinish) onFinish();
+return true;
+}
+newImg.classList.add('img-xfade');
+if (oldImg && oldImg.parentNode) parent.insertBefore(newImg, oldImg.nextSibling);
+else parent.insertBefore(newImg, parent.firstChild);
+if (owner) owner.setAttribute('data-img-fading', '1');
+void newImg.offsetWidth;                 // 强制重排，让 transition 真正跑起来
+newImg.classList.add('img-xfade-in');
+let done = false;
+const finish = () => {
+if (done) return; done = true;
+newImg.classList.remove('img-xfade', 'img-xfade-in');
+if (oldImg && oldImg.parentNode) oldImg.remove();
+if (owner) owner.removeAttribute('data-img-fading');
+if (onFinish) onFinish();
+};
+newImg.addEventListener('transitionend', finish, { once: true });
+setTimeout(finish, IMG_FADE_MS + 140);   // 兜底：transitionend 不触发也能收尾
+return true;
+}
+/* 战斗图：先走一遍「主图 → 原路径」预加载链，拿到真正能显示的 src 再淡入，
+   避免过渡动画播到一半被 onerror 换 src 闪一下。 */
+function fadeInBattleImg(oldImg, node, owner, onFinish) {
+if (!node) return;
+const chain = [node.getAttribute('src')].concat(
+(node.getAttribute('data-fb') || '').split('|').filter(Boolean)).filter(Boolean);
+const tryAt = i => {
+if (i >= chain.length) { crossFadeImgNode(oldImg, node, owner, onFinish); return; }
+const im = new Image();
+im.onload = () => {
+node.setAttribute('src', chain[i]);
+const rest = chain.slice(i + 1);
+if (rest.length) node.setAttribute('data-fb', rest.join('|')); else node.removeAttribute('data-fb');
+crossFadeImgNode(oldImg, node, owner, onFinish);
+};
+im.onerror = () => { warnBadImg(chain[i], '战斗图找不到'); tryAt(i + 1); };
+im.src = chain[i];
+};
+tryAt(0);
+}
+function switchAvatarCycle() {
+avatarCycleTick++;
+/* :not(.img-xfade) 排除正在淡入的临时节点，避免同一次 tick 被选中两次。 */
+document.querySelectorAll('img.avatar-img[data-cycle]:not(.img-xfade)').forEach(img => {
+const list = (img.getAttribute('data-cycle') || '').split('|').filter(Boolean);
+if (!list.length) return;
+const src = list[avatarCycleTick % list.length];
+const probe = new Image();
+probe.onload = () => {
+if (img.isConnected === false) return;
+/* clone 会原样带上 data-cycle / data-cycle-name / data-orig / onerror，
+   下一轮定时器才能继续找到它，回退链也不会丢。 */
+const next = img.cloneNode(true);
+next.setAttribute('src', src);
+next.removeAttribute('data-img-fallback');
+const fb = img.getAttribute('data-orig') || '';
+if (fb) next.setAttribute('data-fb', fb); else next.removeAttribute('data-fb');
+crossFadeImgNode(img, next, img.parentElement);
+};
+/* 这一张找不到：保持当前画面不变，不冒出原路径图混淆，并提示一次。 */
+probe.onerror = () => { warnBadImg(src, '头像轮换图找不到'); };
+probe.src = src;
+});
+}
+function startAvatarCycle() {
+probeAvatarCycles();
+if (avatarCycleTimer || !Object.keys(HERO_AVATAR_CYCLE).length) return;
+avatarCycleTimer = setInterval(switchAvatarCycle, AVATAR_CYCLE_MS);
+}
+
+/* ===== 战斗图片状态刷新 =====
+   ★ 关键：挂在【统一渲染入口】updateUnitDisplay / updateActionBarDots 上，
+     不再只依赖「进入未来」「收到快照」两个事件点。
+     无论规则从哪条路径变化、DOM 何时被重建，下一次刷新都会把图源校正过来。
+   比较 data-battle-src，只有真正变了才换 <img>，不重建整块 innerHTML，
+   所以血条动画、选中高亮、行动条位置都不会丢。 */
+function syncUnitBattleImage(idx) {
+const u = gameState.units[idx];
+if (!u || isSummonUnit(u)) return;
+const src = battleImgSrc(u);
+const recheck = () => syncUnitBattleImage(idx);
+const el = document.getElementById(`unit-${idx}`);
+if (el && el.getAttribute('data-battle-src') !== src) {
+el.setAttribute('data-battle-src', src);
+const bg = el.querySelector('img.unit-bg:not(.img-xfade)');
+const tmp = document.createElement('div'); tmp.innerHTML = unitBgHtml(u);
+const node = tmp.querySelector('img');
+if (node) fadeInBattleImg(bg, node, el, recheck);
+else if (bg) bg.remove();
+}
+const dot = document.getElementById(`dot-${idx}`);
+if (dot && dot.getAttribute('data-battle-src') !== src) {
+dot.setAttribute('data-battle-src', src);
+const oldImg = dot.querySelector('img.avatar-img:not(.img-xfade)');
+const tmp2 = document.createElement('div'); tmp2.innerHTML = battleAvatarInner(u);
+const node2 = tmp2.querySelector('img');
+/* 圆点里还有首字母文本，只换 <img>，不重建整块 innerHTML。 */
+if (node2) fadeInBattleImg(oldImg, node2, dot, recheck);
+else dot.innerHTML = battleAvatarInner(u);
+}
+}
+function refreshBattleImages() {
+if (!gameState || !Array.isArray(gameState.units)) return;
+for (let i = 0; i < gameState.units.length; i++) syncUnitBattleImage(i);
+}
+
+/* ===== 图片自检：网址加 ?imgcheck=1 时显示 =====
+   逐条探测所有新路径与原路径，直接列出哪张 ✅ / 哪张 ❌。
+   不加参数时完全不执行、不显示，对正常玩家零影响。 */
+function collectConfiguredImages() {
+const out = [], seen = new Set();
+const add = (label, src) => { if (src && !seen.has(src)) { seen.add(src); out.push({ label, src }); } };
+Object.keys(HERO_AVATAR_CYCLE).forEach(name => {
+HERO_AVATAR_CYCLE[name].forEach((p, i) => add(`${name} · 头像${i + 1}`, p));
+});
+Object.keys(HERO_BATTLE_IMG).forEach(name => {
+const cfg = HERO_BATTLE_IMG[name];
+add(`${name} · 战斗图默认`, cfg.base);
+(cfg.variants || []).forEach((v, i) => add(`${name} · 战斗图${v.rule || '变体' + (i + 1)}`, v.src));
+(cfg.miraiPick || []).forEach((p, i) => add(`${name} · 未来随机图${i + 1}`, p));
+});
+[...new Set(Object.keys(HERO_AVATAR_CYCLE).concat(Object.keys(HERO_BATTLE_IMG)))]
+.forEach(name => add(`${name} · 原路径兜底`, heroImgSrc(name)));
+return out;
+}
+function runImageSelfCheck() {
+if (typeof location === 'undefined' || !/[?&]imgcheck=1(?:&|$)/.test(location.search || '')) return;
+const items = collectConfiguredImages();
+addHeishanToSelfCheck(items);
+const box = document.createElement('div');
+box.id = 'img-self-check';
+box.style.cssText = 'position:fixed;left:8px;top:8px;z-index:99999;max-width:min(92vw,460px);max-height:80vh;overflow:auto;background:#10122aee;color:#eee;font:12px/1.7 monospace;padding:10px 12px;border:1px solid #ffd700;border-radius:8px;box-shadow:0 4px 20px #000;white-space:pre-wrap;word-break:break-all;';
+document.body.appendChild(box);
+const lines = []; let done = 0;
+const render = () => {
+box.innerHTML = `<b style="color:#ffd700">角色图片自检（${done}/${items.length}）</b>\n` +
+items.map((it, i) => lines[i] || `⏳ ${it.label} → ${it.src}`).join('\n');
+};
+render();
+items.forEach((it, i) => {
+/* 视频不走 new Image()，单独探测：能 loadeddata 就算 ✅。 */
+if (it.video) {
+const v = document.createElement('video');
+v.muted = true; v.playsInline = true; v.preload = 'auto';
+const doneIt = (good) => { if (lines[i]) return; lines[i] = (good ? '✅ ' : '❌ ') + it.label + ' → ' + it.src + (good ? '' : '（视频找不到 / 格式不支持）'); done++; render(); };
+v.onloadeddata = () => doneIt(true);
+v.onerror = () => { warnBadImg(it.src, '自检视频未找到'); doneIt(false); };
+setTimeout(() => doneIt(false), 4000);
+v.src = it.src; v.load();
+return;
+}
+const im = new Image();
+im.onload = () => { if (!lines[i]) { lines[i] = `✅ ${it.label} → ${it.src}`; done++; render(); } };
+im.onerror = () => { if (!lines[i]) { lines[i] = `❌ ${it.label} → ${it.src}（找不到：核对文件名 / 大小写 / 目录）`; warnBadImg(it.src, '自检未找到'); done++; render(); } };
+im.src = it.src;
+});
+}
+
+/* ===== 黑闪演出 =====
+   节奏：【每一方】虎杖第一次触发黑闪播 3s 全屏视频，之后一律播透明底抠图短闪。
+   「方」按 attacker.side 分开记：我方虎杖与敌方虎杖各有自己的首播；
+   联机时房主判定并广播 side，客机照播，两边口径一致。
+   · 纯视觉、不 await、不吃点击：伤害结算与联机队列完全不受影响；
+   · 层级高于结算界面，视频能盖住结算播完再自动消失；
+   · 两侧首播可能挨得很近 → 串行播放链，前一个播完才播下一个，3s 视频不会被拦腰截断；
+   · 多段技能逐段独立判定黑闪 → 每方 1.2s 节流，一次行动只入队一回；
+   · 视频放不出来（缺文件 / 自动播放被拦 / 格式不支持）→ 自动改用抠图短闪；
+   · 系统开了「减少动态效果」→ 首播也改走静态抠图，不播视频；
+   · 素材全缺时整层保持隐藏，游戏外观与原来完全一致。
+   路径集中在这里，换素材只改下面两行。 */
+const HEISHAN_VIDEO = 'assets/character_battle/ItadoriYuji_battle_video.mp4';  // 首播：3s 全屏视频
+const HEISHAN_CUT   = 'assets/character_battle/ItadoriYuji_battle_kokusenn.png'; // 后续：透明底抠图
+const HEISHAN_VIDEO_POSTER = '';   // 暂无首帧图；以后要加，把路径填这里即可
+const HEISHAN_CUT_MS = 420;          // 与 styles.css 的 .42s 动画一致
+const HEISHAN_VIDEO_MAX_MS = 3600;   // 3s 视频 + 余量，超时强制收尾
+const HEISHAN_THROTTLE_MS = 1200;
+let heishanVideoBySide = { player:false, enemy:false };
+let heishanLastBySide = { player:0, enemy:0 };
+let heishanTimer = null, heishanStageSeq = 0, heishanEpoch = 0;
+let heishanChain = Promise.resolve();
+
+function addHeishanToSelfCheck(items) {
+if (!Array.isArray(items)) return;
+items.push({ label: '黑闪 · 首播视频', src: HEISHAN_VIDEO, video: true });
+items.push({ label: '黑闪 · 后续抠图', src: HEISHAN_CUT });
+if (HEISHAN_VIDEO_POSTER) items.push({ label: '黑闪 · 视频首帧（可选）', src: HEISHAN_VIDEO_POSTER });
+}
+function hideHeishanFlash() {
+const layer = document.getElementById('heishan-flash');
+const v = document.getElementById('heishan-video');
+const img = document.getElementById('heishan-cut');
+if (layer) layer.classList.remove('show');
+if (v) { v.classList.remove('show'); try { v.pause(); } catch (e) {} }
+if (img) img.classList.remove('show');
+}
+function clearHeishanStage() {
+/* 序号：任何一次清场都让「还飞在路上的预加载 / 超时回调」失效，
+   避免上一局的抠图或视频兜底突然盖到新一局画面上。 */
+heishanStageSeq++;
+if (heishanTimer) { clearTimeout(heishanTimer); heishanTimer = null; }
+hideHeishanFlash();
+}
+function resetHeishanEffect() {          // 每场战斗 / 重开时调用
+clearHeishanStage();
+heishanVideoBySide = { player:false, enemy:false };
+heishanLastBySide = { player:0, enemy:0 };
+heishanEpoch++;                 // 排队中尚未启动的旧任务直接作废
+heishanChain = Promise.resolve();
+}
+function playHeishanCut() {
+return new Promise(resolve => {
+const layer = document.getElementById('heishan-flash');
+const img = document.getElementById('heishan-cut');
+if (!layer || !img) { resolve(); return; }
+/* 先预加载：抠图找不到就整层不显示，绝不出现破图 / 白方块。 */
+const seq = heishanStageSeq;
+const probe = new Image();
+probe.onload = () => {
+if (seq !== heishanStageSeq) { resolve(); return; }
+clearHeishanStage();
+const seq2 = heishanStageSeq;
+img.setAttribute('src', HEISHAN_CUT);
+img.classList.remove('show');
+void img.offsetWidth;                 // 重启动画
+layer.classList.add('show');
+img.classList.add('show');
+heishanTimer = setTimeout(() => {
+if (seq2 !== heishanStageSeq) { resolve(); return; }
+hideHeishanFlash(); resolve();
+}, HEISHAN_CUT_MS + 80);
+};
+probe.onerror = () => {
+if (seq === heishanStageSeq) { warnBadImg(HEISHAN_CUT, '黑闪抠图找不到'); hideHeishanFlash(); }
+resolve();
+};
+probe.src = HEISHAN_CUT;
+});
+}
+function playHeishanVideo() {
+const layer = document.getElementById('heishan-flash');
+const v = document.getElementById('heishan-video');
+return new Promise(resolve => {
+if (!layer || !v || prefersReducedMotion()) { playHeishanCut().then(resolve, resolve); return; }
+const seq = heishanStageSeq;
+let settled = false, gotFrame = false;
+const finish = () => {
+if (settled) return; settled = true;
+if (seq === heishanStageSeq) clearHeishanStage();
+resolve();
+};
+const fallback = () => {
+if (settled) return; settled = true;
+if (seq !== heishanStageSeq) { resolve(); return; }   // 已被新局清场
+warnBadImg(HEISHAN_VIDEO, '黑闪视频无法播放，改用抠图');
+clearHeishanStage();
+playHeishanCut().then(resolve, resolve);
+};
+v.onloadeddata = () => { gotFrame = true; };
+v.onended = finish;
+v.onerror = fallback;
+try {
+if (HEISHAN_VIDEO_POSTER) v.setAttribute('poster', HEISHAN_VIDEO_POSTER);
+else v.removeAttribute('poster');
+v.setAttribute('src', HEISHAN_VIDEO);
+v.currentTime = 0;
+layer.classList.add('show');
+v.classList.add('show');
+const p = v.play();
+if (p && typeof p.catch === 'function') p.catch(fallback);
+} catch (e) { fallback(); return; }
+/* 兜底①：迟迟没拿到画面（缺文件 / 编码不支持 / 自动播放被拦但没 reject） */
+setTimeout(() => { if (!settled && !gotFrame && seq === heishanStageSeq) fallback(); }, 1800);
+/* 兜底②：总时长上限，ended 不触发也能收尾 */
+heishanTimer = setTimeout(finish, HEISHAN_VIDEO_MAX_MS);
+});
+}
+function playHeishanEffect(first, fromNet, side) {
+if (fromNet && side) heishanVideoBySide[side] = true;
+clearHeishanStage();
+return first ? playHeishanVideo() : playHeishanCut();
+}
+/* 串行播放链：两侧首播挨得近时，前一个播完才播下一个，谁都不会被拦腰截断。 */
+function queueHeishanEffect(first, fromNet, side) {
+const epoch = heishanEpoch;
+heishanChain = heishanChain.catch(() => {}).then(() => {
+if (epoch !== heishanEpoch) return;   // 已重开新局，旧任务作废
+return playHeishanEffect(first, fromNet, side);
+}).catch(() => {});
+return heishanChain;
+}
+/* 房主 / 单机：按【方】判定首播 + 节流 + 广播。客机只收消息，不调这里。 */
+function triggerHeishanEffect(attacker) {
+const side = (attacker && attacker.side) || 'player';
+const now = Date.now();
+if (now - (heishanLastBySide[side] || 0) < HEISHAN_THROTTLE_MS) return;
+heishanLastBySide[side] = now;
+const first = !heishanVideoBySide[side];
+heishanVideoBySide[side] = true;
+queueHeishanEffect(first, false, side);
+if (typeof Net !== 'undefined' && Net.active && Net.role === 'host' && typeof Net.onHeishan === 'function') {
+Net.onHeishan(first, side);
+}
 }
 const HERO_DATA = {
 "主角": { atk:800, def:300, hp:6840, spd:150, effectHit:0, effectResist:0, critRate:0.1, critDmg:1.5, color:'#ffd700', tag:'均衡',
@@ -166,9 +649,9 @@ normal: { name:"黑暗祭祀", type:"single", dmgRate:1.0, target:"enemy", selfE
    两者用 vayneFullKill 标记区分，killUnit 里读该标记决定给多少。 */
 skill:  { name:"扭曲空间", cost:2, type:"single", dmgRate:1.4, target:"enemy", effect:"stun", selfEffect:"darkEssence", vayneFullKill:false },
 skill2: { name:"能量爆裂", cost:4, type:"single", dmgRate:3.0, target:"enemy", selfEffect:"darkEssence", vayneFullKill:true },
-descNormal: "对敌方目标造成 <span class='dmg'>100%</span> 伤害，若造成击杀则获得 <span class='m-mark'>1层超凡邪力</span>。",
-descSkill: "对敌方目标造成 <span class='dmg'>140%</span> 伤害，并附加<span class='m-state'>眩晕</span>（持续1回合），若造成击杀则获得 <span class='m-mark'>1层超凡邪力</span>。",
-descSkill2: "对敌方目标造成 <span class='dmg'>300%</span> 伤害，若造成击杀则获得 <span class='m-mark'>1层超凡邪力</span>，且回合结束后自身 <span class='buff'>+60%行动条</span>，获得 <span class='buff'>4点怒气</span>，<span class='restore'>恢复</span>自身最大生命值 <span class='heal'>30%</span> 的生命值。",
+descNormal: "对敌方目标造成 <span class='dmg'>100%</span> 伤害，若造成击杀（非召唤物）则获得 <span class='m-mark'>1层超凡邪力</span>。",
+descSkill: "对敌方目标造成 <span class='dmg'>140%</span> 伤害，并附加<span class='m-state'>眩晕</span>（持续1回合），若造成击杀（非召唤物）则获得 <span class='m-mark'>1层超凡邪力</span>。",
+descSkill2: "对敌方目标造成 <span class='dmg'>300%</span> 伤害，若造成击杀（非召唤物）则获得 <span class='m-mark'>1层超凡邪力</span>，且回合结束后自身 <span class='buff'>+60%行动条</span>，获得 <span class='buff'>4点怒气</span>，<span class='restore'>恢复</span>自身最大生命值 <span class='heal'>30%</span> 的生命值。",
 mechanics: [{ type:'mark', name:'超凡邪力', desc:'增益印记：永久提升攻击20%、暴击率10%、暴击伤害20%、最终伤害率10%，最多叠加5层。' },
 { type:'state', name:'眩晕', desc:'减益状态：控制效果，目标无法行动。不可叠加。' }] },
 "心友犬神": { atk:900, def:270, hp:6720, spd:154, effectHit:0, effectResist:0, critRate:0.12, critDmg:1.6, color:'#26c6da', tag:'均衡',   // 浅蓝（与鬼金羊同色）
@@ -260,11 +743,42 @@ descSkill2: "对敌方全体造成 <span class='dmg'>200%</span> 伤害。",
 mechanics: [
 { type:'mark', name:'视', desc:'减益印记：任意单位行动后，五条悟会对携带者造成 <span class="dmg">40%</span> 伤害（不可转移），对携带者造成 <span class="dmg">3次</span>伤害后移除。场上最多 <span class="dmg">3个</span>敌方单位携带此印记。随施放者阵亡清空。不可叠加。' },
 { type:'state', name:'混乱', desc:'减益状态：控制效果，携带者行动阶段时，改为对场上随机目标普攻。不可叠加。' },
-{ type:'note', name:'护盾', desc:'优先于生命值承受伤害。' } ] }
+{ type:'note', name:'护盾', desc:'优先于生命值承受伤害。' } ] },
+/* 虎杖悠仁：noCrit = 被动「自身无法暴击」，critRate 只用于黑闪的溢出判定。
+   segments = 同一技能内各段倍率不同（与 hitCount「同一段重复 N 次」不同）。 */
+"虎杖悠仁": { atk:900, def:350, hp:7800, spd:162, effectHit:0, effectResist:0, critRate:0, critDmg:0, color:'#ff80ab', tag:'攻击',   // 粉
+noCrit: true,
+normal: { name:"径庭拳", type:"single", target:"enemy", segments:[{ dmgRate:0.5 }, { dmgRate:0.7 }] },
+skill: { name:"穿血", cost:2, type:"single", dmgRate:1.6, target:"enemy" },
+skill2: { name:"斩击·领域", cost:4, type:"single", target:"enemy", segments:[{ dmgRate:0.8 }, { dmgRate:0.8 }, { dmgRate:0.8 }], effect:"itadoriHunLuan" },
+passive: { name:"黑闪·登神",
+desc:"自身无法暴击，暴击率超过 <span class='k'>100%</span> 时，<span class='m-note'>黑闪</span>概率随溢出值等量提升。第一次触发<span class='m-note'>黑闪</span>后，自身进入 <span class='m-rule'>未来</span>。" },
+descNormal: "对敌方目标分别造成 <span class='dmg'>50%</span>、<span class='dmg'>70%</span> 伤害。",
+descSkill: "对敌方目标造成 <span class='dmg'>160%</span> 伤害。（强化：改为对敌方全体造成 <span class='dmg'>160%</span> 伤害）",
+descSkill2: "对敌方目标造成三段 <span class='dmg'>80%</span> 伤害，并使目标附加 <span class='m-state'>混乱</span>（持续1回合）。（强化：额外对敌方全体造成三段 <span class='dmg'>80%</span> 伤害）",
+mechanics: [
+{ type:'rule', name:'未来', desc:'规则：强化虎杖悠仁的所有技能，攻击提升50%，速度提升20%，暴击率提升30%，进入时恢复100%最大生命值，每次行动后恢复10%最大生命值。' },
+{ type:'state', name:'混乱', desc:'减益状态：控制效果，携带者行动阶段时，改为对场上随机目标普攻。不可叠加。' },
+{ type:'note', name:'黑闪', desc:'攻击时，5%概率将本次伤害值调整为伤害结果的2.5次方。' } ] },
+/* 钉崎野蔷薇：
+   · 被动「共鸣」走 PASSIVE_ON_DAMAGED 注册表（onDamaged:'gongming'），
+     伤害量由统一入口透传，不另开钩子。
+   · 技能 type:'summon' —— 需要选单个敌方目标，因此不加入 NO_TARGET_SKILL_TYPES。
+   · 「传导伤害」与「稻草人」两条机制见下方 mechanics，教程伤害类型页另有完整定义。 */
+"钉崎野蔷薇": { atk:800, def:280, hp:6700, spd:184, effectHit:0, effectResist:0, critRate:0.10, critDmg:1.5, color:'#ff9800', tag:'均衡',   // 橙
+normal: { name:"锤击", type:"single", dmgRate:1.2, target:"enemy" },
+skill: { name:"刍灵咒法·共鸣", cost:4, type:"summon", target:"enemy" },
+passive: { name:"共鸣", onDamaged:"gongming",
+desc:"自身受到伤害时，使上一次被自身攻击的目标受到本次伤害的等量<span class='m-note'>传导伤害</span>。" },
+descNormal: "对敌方目标造成 <span class='dmg'>120%</span> 伤害。",
+descSkill: "召唤一个与目标连接的<span class='m-note'>稻草人</span>至敌方场上，稻草人继承目标 <span class='buff'>100%</span> 最大生命值与 <span class='buff'>50%</span> 防御。稻草人受到的伤害会等量<span class='m-note'>传导</span>给目标。",
+mechanics: [
+{ type:'note', name:'传导伤害', desc:'不参与伤害公式计算，直接造成伤害，无视护盾。' },
+{ type:'note', name:'稻草人', desc:'召唤物：双方场上只能存在一个（再次施放会覆盖原有），速度为0、无法行动。受到的伤害等量传导给连接目标。' } ] }
 };
 let gameMode = 'pve'; // 'pve' 人机对战 | 'pvp' 双人对战
 // 注：已移除 actingUnit / battleLog / selectedTarget 三个从未被读取的僵尸字段
-let gameState = { phase:'modeSelect', units:[], playerTeam:[], enemyTeam:[], actionBarMax:0, paused:false, auto:{ player:false, enemy:false }, animating:false, waitingForTarget:false, targetType:null, pendingSkill:null, currentActor:null, lastTimestamp:0, rafId:null, snowballSnapshot:null, vayneKillThisTurn:false, damageLogTotal:0, damageLogSide:null, shouShiFiring:false, shouShiTurnCount:0, wuXianXiaTurnCount:0, pendingCasts:[], needFlushAfterActionable:false, damageLogFallen:[], actionHookBusy:false };
+let gameState = { phase:'modeSelect', units:[], playerTeam:[], enemyTeam:[], actionBarMax:0, paused:false, auto:{ player:false, enemy:false }, animating:false, waitingForTarget:false, targetType:null, pendingSkill:null, currentActor:null, lastTimestamp:0, rafId:null, snowballSnapshot:null, vayneKillThisTurn:false, damageLogTotal:0, damageLogSide:null, shouShiFiring:false, shouShiTurnCount:0, wuXianXiaTurnCount:0, pendingCasts:[], needFlushAfterActionable:false, damageLogFallen:[], actionHookBusy:false, summonIdx:{ player:null, enemy:null } };
 let playerSelection = ['主角']; let enemySelection = ['主角'];
 /* ============================================================================
    联机对战（公共 MQTT over WebSocket 中继 · 房主权威广播）
@@ -1111,8 +1625,10 @@ clearHighlights();
 showControlPanel(actor);   // 房主端会重新广播 mode:'skill'，客机回到普攻/技能/技能2
 return;
 }
-const skill = kind === 'normal' ? actor.normalSkill : (kind === 'skill2' ? actor.activeSkill2 : actor.activeSkill);
-if (!skill) { showControlPanel(actor); return; }
+const rawSkill = kind === 'normal' ? actor.normalSkill : (kind === 'skill2' ? actor.activeSkill2 : actor.activeSkill);
+if (!rawSkill) { showControlPanel(actor); return; }
+/* 先解析「未来」强化形态：强化后的穿血已是全体伤害，不必让客机进入选目标态。 */
+const skill = getEffectiveSkillShape(actor, rawSkill);
 gameState.waitingForTarget = false;
 if (isNoTargetSkill(skill)) { executeAction(actor, skill); return; }
 /* 需要选目标：房主本地进入等待态，并让客机高亮可选目标。
@@ -1194,10 +1710,12 @@ else if (o.t === 'anim') { const el = document.getElementById(`unit-${o.idx}`); 
 /* 演出不再 await：它动辄 1~2 秒，期间房主仍在持续发快照，
    队列会暴涨到触发追赶、把后面的动画全丢掉（"动画丢失"的主因）。
    改成挂到一条串行链上后台播，队列继续消费，演出之间仍不重叠。 */
-else if (o.t === 'cutin') { const u = gameState.units[o.idx]; if (u) { const nm = !!o.nm; this._cutinChain = Promise.resolve(this._cutinChain).catch(() => {}).then(() => playSkillCutin(u, o.name, nm)).catch(() => {}); } }
+else if (o.t === 'cutin') { const u = gameState.units[o.idx]; if (u) { const nm = !!o.nm; const bi = o.bi || ''; this._cutinChain = Promise.resolve(this._cutinChain).catch(() => {}).then(() => playSkillCutin(u, o.name, nm, false, bi)).catch(() => {}); } }
+else if (o.t === 'heishan') queueHeishanEffect(!!o.first, true, o.side);
 else if (o.t === 'st') this.applySnapshot(o);
 else if (o.t === 'panel') this.applyPanel(o);
 else if (o.t === 'init') this.applyInit(o);
+else if (o.t === 'summon') this.applySummon(o.sm);
 /* 结算：先让正在播的演出播完，再切结算界面 */
 else if (o.t === 'over') {
 try { await this.waitCutinDone(NET_OVER_WAIT_MS); } catch (e) {}
@@ -1230,6 +1748,7 @@ catchUp() {
 const keep = [];
 const ftKeep = [];
 let lastSt = null, lastCutin = null, lastOver = null;
+const lastHeishanBySide = {};   // 双方首播各留一条，不互相覆盖
 for (const o of this.guestQueue) {
 if (o.t === 'over') { lastOver = o; continue; }      // 结算：永远排最后
 if (o.t === 'st') { lastSt = o; continue; }          // 快照：只留最后一条
@@ -1238,12 +1757,14 @@ if (o.t === 'anim') continue;                        // 纯视觉开关：过期
    保留最近几条：它们是结算感的关键反馈，全丢会让打击感彻底消失。 */
 if (o.t === 'ft') { ftKeep.push(o); if (ftKeep.length > BAR_KEEP_FT) ftKeep.shift(); continue; }
 if (o.t === 'cutin') { lastCutin = o; continue; }    // 演出：只留最后一条补播
+if (o.t === 'heishan') { lastHeishanBySide[o.side || 'player'] = o; continue; } // 每方各留最后一条
 keep.push(o);
 }
 /* 顺序：普通消息 → 浮动数字 → 补播演出 → 最新快照 → 结算。
    ★ 结算必须垫底：它是终止信号，排在它前面的动画都要先播完，
      否则追赶时结算会跑到演出前面，最后一击照样看不到。 */
 this.guestQueue = keep.concat(ftKeep);
+Object.keys(lastHeishanBySide).forEach(k => this.guestQueue.push(lastHeishanBySide[k])); // 双方黑闪排在截图之前
 if (lastCutin) this.guestQueue.push(lastCutin);
 if (lastSt) this.guestQueue.push(lastSt);            // 快照放最后，保证状态是最新的
 if (lastOver) this.guestQueue.push(lastOver);
@@ -1309,7 +1830,9 @@ bindRematchButton();
 },
 
 applyInit(o) {
+resetHeishanEffect();      // 客机新对局：首播计数与房主保持同步
 gameState.units = []; gameState.playerTeam = []; gameState.enemyTeam = [];
+gameState.summonIdx = { player:null, enemy:null };   // 新对局不继承上一局的稻草人（每方各一个槽）
 (o.roster || []).forEach((name, i) => { const u = createUnit(name, 'player', i); gameState.units.push(u); gameState.playerTeam.push(gameState.units.length - 1); });
 (o.guest || []).forEach((name, i) => { const u = createUnit(name, 'enemy', i); gameState.units.push(u); gameState.enemyTeam.push(gameState.units.length - 1); });
 gameState.actionBarMax = o.barMax || 1;
@@ -1334,6 +1857,8 @@ if (gameState.rafId) cancelAnimationFrame(gameState.rafId);
 gameState.rafId = requestAnimationFrame(guestBarLoop);
 },
 applySnapshot(o) {
+/* 先还原召唤物：us.forEach 要按 idx 写 hp/alive，对象必须已存在。 */
+if (Object.prototype.hasOwnProperty.call(o, 'sm')) this.applySummon(o.sm);
 const us = o.us || [];
 /* 权威行动条到来：把它登记为「目的地」，由 interpBars 平滑走过去。
    ★ 不做任何本地预测：客机自己算速度会用到 states/marks，而这些来自快照、天然滞后，
@@ -1373,8 +1898,13 @@ const u = gameState.units[i]; if (!u) return;
 u.hp = d.hp; u.shield = d.sh; u.rage = d.rg; u.alive = d.al; u.banished = d.bn; u.intangible = d.it;
 u.states = (d.st || []).map(x => ({ type:x[0], duration:x[1] }));
 u.marks = (d.mk || []).map(x => ({ type:x[0], duration:x[1], stacks:x[2] || 1 }));
+u.rules = (d.ru || []).map(x => ({ type:x[0], duration:x[1], effect:x[2] || null }));
+/* 房主随机选定的「未来」战斗图下标；快照里没有（旧版房主）就保持未定。 */
+if (typeof d.hb === 'number') u.miraiBattlePick = (d.hb >= 0) ? d.hb : null;
 });
 renderActionBarDots();
+/* 客机的 rules 刚还原完：若房主那边虎杖进入了「未来」，这里同步换战斗图。 */
+refreshBattleImages();
 /* 同步「正在行动」高亮：房主那边的 .acting 是本地 class，不会随快照自动过来 */
 const actIdx = (o.acting == null) ? -1 : Number(o.acting);
 gameState.units.forEach((u, i) => {
@@ -1466,8 +1996,9 @@ if (items.length) this.send({ t:'logs', items });
 }, 120);
 },
 onFloat(idx, text, cls) { if (this.active && this.role === 'host') this.send({ t:'ft', idx, text:String(text), cls:cls || '' }); },
-onCutin(idx, name, isNormal) { if (this.active && this.role === 'host') this.send({ t:'cutin', idx, name, nm:!!isNormal }); },
+onCutin(idx, name, isNormal) { if (this.active && this.role === 'host') { const u = gameState.units[idx]; this.send({ t:'cutin', idx, name, nm:!!isNormal, bi: u ? battleImgSrc(u) : '' }); } },
 onAnim(idx, cls, on) { if (this.active && this.role === 'host') this.send({ t:'anim', idx:Number(idx), cls:String(cls), on:!!on }); },
+onHeishan(first, side) { if (this.active && this.role === 'host') this.send({ t:'heishan', first:!!first, side:String(side || 'player') }); },
 snapshot() {
 return {
 t:'st',
@@ -1487,7 +2018,16 @@ hp: Math.round(u.hp), sh: Math.round(Number(u.shield) || 0), rg: u.rage,
 al: !!u.alive, bn: !!u.banished, it: !!u.intangible,
 st: (u.states || []).map(s => [s.type, s.duration]),
 mk: (u.marks || []).map(m => [m.type, m.duration, m.stacks || 1]),
+/* 规则标签（放逐 / 虚化 / 未来）也要同步：客机原本只有空数组，
+   导致房主「放逐」了目标、客机却看不到橙色标签，不知道对方为何不动。
+   effect 只用于显示与日志，到期结算仍由房主权威执行。 */
+ru: (u.rules || []).map(r => [r.type, r.duration, r.effect || null]),
+/* 「未来」随机战斗图下标（0/1，-1 表示还没进未来）：
+   房主掷一次，客机照用，避免两边各随机出不同的图。 */
+hb: (u.miraiBattlePick == null ? -1 : Number(u.miraiBattlePick)),
 })),
+/* 召唤物随每份快照兜底同步：即使 t:'summon' 单发丢包，下一份 st 也能把客机拉回一致。 */
+sm: this.serializeSummon(),
 };
 },
 tick(now) {
@@ -1588,6 +2128,69 @@ if (lp.mode !== 'select' && ++this._panelAge >= 5) { this._panelAge = 0; this.se
 sendInit() {
 if (!this.active || this.role !== 'host') return;
 this.send({ t:'init', roster:playerSelection.slice(), guest:enemySelection.slice(), barMax:gameState.actionBarMax });
+},
+/* ===== 召唤物同步（房主权威）=====
+   召唤 / 覆盖 / 退场时立刻单发一条 summon；同一份描述也挂进 st 快照做兜底，
+   丢包或重连后下一份快照就能自愈。客机只还原显示对象，不跑战斗逻辑。
+   linked / owner 传 units 下标（对象引用不能过网络），客机按 idx 反查。 */
+/* 每方各一只，因此快照是【数组】（0~2 项）。字段 sm 的名称保持不变，
+   丢包或重连后下一份快照就能自愈；客机只还原显示对象，不跑战斗逻辑。
+   linked / owner 传 units 下标（对象引用不能过网络），客机按 idx 反查。 */
+serializeSummon() {
+return aliveSummonIdxs().map(si => {
+const u = gameState.units[si];
+return { i:si, s:u.side, h:Math.round(u.hp), mh:Math.round(u.maxHp), d:Math.round(u.def),
+l:idxOf(u.linkedTarget), o:idxOf(u.owner), a:true };
+});
+},
+sendSummonSnapshot() {
+if (!this.active || this.role !== 'host') return;
+this.send({ t:'summon', sm:this.serializeSummon() });
+},
+applySummon(sm) {
+/* 兼容旧版房主的单对象形态，统一按全量数组处理。 */
+const list = (Array.isArray(sm) ? sm : (sm && sm.a ? [sm] : [])).filter(x => x && x.a);
+const prev = (gameState.summonIdx && typeof gameState.summonIdx === 'object')
+? (gameState.summonIdx.player + '|' + gameState.summonIdx.enemy) : '';
+/* 先把客机现存召唤物占位全部标为死亡，收到快照的会重新置活。
+   占位对象【保留不删】—— 房主复用槽位、idx 全程稳定，客机必须同步保持长度与下标。 */
+gameState.units.forEach(u => { if (isSummonUnit(u)) { u.alive = false; u.hp = 0; } });
+const next = { player:null, enemy:null };
+let needRender = false;
+list.forEach(one => {
+const idx = Number(one.i); if (!isFinite(idx) || idx < 0) return;
+while (gameState.units.length <= idx) {
+const ph = makeSummonUnit('enemy', null, null, 1, 0); ph.alive = false; ph.hp = 0;
+gameState.units.push(ph);
+}
+const linked = gameState.units[Number(one.l)] || null;
+const owner = gameState.units[Number(one.o)] || null;
+const side = one.s === 'player' ? 'player' : 'enemy';
+const maxHp = Math.max(1, Number(one.mh) || 1);
+const def = Math.max(0, Number(one.d) || 0);
+const key = [idx, side, maxHp, def, Number(one.l)].join('|');
+let u = gameState.units[idx];
+const changed = !isSummonUnit(u) || u._smKey !== key;
+if (!isSummonUnit(u)) u = makeSummonUnit(side, linked, owner, maxHp, def);
+u.side = side; u.maxHp = maxHp; u.def = def;
+u.hp = Math.max(0, Number(one.h) || 0); u.alive = u.hp > 0;
+u.linkedTarget = linked; u.owner = owner; u._smKey = key;
+gameState.units[idx] = u;
+if (u.alive) next[side] = idx;
+if (changed || !u.alive) needRender = true;
+});
+const cur = next.player + '|' + next.enemy;
+if (cur !== prev) needRender = true;
+gameState.summonIdx = next;
+/* 身份（连接目标 / 阵营 / 上限）或存活数量变了才重建 DOM，否则只刷血条 ——
+   避免每份快照都重建卡片、把玩家正在选目标的高亮框冲掉。 */
+if (needRender) renderSummon();
+else list.forEach(one => { const i = Number(one.i); if (isFinite(i) && i >= 0) updateUnitDisplay(i); });
+},
+_clearSummon() {
+gameState.units.forEach(u => { if (isSummonUnit(u)) { u.alive = false; u.hp = 0; } });
+gameState.summonIdx = { player:null, enemy:null };
+const area = document.getElementById('summon-area'); if (area) area.innerHTML = '';
 },
 /* 结算广播：
    ① 先补一份最新快照 —— 最后一击的血量/死亡状态可能还没被客机收到，
@@ -1766,9 +2369,15 @@ applySpeedBtn();
    数据结构：{ ver, theme?, items:[] }，ver 与主题一一对应。
    新增版本时往 CHANGELOG 数组**开头**加一条即可（渲染按数组顺序，最新的在最上面）。
    CURRENT_VERSION / CURRENT_THEME 同时驱动模式选择页底部那行文字。 */
-const CURRENT_VERSION = 'v1.5.1';
-const CURRENT_THEME   = '咒术·最强之战Ⅱ·神魂';   // 1.5.0 起用的主题，v1.5.1 沿用（故本版日志不再重复挂主题）
+const CURRENT_VERSION = 'v1.5.2';
+const CURRENT_THEME   = '咒术·最强之战Ⅱ·神魂';   // 1.5.0 起用的主题，v1.5.1 / v1.5.2 沿用（故这两版日志不再重复挂主题）
 const CHANGELOG = [
+{ ver:'v1.5.2', items:[
+'新增：虎杖悠仁 —— 攻击型角色，攻击时可能触发「黑闪」，首次触发后进入「未来」全面强化自身；技能「穿血」强化后改为群体伤害。',
+'新增：钉崎野蔷薇 —— 均衡型角色，可召唤与敌人连接的稻草人，将其受到的伤害传导给目标；新增伤害类型「传导伤害」。',
+'优化：优化界面与演出表现 —— 主界面背景、角色头像与战斗立绘分别配置并加入轮换与切换过渡，黑闪触发时追加专属动画，整体体验提升。',
+'新增：神魂套装「狱门疆」 —— 1 件套提升效果命中，2 件套首次攻击时有概率将目标「放逐」至内部空间；多名角色同时装备也只生效一次。',
+] },
 { ver:'v1.5.1', items:[
 '新增：云存档 —— 登录账号后可手动上传 / 下载神魂进度，换设备不用再来回传文件；不登录仍可离线游玩。',
 '移除：本地「导入 / 导出」页，跨设备同步统一由云存档承担。',
@@ -3026,6 +3635,7 @@ renderSectionTitle('enemy', 'player2');
 }
 async function startBattle() {
 stopSkillCutin();          // 开局前清掉可能残留的演出遮罩
+resetHeishanEffect();      // 每场战斗重新计算「第一次黑闪」（首播视频）
 closeConfirmDialog(false); // 清掉可能残留的确认弹窗
 /* ---- 联机：客机提交阵容并等待；房主确认双方就绪后才真正开局 ---- */
 if (typeof Net !== 'undefined' && Net.active) {
@@ -3062,6 +3672,7 @@ document.getElementById('selection-screen').style.display = 'none';
 document.getElementById('hero-detail-overlay').classList.remove('show');
 const bs = document.getElementById('battle-screen'); bs.style.display = 'flex'; gameState.phase = 'fighting';
 gameState.units = []; gameState.playerTeam = []; gameState.enemyTeam = [];
+gameState.summonIdx = { player:null, enemy:null };   // 新对局不继承上一局的稻草人（每方各一个槽）
 playerSelection.forEach((name, i) => { const u = createUnit(name, 'player', i); gameState.units.push(u); gameState.playerTeam.push(gameState.units.length - 1); });
 enemySelection.forEach((name, i) => { const u = createUnit(name, 'enemy', i); gameState.units.push(u); gameState.enemyTeam.push(gameState.units.length - 1); });
 /* 行动条总长度 = 开局（先机之前）速度最高者的速度值 × ACTION_BAR_LENGTH_FACTOR。
@@ -3151,7 +3762,7 @@ const BANISH_AOE_TRUE_RATE = 0.36;// 神威·虚化：放逐结束后对敌方�
    判断口诀：数值写死/由别的量换算出来的 → 恢复；写成"XX%生命"按攻击算的 → 治疗
    ====================================== */
 
-/* ===== 伤害类型定义（三种，彼此独立）=====
+/* ===== 伤害类型定义（五种，彼此独立）=====
    ① 直接伤害（默认，未特殊说明的伤害均属此类）
       走完整公式：攻击 × 伤害率 × (1-免伤率) × 最终伤害率 × (1-最终免伤率) [× 暴击伤害率]
       由 calculateDamage() 产生，result.isTrue=false、isSplash=false
@@ -3163,10 +3774,16 @@ const BANISH_AOE_TRUE_RATE = 0.36;// 神威·虚化：放逐结束后对敌方�
    ③ 真实伤害
       攻击 × 伤害率 × 最终伤害率 [× 暴击伤害率]，无视防御与最终免伤。
       由 calculateDamage() 产生，result.isTrue=true
+   ④ 固定伤害
+      由条件算出的确定数值，不走公式、无视护盾、无法被转移。见 applyFixedDamage()。
+   ⑤ 传导伤害
+      由「另一次伤害的实际数值」等量派生，不参与伤害公式计算、直接造成伤害、无视护盾。
+      见 applyConductionDamage()。钉崎野蔷薇「共鸣」与「稻草人」使用。
    ======================================== */
-const DMG_TYPE = { DIRECT:'direct', SPLASH:'splash', TRUE:'true', FIXED:'fixed' };
+const DMG_TYPE = { DIRECT:'direct', SPLASH:'splash', TRUE:'true', FIXED:'fixed', CONDUCTION:'conduction' };
 function getDmgType(result) {
 if (!result) return DMG_TYPE.DIRECT;
+if (result.isConduction) return DMG_TYPE.CONDUCTION;
 if (result.isFixed) return DMG_TYPE.FIXED;
 if (result.isTrue) return DMG_TYPE.TRUE;
 if (result.isSplash) return DMG_TYPE.SPLASH;
@@ -3185,7 +3802,9 @@ function refreshUnit(unit) { const i = idxOf(unit); if (i >= 0) refreshUnitView(
 function isTargetable(unit) { return !!unit && unit.alive && !unit.banished; }
 function getAliveAllies(unit, includeSelf = true) {
 if (!unit) return [];
-return gameState.units.filter(u => isTargetable(u) && u.side === unit.side && (includeSelf || u !== unit));
+/* 召唤物不参与「友方支援」类目标（治疗、增益、代伤、先机给怒气）：
+   它只在敌方场上作为一个【可被攻击】的对象存在。攻击侧仍由 getAliveEnemies 收录。 */
+return gameState.units.filter(u => isTargetable(u) && !isSummonUnit(u) && u.side === unit.side && (includeSelf || u !== unit));
 }
 function getAliveEnemies(unit) {
 if (!unit) return [];
@@ -3433,6 +4052,7 @@ unit.rules.push(ru);
 return ru;
 }
 function getRule(unit, type) { return unit ? (unit.rules || []).find(r => r.type === type) || null : null; }
+function hasRule(unit, type) { return !!getRule(unit, type); }
 /* ===== buff / 效果 三分类 与 增益/减益 归属 =====
    状态(states)：可驱散、可移除，区分增益/减益
    印记(marks) ：不可驱散、可移除，区分增益/减益
@@ -3596,7 +4216,7 @@ await sleep(200);
 
 /* 「万法皆空」两段后的翻转：当前生命值与已损失生命值互换，并清除全体友方护盾。 */
 async function applyWanfaFlip(unit) {
-const allies = gameState.units.filter(u => u.alive && u.side === unit.side);
+const allies = gameState.units.filter(u => u.alive && !isSummonUnit(u) && u.side === unit.side);
 if (allies.length === 0) return;
 const detail = allies.map(u => {
 const maxHp = Number(u.maxHp) || 0;
@@ -3622,6 +4242,7 @@ const zhaojun = getMark(unit, '照君');
 if (zhaojun) spd += 5 * (zhaojun.stacks || 1);             // 照君：+5 速度/层（最多5层）
 if (hasMark(unit, '雷压')) spd = Math.floor(spd * 1.3);    // 雷压：+30% 速度，不可叠加
 if (hasMark(unit, '万法')) spd = Math.floor(spd * (1 + WANFA_SPD_RATE));  // 万法：+10% 速度，不可叠加
+if (hasRule(unit, '未来')) spd = Math.floor(spd * (1 + MIRAI_SPD_RATE));  // 未来：+20% 速度
 return spd;
 }
 
@@ -3645,7 +4266,7 @@ if (d.skill2) markSkill(d.skill2, 'active');
 // 注：已移除 windWalkStacks / galeWindStacks / dragonDanceStacks / thunderPressActive /
 //     protectTargets / snapshotHp / darkStacks 等从未被读取的僵尸字段，叠层一律以 marks 为准
 const u = { name, side, pos, atk:d.atk, def:d.def, maxHp:d.hp, hp:d.hp, spd:d.spd, critRate:d.critRate, critDmg:d.critDmg, effectHit:d.effectHit||0, effectResist:d.effectResist||0, finalDmgRate:1.0, finalDmgReduction:0, healBonus:1.0, healReduction:0, rage:2, actionValue:0, alive:true, states:[], marks:[], rules:[], color:d.color, normalSkill:d.normal, activeSkill:d.skill, activeSkill2:d.skill2 || null,
-extraSkills:d.extraSkills || null, passiveSkill:d.passive || null, shield:0, banishedBy:null, pendingSnapshot:false, intangible:false, banished:false, banishedActionValue:0, pendingActionBonus:0, sukunaForm:'jie', skillCooldown:0, skillCooldowns:{}, wanfaTurnsLeft:0,
+extraSkills:d.extraSkills || null, passiveSkill:d.passive || null, noCrit:!!d.noCrit, prisonRealmAttempted:false, shield:0, banishedBy:null, pendingSnapshot:false, intangible:false, banished:false, banishedActionValue:0, pendingActionBonus:0, sukunaForm:'jie', skillCooldown:0, skillCooldowns:{}, wanfaTurnsLeft:0,
 statsDamageDealt:0, statsDamageTaken:0, statsHealDone:0, statsRestoreDone:0, statsShieldDone:0,
 /* 束缚 2 件套：施放技能时额外消耗怒气换来的本回合最终伤害加成（回合结束清零） */
 shufuFinalDmg:0,
@@ -3732,6 +4353,132 @@ if (!screen) return;
 const flip = !!(typeof Net !== 'undefined' && Net.active && Net.role === 'guest');
 screen.classList.toggle('flipped', flip);
 }
+/* ==================== 召唤物 ====================
+   规则（钉崎野蔷薇「刍灵咒法·共鸣」）：
+     · 双方场上只能存在一个召唤物；再次施放覆盖原有召唤物
+     · 若没有特殊说明，召唤物速度为 0、无法行动
+     · 稻草人继承连接目标 100% 最大生命值、50% 防御
+     · 稻草人受到的伤害等量传导给连接目标（传导走 conductSummonDamage）
+   实现取舍：召唤物作为 gameState.units 末尾的一个特殊单位（isSummon:true），
+   这样 idxOf / refreshUnit / showFloatingText / 目标高亮 / onUnitClick 等所有基于 idx 的
+   机制天然复用；但它【不加入 playerTeam / enemyTeam】，所以：
+     · 不占正常角色 UI（单独渲染到 #summon-area 的小卡片）
+     · 不进胜负判定、不进结算统计表
+     · 行动条圆点、行动顺序、先机结算里一律跳过
+   配置化：SUMMON_STRAW_DOLL 的 spd / canAct 留作将来「有特殊说明」的召唤物扩展点。 */
+const SUMMON_STRAW_DOLL = {
+name:'稻草人', hpRate:1.0, defRate:0.5, spd:0, canAct:false, color:'#c9a227'
+};
+function isSummonUnit(u) { return !!u && u.isSummon === true; }
+/* ===== 召唤物槽位：每方场上各最多一个 =====
+   钉崎是【往对方场上】召唤，稻草人的 side 等于连接目标的 side。
+   所以按「稻草人所在阵营」分两个独立槽：我方钉崎占 enemy 槽，敌方钉崎占 player 槽，
+   两边各一只、互不覆盖；同一方再召唤才覆盖自己那一只。
+   summonIdx 从单个下标改成 { player: idx|null, enemy: idx|null }。
+   所有读写一律走下面这组 helper，不直接碰字段。 */
+function summonSlot(side) { return side === 'player' ? 'player' : 'enemy'; }
+function getSummonIdx(side) {
+const s = gameState.summonIdx;
+if (!s || typeof s !== 'object') return null;   // 兼容旧单值形态
+const v = s[summonSlot(side)];
+return (v == null ? null : v);
+}
+function setSummonIdx(side, idx) {
+if (!gameState.summonIdx || typeof gameState.summonIdx !== 'object') gameState.summonIdx = { player:null, enemy:null };
+gameState.summonIdx[summonSlot(side)] = (idx == null ? null : idx);
+}
+/* 当前存活的全部召唤物下标（渲染 / 联机快照共用，顺序固定 player→enemy）。 */
+function aliveSummonIdxs() {
+const s = gameState.summonIdx;
+if (!s || typeof s !== 'object') return [];
+return ['player','enemy'].map(k => s[k])
+.filter(i => i != null && isSummonUnit(gameState.units[i]) && gameState.units[i].alive);
+}
+function makeSummonUnit(side, linkedTarget, owner, maxHp, def) {
+return {
+name:SUMMON_STRAW_DOLL.name, side, pos:0,
+atk:0, def, maxHp, hp:maxHp, spd:SUMMON_STRAW_DOLL.spd,
+critRate:0, critDmg:0, effectHit:0, effectResist:0,
+finalDmgRate:1.0, finalDmgReduction:0, healBonus:1.0, healReduction:0,
+rage:0, actionValue:0, alive:true, states:[], marks:[], rules:[],
+color:SUMMON_STRAW_DOLL.color, shield:0, banished:false, intangible:false,
+banishedBy:null, banishedActionValue:0, pendingActionBonus:0,
+statsDamageDealt:0, statsDamageTaken:0, statsHealDone:0, statsRestoreDone:0, statsShieldDone:0,
+normalSkill:null, activeSkill:null, activeSkill2:null, passiveSkill:null,
+noCrit:true, isSummon:true, linkedTarget, owner, lastAttackedTarget:null,
+skillCooldowns:{}, shufuFinalDmg:0, zhaocaiCheckedTurn:0
+};
+}
+/* 召唤 / 覆盖。返回 true 表示确实生成了稻草人。
+   ★ 只覆盖【同一侧】的旧稻草人：两边都有钉崎时各占各的槽，不会互相顶掉。 */
+function spawnSummon(caster, target) {
+if (!caster || !target || !target.alive || isSummonUnit(target)) return false;
+const side = target.side;                    // 稻草人落在连接目标所在阵营
+const slot = summonSlot(side);
+const maxHp = Math.max(1, Math.floor((Number(target.maxHp) || 0) * SUMMON_STRAW_DOLL.hpRate));
+const def = Math.max(0, Math.floor((Number(target.def) || 0) * SUMMON_STRAW_DOLL.defRate));
+let idx = getSummonIdx(side);
+const replacing = idx != null && isSummonUnit(gameState.units[idx]) && gameState.units[idx].alive;
+if (idx == null) {
+/* 复用【同侧】已消散召唤物留下的槽位：idx 全程稳定，units 长度不随反复召唤增长，
+   客机也无需反复追加占位，房主与客机的下标始终一致。 */
+const reused = gameState.units.findIndex(u => isSummonUnit(u) && summonSlot(u.side) === slot);
+idx = reused >= 0 ? reused : gameState.units.length;
+if (reused < 0) gameState.units.push(null);
+setSummonIdx(side, idx);
+}
+gameState.units[idx] = makeSummonUnit(side, target, caster, maxHp, def);
+const sideText = side === 'enemy' ? '敌方' : '我方';
+if (replacing) log(`🎎 ${getSideLabel(caster)}${caster.name} 重新召唤稻草人，覆盖${sideText}场上原有的连接，现与 ${getSideLabel(target)}${target.name} 连接！`, 'log-skill');
+else log(`🎎 ${getSideLabel(caster)}${caster.name} 召唤稻草人至${sideText}场上，与 ${getSideLabel(target)}${target.name} 连接（生命 ${maxHp}、防御 ${def}、速度 0 · 无法行动）！`, 'log-skill');
+renderSummon();
+if (typeof Net !== 'undefined' && Net.active && Net.role === 'host') Net.sendSummonSnapshot();
+return true;
+}
+/* 退场：血量归零 或 被覆盖前的旧召唤物。不走角色阵亡流程（无免死被动 / 击杀收益 / 复活）。 */
+function despawnSummon(u) {
+if (!isSummonUnit(u)) return;
+/* 幂等：同一只稻草人可能被多条致死路径同时点到，清理照做，但日志/广播只发一次。 */
+const wasAlive = u.alive;
+u.alive = false; u.hp = 0;
+const idx = idxOf(u);
+/* 只清掉它自己那一侧的槽，另一侧的稻草人不受影响。 */
+if (idx >= 0 && getSummonIdx(u.side) === idx) setSummonIdx(u.side, null);
+/* 重绘而非清空容器：两边各有一只时，消散一只不能把另一只一起擦掉。 */
+renderSummon();
+if (!wasAlive) return;
+log(`🎎 ${u.side === 'enemy' ? '敌方' : '我方'}场上的稻草人消散了！`, 'log-buff');
+if (typeof Net !== 'undefined' && Net.active && Net.role === 'host') Net.sendSummonSnapshot();
+}
+/* 独立小 UI：挂在 #summon-area（绝对定位，靠近中央行动条），不占 enemy-area / player-area。
+   DOM id 仍用 unit-${idx}，让选中高亮、飘字、命中动画、血条刷新全部自动生效。
+   两边各一只时上下相对：enemy 侧由 CSS 定位到行动条上方、player 侧到下方；
+   卡片上标出所在阵营，避免混淆。 */
+function renderSummon() {
+const area = document.getElementById('summon-area'); if (!area) return;
+area.innerHTML = '';
+aliveSummonIdxs().forEach(idx => {
+const u = gameState.units[idx];
+if (!isSummonUnit(u) || !u.alive) return;
+const linkedName = (u.linkedTarget && u.linkedTarget.name) ? u.linkedTarget.name : '—';
+const sideText = u.side === 'enemy' ? '敌方' : '我方';
+const el = document.createElement('div');
+el.className = `unit summon ${u.side}`; el.id = `unit-${idx}`;
+el.title = `${sideText}场上的稻草人 · 速度0 · 无法行动`;
+el.style.background = `linear-gradient(135deg, ${u.color}55, ${u.color}22)`;
+el.innerHTML = `<div class="unit-content">
+<div class="unit-name">🎎 ${u.name}</div>
+<div class="summon-link">⇄ ${linkedName}</div>
+<div class="unit-hp-bar-wrap"><div class="unit-hp-fill" style="width:100%"></div></div>
+<div class="unit-hp-text">${u.hp}/${u.maxHp}</div>
+<div class="unit-shield-text" style="display:none;"></div>
+<div class="summon-note">${sideText} · 速度0</div>
+</div>`;
+el.addEventListener('click', () => onUnitClick(idx));
+area.appendChild(el);
+updateUnitDisplay(idx);
+});
+}
 function renderUnits() {
 const enemyArea = document.getElementById('enemy-area'); const playerArea = document.getElementById('player-area');
 enemyArea.innerHTML = ''; playerArea.innerHTML = '';
@@ -3740,14 +4487,16 @@ gameState.playerTeam.forEach(idx => playerArea.appendChild(createUnitElement(idx
 // 元素插入 DOM 后再统一刷新一次：否则 createUnitElement 内的首次刷新
 // 会因为 getElementById 还取不到节点而跳过，阵亡单位的 buff 容器就漏掉了隐藏
 gameState.units.forEach((u, idx) => updateBuffDisplay(idx));
+renderSummon();
+refreshBattleImages();   // DOM 刚重建完，统一校正一次图源
 applyNetViewFlip();
 }
 function createUnitElement(idx) {
 const u = gameState.units[idx]; const wrapper = document.createElement('div'); wrapper.className = 'unit-wrapper';
 const el = document.createElement('div'); el.className = `unit ${u.side} ${!u.alive ? 'dead' : ''}`; el.id = `unit-${idx}`;
 el.style.background = `linear-gradient(135deg, ${u.color}44, ${u.color}22)`;
-const bgsrc = heroImgSrc(u.name);
-const bgImg = bgsrc ? `<img class="unit-bg" src="${bgsrc}" alt="${u.name}" loading="lazy" onerror="this.classList.add('unit-bg-fail');this.onerror=null;">` : '';
+el.setAttribute('data-battle-src', battleImgSrc(u));
+const bgImg = unitBgHtml(u);
 el.innerHTML = `${bgImg}<div class="unit-scrim"></div><div class="unit-content">
 <div class="unit-name">${u.name}</div>
 <div style="display:flex;flex-direction:column;align-items:center;">
@@ -3763,6 +4512,8 @@ updateBuffDisplay(idx); return wrapper;
 }
 function refreshUnitView(idx) { updateUnitDisplay(idx); updateBuffDisplay(idx); }
 function updateUnitDisplay(idx) {
+/* 统一渲染入口：任何一次面板刷新都校正战斗图，规则变化不再依赖特定触发点。 */
+syncUnitBattleImage(idx);
 const u = gameState.units[idx]; const el = document.getElementById(`unit-${idx}`); if (!el) return;
 if (!u.alive) {
 el.classList.add('dead');
@@ -3871,9 +4622,10 @@ u.rules.forEach(r => { const t=document.createElement('span'); t.className='buff
 function renderActionBarDots() {
 const track = document.getElementById('action-bar-track'); track.querySelectorAll('.action-dot').forEach(d => d.remove());
 gameState.units.forEach((u, idx) => {
-if (!u.alive) return;   // 死亡单位不再渲染圆点
-const dot = document.createElement('div'); dot.className = `action-dot ${u.side}-dot`; dot.id = `dot-${idx}`; dot.style.left = getActionDisplayPct(u) + '%'; dot.innerHTML = heroAvatarInner(u.name); dot.title = `${u.name} (${getActionDisplayPct(u).toFixed(1)}%)${getActionOverflow(u) > 0 ? ` 溢出${getActionOverflow(u).toFixed(1)}%` : ''}`; track.appendChild(dot);
+if (!u.alive || isSummonUnit(u)) return;   // 死亡单位 / 召唤物都不占行动条空间
+const dot = document.createElement('div'); dot.className = `action-dot ${u.side}-dot`; dot.id = `dot-${idx}`; dot.style.left = getActionDisplayPct(u) + '%'; dot.setAttribute('data-battle-src', battleImgSrc(u)); dot.innerHTML = battleAvatarInner(u); dot.title = `${u.name} (${getActionDisplayPct(u).toFixed(1)}%)${getActionOverflow(u) > 0 ? ` 溢出${getActionOverflow(u).toFixed(1)}%` : ''}`; track.appendChild(dot);
 });
+refreshBattleImages();   // 圆点重建后统一校正一次图源
 }
 /* 行动条圆点统一入口：只保留存活单位的圆点。
    角色死亡后应立即从行动条上移除，否则残留在轨道上会误导玩家判断出手顺序。
@@ -3890,12 +4642,13 @@ const dot = document.createElement('div'); dot.className = `action-dot ${u.side}
    总长度为 1 倍最高速度 → 最快者开局即站 100%（终点），立刻先手；
    其余人按速度比例排布，速度差在行动条上被完整放大。 */
 function initActionBarPositions() {
-gameState.units.forEach(u => { setActionValue(u, (getEffectiveSpd(u) / gameState.actionBarMax) * 100); });
+gameState.units.forEach(u => { if (isSummonUnit(u)) return; setActionValue(u, (getEffectiveSpd(u) / gameState.actionBarMax) * 100); });
 }
 function updateActionBarDots() {
 gameState.units.forEach((u, idx) => {
+syncUnitBattleImage(idx);   // 每帧顺带校正：规则一变，下一次刷新必然换图
 const dot = document.getElementById(`dot-${idx}`);
-if (!u.alive) { dot?.remove(); return; }   // 死亡：移除圆点
+if (!u.alive || isSummonUnit(u)) { dot?.remove(); return; }   // 死亡 / 召唤物：移除圆点
 if (!dot) { renderActionBarDots(); return; }
 dot.style.left = getActionDisplayPct(u) + '%';
 dot.title = `${u.name} (${getActionDisplayPct(u).toFixed(1)}%)${getActionOverflow(u) > 0 ? ` 溢出${getActionOverflow(u).toFixed(1)}%` : ''}`;
@@ -3933,7 +4686,7 @@ gameState.rafId = requestAnimationFrame(gameLoop);
 return;
 }
 if (!gameState.paused && !gameState.animating) {
-const readyUnits = gameState.units.filter(u => isTargetable(u) && u.actionValue >= ACTION_MAX);
+const readyUnits = gameState.units.filter(u => isTargetable(u) && !isSummonUnit(u) && u.actionValue >= ACTION_MAX);
 if (readyUnits.length > 0) {
 sortReadyUnits(readyUnits);
 gameState.paused = true; processUnitTurn(readyUnits[0]);
@@ -3957,7 +4710,7 @@ return Math.random() - 0.5;                                     // ③ 随机
 function updateActionValues(dt) {
 const dtSec = dt / 1000;
 gameState.units.forEach(u => {
-if (!isTargetable(u)) return;
+if (!isTargetable(u) || isSummonUnit(u)) return;   // 召唤物速度 0，不推进行动条
 const perSec = (getEffectiveSpd(u) / gameState.actionBarMax) * 100 * ACTION_BAR_SPEED;
 advanceActionValue(u, perSec * dtSec);
 });
@@ -4244,14 +4997,29 @@ const NO_TARGET_SKILL_TYPES = new Set(['aoe', 'buff', 'snapshot', 'damageLog']);
 /* 「虽属无目标类型、但需要指定单个友方」的技能：在技能配置上标 pickTarget:true 即可。
    这样不必为每个特例改判定分支 —— 心净明是首个用例（万法皆空等同类型技能不受影响）。 */
 function needsTargetSelection(skill) { return !!skill && skill.pickTarget === true; }
+/* 「未来」强化的技能形态解析（单一真相）。
+   强化原本只在 runSkillBranch 里改写，但「是否要选目标」发生在更早的面板 / AI / 联机层，
+   导致强化后的「穿血」明明已是全体伤害，仍会弹出选目标。
+   这里把解析提前到所有技能入口共用；runSkillBranch 再调一次做执行阶段兜底（幂等）。
+   · 穿血：单体 → 敌方全体（type 改 aoe，因此跳过选目标）
+   · 斩击·领域：主目标仍需选，只追加全体三段（type 不变）
+   其余角色 / 技能的形态原样返回。 */
+function getEffectiveSkillShape(unit, skill) {
+if (!unit || !skill || unit.name !== '虎杖悠仁' || !hasRule(unit, '未来')) return skill;
+if (skill.name === '穿血') return { ...skill, type:'aoe' };
+if (skill.name === '斩击·领域' && !skill.itadoriDomainEnhanced) return { ...skill, itadoriDomainEnhanced:true };
+return skill;
+}
 /* 统一的「是否跳过选目标」判定 */
 function isNoTargetSkill(skill) { return NO_TARGET_SKILL_TYPES.has(skill.type) && !needsTargetSelection(skill); }
 async function onActionBtn(type) {
 const unit = gameState.currentActor; if (!unit) return;
 // 可用技能列表：普攻 + 技能1 + 技能2（若有）
-const skill = type === 'normal' ? unit.normalSkill : (type === 'skill2' ? unit.activeSkill2 : unit.activeSkill);
-if (!skill) return;
-if (type !== 'normal' && (Number(unit.rage) || 0) < (Number(skill.cost) || 0)) return;
+const rawSkill = type === 'normal' ? unit.normalSkill : (type === 'skill2' ? unit.activeSkill2 : unit.activeSkill);
+if (!rawSkill) return;
+if (type !== 'normal' && (Number(unit.rage) || 0) < (Number(rawSkill.cost) || 0)) return;
+/* 先解析「未来」强化形态：强化后的穿血是全体伤害，跳过选目标直接施放。 */
+const skill = getEffectiveSkillShape(unit, rawSkill);
 hideControlPanel();
 if (isNoTargetSkill(skill)) { await executeAction(unit, skill); return; }
 gameState.waitingForTarget = true; gameState.targetType = skill.target; gameState.pendingSkill = skill;
@@ -4296,15 +5064,17 @@ await executeAction(actor, gameState.pendingSkill, target); return;
 }
 }
 // 需要指定单个目标的技能类型
-const TARGETED_SKILL_TYPES = new Set(['single', 'single_then_aoe', 'banish']);
+const TARGETED_SKILL_TYPES = new Set(['single', 'single_then_aoe', 'banish', 'summon']);
 async function executeAutoAction(unit) {
 /* 多技能选择：在所有「怒气够且当前可用」的技能里取 cost 最高的那个（视为更强）。
    只有一个技能时行为与旧版完全一致；0 怒气技能（如鬼金羊「宿影暗渡」）永远可放。 */
 const candidates = [unit.activeSkill, unit.activeSkill2].filter(Boolean)
 .filter(sk => (Number(unit.rage) || 0) >= (Number(sk.cost) || 0) && canCastSkill(unit, sk))
 .sort((a, b) => (Number(b.cost) || 0) - (Number(a.cost) || 0));
-const skill = candidates[0] || unit.normalSkill;
-if (!skill) return;
+const rawSkill = candidates[0] || unit.normalSkill;
+if (!rawSkill) return;
+/* 同玩家手动入口：强化后的穿血是全体伤害，不再挑单个最低血目标。 */
+const skill = getEffectiveSkillShape(unit, rawSkill);
 if (isNoTargetSkill(skill)) { await executeAction(unit, skill); return; }
 // 目标取向：技能自带 target 字段优先，否则按是否治疗判断
 const targetType = skill.target || (skill.healRate ? 'ally' : 'enemy');
@@ -4331,6 +5101,12 @@ function canCastSkill(unit, skill) { return getSkillBlockReason(unit, skill) ===
 /* 技能效果分支：只负责「做什么」，不涉及怒气、演出、结束回合。
    抽出来是为了让【额外技能】也能复用 —— 它们在别人的回合里触发，不能 endTurn。 */
 async function runSkillBranch(unit, skill, forcedTarget = null) {
+/* 虎杖悠仁「未来」：强化所有技能 ——
+   · 穿血：由单体改为敌方全体（同为 160%）；
+   · 斩击·领域：单体三段之外，额外对敌方全体造成三段 80%（追加段不重复附加混乱）。
+   普攻「径庭拳」未给出强化形态，保持原样。
+   形态由 getEffectiveSkillShape 统一解析；入口层已解析过，这里再调一次做执行阶段兜底（幂等）。 */
+skill = getEffectiveSkillShape(unit, skill);
 // 单体类技能的目标取向：有 healRate/healFlat 即视为治疗，指向友方
 const isHeal = !!(skill.healRate || skill.healFlat);
 if (skill.type === 'single') {
@@ -4348,6 +5124,14 @@ if (target) { await performSingleAttack(unit, skill, target); await performAoeAt
 else if (skill.type === 'snapshot') { await performSnapshot(unit, skill); }
 else if (skill.type === 'damageLog') { await performDamageLog(unit, skill); }
 else if (skill.type === 'banish') { const target = forcedTarget || findLowestHpTarget('enemy', unit); if (target) await performBanish(unit, skill, target); }
+else if (skill.type === 'summon') {
+/* 稻草人本身不能作为连接目标（否则变成「稻草人连稻草人」）。
+   AI 自动施放时从【普通敌方单位】里挑当前生命最低者。 */
+const pool = getAliveEnemies(unit).filter(u => !isSummonUnit(u));
+const target = (forcedTarget && !isSummonUnit(forcedTarget)) ? forcedTarget : findLowestHpAmong(pool);
+if (target && target.alive) await spawnSummon(unit, target);
+else log(`${getSideLabel(unit)}${unit.name} 没有可连接的敌方目标，「${skill.name}」未生效。`, 'log-buff');
+}
 else if (skill.type === 'skip') {
 /* 「鬼宿奇惊·谜夜」：跳过目标回合（完整回合，含回合开始与回合结束）。
    标记 pendingSkip，由 processUnitTurn 开头统一处理 ——
@@ -4371,6 +5155,11 @@ if (!buffTarget && skill.target === 'ally') buffTarget = findLowestHpTarget('all
    （以为点了技能却打到了别人身上）。 */
 if (needsTargetSelection(skill) && !buffTarget) { log(`${getSideLabel(unit)}${unit.name} 的「${skill.name}」没有有效目标，未生效。`, 'log-buff'); return; }
 await applySelfEffect(unit, skill.selfEffect, buffTarget);
+}
+/* 「斩击·领域」强化追加段：对敌方全体再造成三段 80% 伤害。
+   不继承 effect（混乱只给主目标）、不继承 selfEffect，避免重复结算。 */
+if (skill.itadoriDomainEnhanced && unit.alive) {
+await performAoeAttack(unit, { name:'斩击·领域·强化', type:'aoe', target:'enemy', segments: skill.segments });
 }
 }
 /* 触发一次技能：播演出 + 执行效果，**不结束回合、不处理怒气**。
@@ -4414,6 +5203,8 @@ log(`${getSideLabel(unit)}${unit.name} 施放了 ${skill.name}！`, 'log-skill')
 await runSkillBranch(unit, skill, target);
 /* 回合外施放同样算「行动」：① 可能附加「视」；② 触发「视」的伤害结算。 */
 await afterAnyUnitAction(unit, skill);
+/* 「未来」：回合外施放也算一次行动，同样恢复 10% 最大生命值。 */
+if (unit.name === '虎杖悠仁' && hasRule(unit, '未来')) await miraiActionRestore(unit);
 gameState.currentCastSkill = savedSkill; gameState.currentCaster = savedCaster;
 gameState.animating = savedAnimating;
 }
@@ -4506,6 +5297,8 @@ if (!isNormal && !isExtra) await tryApplyShufu(unit);
 await playSkillCutin(unit, skill.name, isNormal);
 log(`${getSideLabel(unit)}${unit.name} 使用了 ${skill.name}！`, isNormal ? 'log-normal' : 'log-skill');
 await runSkillBranch(unit, skill, forcedTarget);
+/* 「未来」：每次行动后恢复 10% 最大生命值。 */
+if (unit.name === '虎杖悠仁' && hasRule(unit, '未来')) await miraiActionRestore(unit);
 /* 技能冷却统一入口：任何带 cooldown 的技能施放后都会进入冷却，
    不必各自在 selfEffect 里重复设置（万法皆空里的那处保留也无害，两者一致）。 */
 if (skill.cooldown) {
@@ -4561,13 +5354,17 @@ return { damageToHp, absorbed };
 }
 async function performSingleAttack(attacker, skill, target) {
 unitAnimOn(idxOf(attacker), 'attack-anim'); await sleep(300);
-// 多段命中：hitCount 段各自独立走一遍伤害公式（每段独立判定暴击），累加即为本次技能总伤害
-const hitCount = Math.max(1, Math.floor(Number(skill.hitCount) || 1));
+/* 多段命中两种写法：
+   · hitCount  —— 同一段重复 N 次（带土普攻两段 63%）；
+   · segments  —— 每段倍率不同（虎杖「径庭拳」50%/70%、「斩击·领域」三段 80%）。
+   两者都逐段独立走一遍伤害公式（每段独立判定暴击 / 黑闪 / 百穿）。 */
+const segs = (Array.isArray(skill.segments) && skill.segments.length) ? skill.segments : null;
+const hitCount = segs ? segs.length : Math.max(1, Math.floor(Number(skill.hitCount) || 1));
 // actualDirect = 主目标「实际受到」的直接伤害（扣盾后、免疫/代伤后为 0）
 let actualDirect = 0;
 for (let i = 0; i < hitCount; i++) {
 if (!target.alive) break;
-const seg = calculateDamage(attacker, skill, target);
+const seg = calculateDamage(attacker, segs ? segs[i] : skill, target);
 for (const r of seg) {
 const hpBefore = target.hp;
 await applyDamage(attacker, r, target);
@@ -4605,10 +5402,16 @@ unitAnimOn(idxOf(attacker), 'attack-anim'); await sleep(300);
 const perTargetEffect = (skill.effect && !AOE_ONCE_EFFECTS.has(skill.effect)) ? skill.effect : null;
 const onceEffect = (skill.effect && AOE_ONCE_EFFECTS.has(skill.effect)) ? skill.effect : null;
 const aoeExFlag = !!skill.canExecute;
+/* segments：同一技能内各段倍率不同（虎杖「斩击·领域」强化的追加全体三段 80%）。
+   逐段独立结算，与 performSingleAttack 口径一致。 */
+const aoeSegs = (Array.isArray(skill.segments) && skill.segments.length) ? skill.segments : [skill];
 for (const target of targets) {
-for (const r of calculateDamage(attacker, skill, target)) {
+for (const seg of aoeSegs) {
+if (!target.alive) break;
+for (const r of calculateDamage(attacker, seg, target)) {
 await applyDamage(attacker, aoeExFlag ? { ...r, canExecute:true } : r, target);
 if (!target.alive) break;
+}
 }
 // 固定伤害：目标最大生命值 × 比例（伏魔神龛）。不受任何影响、无视护盾
 if (skill.fixedMaxHpRate && target.alive) {
@@ -4669,6 +5472,12 @@ critDmg += SHENHUN.calcWushuangCritDmgBonus(unit);
 if (typeof SHENHUN !== 'undefined' && SHENHUN.calcShufuFinalDmgBonus) {
 finalDmgRate += SHENHUN.calcShufuFinalDmgBonus(unit);
 }
+/* 虎杖悠仁「未来」（规则）：攻击 +50%、暴击率 +30%。
+   放在其它加成之后，让百分比放大已叠好的攻击；暴击率只喂黑闪溢出（虎杖自身无法暴击）。 */
+if (hasRule(unit, '未来')) {
+atk = Math.floor(atk * (1 + MIRAI_ATK_RATE));
+critRate += MIRAI_CRIT_RATE;
+}
 return { atk, critRate, critDmg, finalDmgRate };
 }
 // 守方防御 / 最终免伤的统一入口
@@ -4692,6 +5501,18 @@ finalReduction += clamp01(1 - ((Number(unit.hp) || 0) / (Number(unit.maxHp) || 1
 if ((unit.states || []).some(s => s.type === '牵绊')) def += Math.floor(def * 0.1);
 return { def, finalReduction };
 }
+/* ===== 虎杖悠仁「黑闪·登神」/「未来」 =====
+   黑闪把「本次伤害值」改写为伤害结果的 HEISHAN_EXPONENT 次方（JJK 原作设定：2.5 乗）。
+   抽成单独常量是想改成「×2.5 倍」时只需换这一个函数，不必翻遍伤害公式。 */
+const HEISHAN_BASE_CHANCE = 0.05;
+const HEISHAN_EXPONENT = 2.5;
+const MIRAI_ATK_RATE = 0.5;               // 未来：攻击 +50%
+const MIRAI_SPD_RATE = 0.2;               // 未来：速度 +20%
+const MIRAI_CRIT_RATE = 0.3;              // 未来：暴击率 +30%（虎杖无法暴击，只用于黑闪溢出）
+const MIRAI_ACTION_RESTORE_RATE = 0.1;    // 未来：每次行动后恢复 10% 最大生命
+const ITADORI_HUNLUAN_DURATION = 1;       // 斩击·领域：混乱持续 1 回合
+function heishanDamage(base) { return Math.floor(Math.pow(Math.max(0, base), HEISHAN_EXPONENT)); }
+
 /* 本函数只负责「直接伤害」与「真实伤害」两种类型；溅射伤害不在此计算，
    而是由 performSingleAttack 依据主目标实际受到的直接伤害按系数派生。 */
 function calculateDamage(attacker, skill, target) {
@@ -4715,14 +5536,49 @@ const dodgeRate = (def + atk) > 0 ? def / (def + atk) : 0;
 const actualDodge = clamp01(dodgeRate);
 /* 暴击率不做上限钳制：面板 + 神魂 + 雷压 / 超凡邪力等叠加后允许超过 100%，
    留待后续「暴击抵抗」等减益在有效属性层抵消（溢出部分应能被抵抗吃回去）。 */
-const isCrit = Math.random() < critRate;
+const isCrit = !attacker.noCrit && Math.random() < critRate;
 const critMultiplier = isCrit ? critDmg : 1.0;
 // 公式①/②【直接伤害】：攻击 × 技能伤害率 × (1-免伤率) × 最终伤害率 × (1-最终免伤率) [× 暴击伤害率]
 const reduction = clamp01(finalReduction);
 if (skill.dmgRate && skill.dmgRate > 0) { let dmg = atk * skill.dmgRate * (1-actualDodge) * finalDmgRate * (1-reduction) * critMultiplier; results.push({ damage:Math.max(0, Math.floor(dmg)), isCrit, isTrue:false, isSplash:false }); }
 // 公式⑤【真实伤害】：攻击 × 技能伤害率 × 最终伤害率 [× 暴击伤害率]，无视防御与最终免伤
 if (skill.trueRate && skill.trueRate > 0) { let trueDmg = atk * skill.trueRate * finalDmgRate * critMultiplier; results.push({ damage:Math.max(0, Math.floor(trueDmg)), isCrit, isTrue:true, isSplash:false }); }
+/* 虎杖悠仁「黑闪」：攻击时按概率把【本次伤害值】改写为伤害结果的 2.5 次方。
+   逐段独立判定（与暴击同口径）：多段技能的每一段各自 roll 一次。
+   概率 = 5% + 暴击率超过 100% 的溢出值（等量提升）；自身无法暴击由上面的 noCrit 保证。
+   这里只打标记，进入「未来」的副作用放到 applyDamage 里结算，保持本函数为纯计算。 */
+if (attacker.name === '虎杖悠仁' && isPassiveActive(attacker)) {
+const overflow = Math.max(0, (Number(critRate) || 0) - 1);
+const heishanChance = HEISHAN_BASE_CHANCE + overflow;
+results.forEach(r => {
+if (Math.random() < heishanChance) { r.damage = heishanDamage(r.damage); r.isHeishan = true; }
+});
+}
 return results;
+}
+/* ===== 虎杖悠仁「未来」的进入 / 行动后恢复 =====
+   规则类效果（duration 999，不驱散、不叠加），走 addRule 与 updateBuffDisplay 的橙色规则标签。 */
+async function enterMirai(unit) {
+if (!unit || !unit.alive || hasRule(unit, '未来')) return false;
+/* 第一次黑闪：从 battle2 / battle3 里随机定一张，之后整场不再重掷。
+   房主在这里掷，下标随快照同步给客机，双方画面一致。 */
+const pick = (HERO_BATTLE_IMG[unit.name] || {}).miraiPick;
+if (pick && pick.length && unit.miraiBattlePick == null) {
+unit.miraiBattlePick = Math.random() < 0.5 ? 0 : 1;
+}
+addRule(unit, '未来', { duration:999, effect:'mirai' });
+log(`⚡ ${getSideLabel(unit)}${unit.name} 首次触发「黑闪」，登神进入「未来」！攻击+50%　速度+20%　暴击率+30%`, 'log-buff');
+/* 进入时恢复 100% 最大生命值：走「恢复」口径（固定数值，不受加成 / 减免 / 暴击影响）。 */
+await performRestore(unit, Number(unit.maxHp) || 0, unit);
+refreshUnit(unit);
+refreshBattleImages();   // 「未来」会换战斗图：卡片背景 / 圆点立刻跟上
+return true;
+}
+/* 「未来」：每次行动后恢复 10% 最大生命值。回合外施放（triggerSkill）也算一次行动。 */
+async function miraiActionRestore(unit) {
+if (!unit || !unit.alive || !hasRule(unit, '未来')) return;
+const amount = Math.floor((Number(unit.maxHp) || 0) * MIRAI_ACTION_RESTORE_RATE);
+if (amount > 0) await performRestore(unit, amount, unit);
 }
 // 死亡判定唯一入口：置死、播日志、刷新，并结算击杀者收益（维迦的超凡邪力等）
 async function killUnit(unit, killer) {
@@ -4762,16 +5618,19 @@ clearedMarks.forEach(u => refreshUnit(u));
 log(`💀 ${getSideLabel(unit)}${unit.name} 被击败了！`, 'log-death');
 refreshUnit(unit);
 removeActionBarDot(unit);   // 死亡即从行动条移除，不再残留
-/* 若阵亡者正是某次放逐的施放者（带土），其维持的放逐立即失效。
+/* 若阵亡者正是某次放逐的施放者（带土 / 狱门疆装备者），其维持的放逐立即失效。
    放逐的倒计时由施放者的回合驱动，施放者一死就再也无人推进，
-   被放逐者会被永久卡在神威空间 —— 因此这里直接解除。 */
-const banishedVictim = gameState.units.find(u => u.banished && u.banishedBy === unit);
-if (banishedVictim) {
-banishedVictim.banishedBy = null; removeRule(banishedVictim, '放逐');
-unlockActionValue(banishedVictim, 0);
-log(`${getSideLabel(unit)}${unit.name} 阵亡，${getSideLabel(banishedVictim)}${banishedVictim.name} 从神威空间返回！`, 'log-skill');
-refreshUnit(banishedVictim); updateActionBarDots();
-}
+   被放逐者会被永久卡在内部空间 —— 因此这里直接解除。
+   用 filter 覆盖「同一施放者同时维持多个放逐」的情况。 */
+const banishedVictims = gameState.units.filter(u => u.banished && u.banishedBy === unit);
+banishedVictims.forEach(v => {
+const rule = getRule(v, '放逐');
+const place = (rule && rule.effect === 'prisonRealm') ? '狱门疆内部空间' : '神威空间';
+v.banishedBy = null; removeRule(v, '放逐');
+unlockActionValue(v, 0);
+log(`${getSideLabel(unit)}${unit.name} 阵亡，${getSideLabel(v)}${v.name} 从${place}返回！`, 'log-skill');
+refreshUnit(v); updateActionBarDots();
+});
 if (!killer || killer.side === unit.side) return true;
 /* 维迦击杀收益（每回合只触发一次）：
      - 普攻「黑暗祭祀」击杀：只给 1 层超凡邪力
@@ -4872,14 +5731,80 @@ if (canExecute && target.alive) {
 const exRatio = (Number(target.hp) || 0) / (Number(target.maxHp) || 1);
 if (exRatio < SUKUNA_EXECUTE_BELOW) { await executeKillTarget(attacker, target, '斩杀'); return dealt; }
 }
-/* ★ 不再就地 killUnit —— 固定伤害属于【伤害】，致死必须走统一死亡流程，
-   否则会绕过东丈「不屈」这类「受到致命伤害时」的免死被动。 */
-if (target.hp <= 0) await resolveLethal(target, attacker);
+/* 稻草人：致死那一跳也要等量传导给连接目标。
+   放在退场之前，与 applyDamage 的「先传导、后死亡判定」口径一致，
+   日志顺序也更自然（不会出现「先消散、后传导」）。 */
+if (dealt > 0) await conductSummonDamage(attacker, target, dealt);
 /* 受击后被动（如两面宿傩「斩击反转」）：固定伤害属于【伤害】，
-   且无视护盾必然造成实际生命损失，因此照样触发（门槛 hpLoss > 0 天然满足）。
-   位置与 applyDamage 一致 —— 放在死亡判定【之后】：已阵亡者不再触发。 */
-if (target.alive && dealt > 0) await applyPassiveOnDamaged(target, attacker);
+   且无视护盾必然造成实际生命损失，因此照样触发（门槛 hpLoss > 0 天然满足）。 */
+if (target.alive && dealt > 0) await applyPassiveOnDamaged(target, attacker, dealt);
+/* ★ 不再就地 killUnit —— 固定伤害属于【伤害】，致死必须走统一死亡流程，
+   否则会绕过东丈「不屈」这类「受到致命伤害时」的免死被动。
+   统一分流同时保证：稻草人若被固定伤害打碎，走退场而不是角色阵亡流程。 */
+await handleLethalDamage(target, attacker);
 return dealt;
+}
+
+/* 【传导伤害】—— 第五种伤害类型。定义（钉崎野蔷薇「共鸣」/「稻草人」）：
+      不参与伤害公式计算，直接造成伤害，无视护盾。
+   逐条对应实现：
+   · 伤害量 = 另一次伤害的【实际数值】（调用方算好传入），不再乘任何倍率/免伤率/暴击
+   · 无视护盾：直接扣减生命值，不经过 applyDamageWithShield
+   · 直接作用于目标本人：不走 applyDamage，因此白藏主「狐守」代伤不生效
+   · 虚化 / 放逐依旧是规则级免疫（与固定伤害同口径）
+   ★ 刻意【不经过 applyDamage】：稻草人的「受伤→等量传导」挂在 applyDamage 里，
+     若传导伤害再走一次 applyDamage，打到稻草人就会二次传导、形成链。
+     作为「直接造成伤害」的独立类型，它只结算生命损失、统计与受击后被动。 */
+async function applyConductionDamage(attacker, target, amount, label = '传导伤害') {
+if (!target || !target.alive) return 0;
+const dmg = Math.max(0, Math.floor(Number(amount) || 0));
+if (dmg <= 0) return 0;
+if (target.banished) { showFloatingText(target, '免疫', 'floating-miss'); log(`${getSideLabel(target)}${target.name} 被放逐中，免疫${label}！`, 'log-buff'); return 0; }
+if (target.intangible) { showFloatingText(target, '免疫', 'floating-miss'); log(`${getSideLabel(target)}${target.name} 处于虚化，免疫${label}！`, 'log-buff'); return 0; }
+const before = target.hp;
+target.hp = Math.max(0, target.hp - dmg);
+const dealt = before - target.hp;
+showFloatingText(target, `${label} -${dealt}`, 'floating-conduction');
+if (dealt > 0) recordDamage(attacker, target, dealt);
+/* 日志里写明【来源】：共鸣的来源是钉崎本人，稻草人传导的来源是对稻草人造成伤害的角色。
+   既让玩家看得见归属，也和内部 attacker（记账 / 击杀者）完全一致。 */
+log(`${getSideLabel(target)}${target.name} 受到来自 ${attacker ? attacker.name : '未知'} 的 ${dealt} 点${label}！（不参与伤害公式、无视护盾、无法被转移）`, 'log-damage');
+refreshUnit(target);
+/* 同上：稻草人死于传导伤害时，致死那一跳仍要传给连接目标，且必须先于退场结算。 */
+if (dealt > 0) await conductSummonDamage(attacker, target, dealt);
+if (target.alive && dealt > 0) await applyPassiveOnDamaged(target, attacker, dealt);
+await handleLethalDamage(target, attacker);
+return dealt;
+}
+
+/* 稻草人「共鸣」：稻草人受到的伤害，等量传导给连接目标。
+   三种扣血路径（applyDamage / applyFixedDamage / applyConductionDamage）都调这里，
+   保证「稻草人受到的伤害」不因伤害类型而漏掉传导。
+   ★ 传导伤害的【来源】是「对稻草人造成伤害的那个角色」（attacker），不是稻草人自己：
+     · 记账、受击后被动、致死时的击杀者一律按该角色算
+     · 因此维迦等角色通过稻草人传导致死连接目标，照常触发击杀收益
+     · 但【直接打死稻草人】仍走 despawnSummon 退场，不触发任何击杀收益
+     · 钉崎「共鸣」的传导是另一条路径，来源恒为钉崎本人
+   ★ 传导伤害本身不会再进 applyDamage，且连接目标必为正常角色（全场只有一个召唤物），
+     因此链最多两跳，不会无限递归。 */
+async function conductSummonDamage(attacker, summon, dealt, label = '稻草人·传导') {
+if (!summon || !summon.isSummon || !(dealt > 0)) return;
+const linked = summon.linkedTarget;
+if (!linked || !linked.alive || linked === summon || linked.isSummon) return;
+log(`🎎 ${getSideLabel(summon)}稻草人 受到的 ${dealt} 点伤害传导给 ${getSideLabel(linked)}${linked.name}！`, 'log-skill');
+await applyConductionDamage(attacker, linked, dealt, label);
+}
+
+/* ===== 血量归零的统一分流（唯一入口）=====
+   召唤物不是角色：不走免死被动、击杀收益、阵亡日志，直接退场（despawnSummon）。
+   角色才走 resolveLethal（东丈「不屈」等免死）或 killUnit（斩杀即死，刻意绕开免死）。
+   四条致死路径 —— applyDamage 的统一死亡判定、applyFixedDamage、applyConductionDamage、
+   executeKillTarget —— 全部经此，避免某一种伤害类型漏掉召唤物分流。 */
+async function handleLethalDamage(target, attacker, opts = {}) {
+if (!target || target.hp > 0 || !target.alive) return;
+if (isSummonUnit(target)) { await despawnSummon(target); return; }
+if (opts.execute) await killUnit(target, attacker);   // 斩杀：即死效果，绕开免死被动
+else await resolveLethal(target, attacker);
 }
 
 /* 【斩杀】—— 不是伤害，而是即死效果。
@@ -4894,12 +5819,26 @@ target.hp = 0;
 target.shield = 0;
 refreshUnit(target);
 if (left > 0) recordDamage(attacker, target, left);
-await killUnit(target, attacker);
+/* 斩杀属即死、刻意绕开免死被动（opts.execute）；但若目标是召唤物，
+   统一分流仍会把它转成普通退场，不产生角色阵亡日志与击杀收益。 */
+await handleLethalDamage(target, attacker, { execute:true });
 return true;
 }
 
 async function applyDamage(attacker, result, target) {
 if (!target || !target.alive) return;
+/* 「上一次被自身攻击的目标」：钉崎野蔷薇「共鸣」的数据来源。
+   只记主伤害、排除溅射派生（溅射是同一击的余波，不该覆盖真正的攻击目标）；
+   群体技能没有单一目标时，按结算顺序取最后一个，作为合理的退化。
+   传导伤害走 applyConductionDamage、不经过这里，因此不会把传导误记成一次攻击。 */
+if (attacker && !result.isSplash && target !== attacker) attacker.lastAttackedTarget = target;
+/* 虎杖悠仁「黑闪」：伤害值已在 calculateDamage 里改写为 2.5 次方。
+   首次触发即进入「未来」（进入时恢复 100% 最大生命值）；后续触发只改写伤害。 */
+if (result.isHeishan && attacker && attacker.name === '虎杖悠仁') {
+log(`⚡ 黑闪！${getSideLabel(attacker)}${attacker.name} 的本次伤害值调整为 ${result.damage}！`, 'log-damage');
+triggerHeishanEffect(attacker);   // 按【方】首播视频 / 后续抠图，纯视觉不阻塞结算
+if (!hasRule(attacker, '未来')) await enterMirai(attacker);
+}
 /* ===== 实际生命损失累计器 =====
    只统计【真正扣掉的生命值】，被护盾吸收的部分不计入 ——
    这是「受到伤害」与「受到攻击」的分界：宿傩「斩击反转」要求真的掉血才触发，
@@ -4998,6 +5937,9 @@ const bearResult = (remainDamage === result.damage) ? result : Object.assign({},
 const { damageToHp, absorbed } = await applyDamageWithShield(attacker, bearResult, finalTarget);
 loseHp(finalTarget, damageToHp);
 const actualDamage = oldHp - finalTarget.hp;
+/* 稻草人：本次【实际掉血】等量传导给连接目标。
+   放在统一死亡判定之前 —— 稻草人这一下被打碎，传导依然要结算。 */
+if (actualDamage > 0) await conductSummonDamage(attacker, finalTarget, actualDamage);
 if (actualDamage + absorbed > 0) recordDamage(attacker, finalTarget, actualDamage + absorbed);
 if (damageToHp > 0) showFloatingText(finalTarget, (result.isCrit?'暴击 ':'') + (result.isSplash?'溅射 ':'') + '-' + damageToHp, result.isTrue?'floating-true':(result.isSplash?'floating-splash':(result.isCrit?'floating-crit':'floating-damage')));
 unitAnimOn(idxOf(finalTarget), 'hit'); await sleep(200); unitAnimOff(idxOf(finalTarget), 'hit'); refreshUnit(finalTarget);
@@ -5059,7 +6001,7 @@ victims.push({ unit: u, killer: killer || attacker });
 };
 upsertVictim(finalTarget, attacker, false);
 upsertVictim(target, kamuiKiller, !lethalByMain);
-for (const v of victims) await resolveLethal(v.unit, v.killer);
+for (const v of victims) await handleLethalDamage(v.unit, v.killer);
 /* 心魔 2 件套：攻击方穿戴「心魔」2 件时，造成伤害后 25% 基础概率给目标附加混乱（持续 1 回合）。
    走战斗内钩子而非基础层：概率触发是运行时效果。
    时机：死亡判定【之后】、目标仍存活且有实际掉血时 —— 击杀不产生控制收益。
@@ -5075,9 +6017,16 @@ tryApplyControl(tgt, '混乱', dur || xinmoDur, 'xinmo');
 return calculateControlChance(attacker, finalTarget, baseChance);
 });
 }
+/* 狱门疆 2 件套：装备者首次攻击时 70% 基础概率放逐本次攻击的目标。
+   同在「造成伤害后、死亡判定之后」结算；目标已阵亡则无可放逐。
+   目标虚化 / 已被放逐时 applyDamage 提前 return，那次攻击不消耗尝试次数。 */
+if (attacker && attacker.alive && typeof SHENHUN !== 'undefined' && SHENHUN.maybeApplyPrisonRealm) {
+const sealTarget = (target && target.alive && !target.banished) ? target : (finalTarget.alive ? finalTarget : null);
+if (sealTarget) tryPrisonRealmSeal(attacker, sealTarget);
+}
 /* 受击后被动统一入口（放逐期间失效）。
    放在死亡判定【之后】：已阵亡的单位不再结算恢复，超量伤害能正常击杀。 */
-if (finalTarget.alive && hpLossAcc > 0) await applyPassiveOnDamaged(finalTarget, attacker);
+if (finalTarget.alive && hpLossAcc > 0) await applyPassiveOnDamaged(finalTarget, attacker, hpLossAcc);
 if (target !== finalTarget && target.alive) refreshUnit(target);
 }
 /* 东丈「不屈」：免死 + 反击。独立成函数，供统一死亡流程调用。
@@ -5361,6 +6310,9 @@ case 'stun': tryApplyControl(target, '眩晕', 1, 'stun'); break;
 case 'stunChance': { const _sc = calculateControlChance(attacker, target, STUN_CHANCE); if (Math.random() < _sc) tryApplyControl(target, '眩晕', 1, 'stun'); } break;
 case 'guaiLi': await applyGuaiLi(attacker, target); break;      // 纲手普攻「怪力」
 case 'hunLuan': await applyHunLuan(attacker, aoeTargets || [target]); break;  // 五条悟「无量空处」
+/* 虎杖悠仁「斩击·领域」：描述为「并使目标附加混乱」，是必中而非概率，
+   故不走 applyHunLuan（那是五条悟的 40% 基础概率口径）。 */
+case 'itadoriHunLuan': if (target && target.alive) tryApplyControl(target, '混乱', ITADORI_HUNLUAN_DURATION, 'hunLuan'); break;
 case 'rageDown': {
 const lost = Math.random() < RAGE_DOWN_CHANCE ? loseRage(target, 1) : 0;
 if (lost > 0) { log(`${getSideLabel(target)}${target.name} 失去${lost}点怒气！`, 'log-buff'); refreshUnit(target); }
@@ -5712,7 +6664,7 @@ if ((target.states || []).some(s => s.type === '百豪')) healBonus += 0.2;   //
 let healRed = clamp01(Number(target.healReduction) || 0);
 if (target.name === '鬼王酒吞童子' && isPassiveActive(target)) healRed = clamp01(healRed + GUIWANG_HEAL_REDUCTION);
 const reduction = clamp01(1 - healRed);
-const isCrit = Math.random() < (Number(healer.critRate) || 0);
+const isCrit = !healer.noCrit && Math.random() < (Number(healer.critRate) || 0);
 const critMultiplier = isCrit ? (Number(healer.critDmg) || 1.5) : 1.0;
 let healVal = Math.floor(healer.atk * (Number(skill.healRate) || 0) * healBonus * reduction * critMultiplier);
 if (healVal < 0) healVal = 0;
@@ -5804,6 +6756,36 @@ log(`${getSideLabel(caster)}${caster.name} 将 ${getSideLabel(target)}${target.n
 updateActionBarDots(); refreshUnit(target);
 await sleep(500);
 }
+/* ===== 狱门疆 2 件套：首次攻击放逐 =====
+   与带土「神威·虚化」共用同一套【放逐】规则（离开战局、行动条锁定、神魂 2 件失效…），
+   但用独立 effect 键 'prisonRealm' —— 带土放逐到期会追打三段 + 全体神威，狱门疆没有后续攻击。
+   持续到「自身下回合结束」：duration = BANISH_DURATION，倒计时由施放者回合代 tick（processTurnEnd）。
+   「或阵亡」：killUnit 按 banishedBy 统一解除。 */
+function applyPrisonRealmBanish(caster, target) {
+if (!caster || !target || !target.alive || target.banished) return;
+lockActionValue(target);
+target.banished = true; target.banishedBy = caster;
+const ru = addRule(target, '放逐', { duration: BANISH_DURATION, effect: 'prisonRealm', extra: { casterIdx: idxOf(caster) } });
+if (ru) ru.setTurnSeq = caster.turnSeq;
+log(`🟣 ${getSideLabel(caster)}${caster.name} 的「狱门疆」发动！将 ${getSideLabel(target)}${target.name} 放逐至狱门疆内部空间！行动条锁定在 ${target.actionValue}%`, 'log-skill');
+refreshUnit(target); updateActionBarDots();
+}
+/* 每名装备者只尝试一次；同一阵营全体只生效一次（「多名友方角色装备时，仅生效一次」）。
+   尝试即占用名额，70% 未命中也不让下一名友方再试。
+   穿戴判定与概率 roll 交给逻辑层 SHENHUN.maybeApplyPrisonRealm。 */
+function tryPrisonRealmSeal(attacker, target) {
+if (!attacker || !attacker.alive || !target || !target.alive) return;
+/* 目标取本次攻击的实际对象（套装描述即「目标」），概率换算用该目标自己的效果抵抗。 */
+if (attacker.prisonRealmAttempted) return;
+const side = attacker.side;
+gameState.prisonRealmUsed = gameState.prisonRealmUsed || {};
+attacker.prisonRealmAttempted = true;
+if (gameState.prisonRealmUsed[side]) return;
+gameState.prisonRealmUsed[side] = true;
+if (typeof SHENHUN === 'undefined' || !SHENHUN.maybeApplyPrisonRealm) return;
+SHENHUN.maybeApplyPrisonRealm(attacker, function () { applyPrisonRealmBanish(attacker, target); },
+function (base) { return calculateControlChance(attacker, target, base); });
+}
 /* ===== 规则到期：统一注册表（与 OPENING_EFFECTS / PASSIVE_TURN_END 同构）=====
    tickDuration 是同步的，而放逐结算里含 await，因此到期项先收集、再由 processTurnEnd 逐个 await。 */
 const RULE_EXPIRE = {
@@ -5844,6 +6826,13 @@ await performAoeAttack(caster, { name:'神威·虚化', type:'aoe', trueRate:BAN
 }
 // 注：已移除「施放者行动条+40%」—— 神威触发的行动条加成已足够，不再额外推进
 updateActionBarDots(); refreshUnit(caster);
+},
+/* 狱门疆 2 件套的放逐到期：干净解除，不追打（带土那三段 + 全体神威是神威空间专属）。 */
+'prisonRealm': async (victim) => {
+victim.banishedBy = null;
+unlockActionValue(victim, 0);   // 内含 banished = false，并从放逐前位置继续
+log(`🟣 ${getSideLabel(victim)}${victim.name} 从狱门疆内部空间返回！`, 'log-skill');
+refreshUnit(victim); updateActionBarDots();
 }
 };
 // 状态/印记倒计时：duration 为 999 视为永久，不清空
@@ -5950,6 +6939,7 @@ refreshUnit(u);
 // 开局先机：遍历全体单位，按注册键结算
 function applyOpeningEffects() {
 gameState.units.forEach(u => {
+if (isSummonUnit(u)) return;   // 召唤物无先机 / 无被动
 const key = (HERO_DATA[u.name] || {}).opening;   // 先机：独立字段，与被动无关
 if (key && OPENING_EFFECTS[key]) OPENING_EFFECTS[key](u);
 });
@@ -5963,7 +6953,7 @@ function applyShenhunOpenings() {
 if (typeof SHENHUN === 'undefined' || !SHENHUN.hasSetTwoPiece) return;
 const amount = Number(SHENHUN.NUYUAN_RAGE) || 2;
 gameState.units.forEach(u => {
-if (!u.alive || !SHENHUN.hasSetTwoPiece(u, '怒源')) return;
+if (!u.alive || isSummonUnit(u) || !SHENHUN.hasSetTwoPiece(u, '怒源')) return;
 const got = gainRage(u, amount);
 if (got > 0) log(`🔮 ${getSideLabel(u)}${u.name} 的怒源触发！获得 ${got} 点怒气（当前 ${u.rage}）`, 'log-buff');
 const others = getAliveAllies(u, false);
@@ -5974,7 +6964,7 @@ if (got2 > 0) log(`🔮 怒源：${getSideLabel(ally)}${ally.name} 也获得 ${g
 }
 refreshUnit(u);
 });
-gameState.units.forEach(u => refreshUnit(u));
+gameState.units.forEach(u => { if (!isSummonUnit(u)) refreshUnit(u); });
 }
 /* ===== 被动：受到伤害后 =====
    注册表与 OPENING_EFFECTS / PASSIVE_TURN_END 同构，由 passive.onDamaged 指定键。
@@ -5997,12 +6987,27 @@ log(`🔁 ${getSideLabel(unit)}两面宿傩 的「斩击反转」！受到伤害
 /* 不再自己出飘字：performRestore 内部已统一显示「恢复 +X」，
    这里再出一次就会与它重复（界面上出现「恢复+195」和「+195」两条）。 */
 refreshUnit(unit);
+},
+/* 钉崎野蔷薇「共鸣」：自身受到伤害时，使【上一次被自身攻击的目标】受到本次伤害的
+   等量传导伤害。伤害量由统一入口透传（只算真正掉的生命值，护盾吸收部分不计），
+   与「受到伤害」的既有口径完全一致。
+   ★ 来源是钉崎自己（unit），不是打她的那个人 —— 这笔传导伤害算她造成的，
+     记账 / 受击后被动 / 致死击杀者一律按钉崎算。
+   ★ 传导伤害走 applyConductionDamage（不经 applyDamage），不会反向再触发本被动，天然无链。 */
+'gongming': async (unit, attacker, hpLoss) => {
+const dmg = Math.max(0, Math.floor(Number(hpLoss) || 0));
+if (dmg <= 0) return;
+const t = unit.lastAttackedTarget;
+if (!t || !t.alive || t === unit) return;
+log(`⚡ ${getSideLabel(unit)}钉崎野蔷薇 的「共鸣」！将受到的 ${dmg} 点伤害等量传导给 ${getSideLabel(t)}${t.name}！`, 'log-skill');
+await applyConductionDamage(unit, t, dmg, '共鸣·传导');
 }
 };
-async function applyPassiveOnDamaged(unit, attacker) {
+/* hpLoss：本次真正造成的生命损失。只有钉崎「共鸣」用到，其余被动忽略即可。 */
+async function applyPassiveOnDamaged(unit, attacker, hpLoss) {
 if (!isPassiveActive(unit)) return;                  // 放逐：目标被动失效
 const key = (HERO_DATA[unit.name] || {}).passive && HERO_DATA[unit.name].passive.onDamaged;
-if (key && PASSIVE_ON_DAMAGED[key]) await PASSIVE_ON_DAMAGED[key](unit, attacker);
+if (key && PASSIVE_ON_DAMAGED[key]) await PASSIVE_ON_DAMAGED[key](unit, attacker, hpLoss);
 }
 /* ===== 被动的两种归属 =====
    ① 独立被动：仅写在 HERO_DATA[name].passive，受【被动失效】约束（isPassiveActive）。
@@ -6122,8 +7127,10 @@ tickDuration(unit, 'marks', '印记', onMarkExpire);
 await flushAfterActionable();
 /* 放逐由**施放者**维持：被放逐者不行动（不会走 processTurnEnd），
    因此它的倒计时在施放者回合结束时代为推进 —— 放在 tick 自身规则之前。 */
-const banishedVictim = gameState.units.find(u => u.banished && u.banishedBy === unit);
-if (banishedVictim) tickDuration(banishedVictim, 'rules', '规则', collectRule, unit.turnSeq);   // 代 tick：参照施放者的回合号
+/* 用 filter 而非 find：同一施放者可能同时维持多个放逐（带土神威 + 狱门疆），
+   只 tick 第一个会让后面那个永远卡在内部空间。 */
+const banishedVictims = gameState.units.filter(u => u.banished && u.banishedBy === unit);
+banishedVictims.forEach(v => tickDuration(v, 'rules', '规则', collectRule, unit.turnSeq));   // 代 tick：参照施放者的回合号
 tickDuration(unit, 'rules', '规则', collectRule);
 for (const { unit: owner, item } of expiredRules) {
 const fn = item && item.effect ? RULE_EXPIRE[item.effect] : null;
@@ -6200,7 +7207,7 @@ const SKILL_CUTIN_OUT  = 280;          // 淡出
 /* 触发式施放（被动 / 印记 / 额外技能）与主动施放统一用完整时长 —— 让玩家同样看清楚。 */
 const SKILL_CUTIN_QUICK_HOLD = SKILL_CUTIN_HOLD;
 let skillCutinTimer = null;            // 当前演出的结束句柄（供点击跳过）
-function playSkillCutin(unit, skillName, isNormal = false, quick = false) {
+function playSkillCutin(unit, skillName, isNormal = false, quick = false, imgOverride = '') {
 if (!SKILL_CUTIN_ENABLED) return Promise.resolve();
 if (isNormal && !SKILL_CUTIN_FOR_NORMAL) return Promise.resolve();
 const el = document.getElementById('skill-cutin');
@@ -6210,7 +7217,7 @@ const color = d.color || (unit.side === 'enemy' ? '#ef5350' : '#4fc3f7');
 el.style.setProperty('--sc-color', color);
 el.classList.toggle('enemy', unit.side === 'enemy');
 el.classList.toggle('normal', !!isNormal);
-el.querySelector('.sc-hero').innerHTML = heroAvatarInner(unit.name);
+el.querySelector('.sc-hero').innerHTML = battleAvatarInner(unit, '', imgOverride);
 el.querySelector('.sc-kind').textContent = isNormal ? 'NORMAL ATTACK' : 'SKILL';
 el.querySelector('.sc-skill').textContent = skillName || '';
 el.querySelector('.sc-heroname').textContent = unit.name;
@@ -6416,7 +7423,7 @@ const TUTORIAL_TABS = [
 {
 key: 'damage', label: '伤害',
 html: `<h3>伤害类型与计算</h3>
-<p>游戏中存在四种彼此独立的伤害类型，其计算方式各不相同。以下公式均为游戏内实际采用的计算方式。</p>
+<p>游戏中存在五种彼此独立的伤害类型，其计算方式各不相同。以下公式均为游戏内实际采用的计算方式。</p>
 
 <h4>一、直接伤害</h4>
 <p>未作特殊说明的伤害均为直接伤害，其计算受目标防御影响。</p>
@@ -6447,6 +7454,16 @@ html: `<h3>伤害类型与计算</h3>
 <span class="note"><b>定义</b>：固定伤害是一种伤害类型，<b>无视护盾</b>，<b>无法被转移</b>，伤害量为条件固定值。<br>
 具体表现为：不判暴击，不吃攻击、免伤率、最终伤害率与最终免伤率；无视护盾，直接扣减生命值；<br>
 无法被转移（白藏主「狐守」代伤不生效）；仍会触发心友犬神「守势」的反击；虚化（免疫伤害）依然生效。</span></div>
+
+<h4>五、传导伤害</h4>
+<p>传导伤害由<span class="k">另一次伤害的实际数值</span>按传导系数派生，与攻击力、倍率、防御均无关。</p>
+<div class="formula"><span class="fname">传导伤害</span>
+<code>传导伤害 = 伤害数值 × 传导系数</code>
+<span class="note"><b>定义</b>：传导伤害是一种伤害类型，<b>不参与伤害公式计算</b>，<b>直接造成伤害</b>，<b>无视护盾</b>。<br>
+<b>注</b>：此前描述的「等量」默认传导系数为 <b>100%</b>（当前钉崎野蔷薇的「共鸣」与「稻草人」均为 100%）。<br>
+具体表现为：不判暴击，不吃免伤率、最终伤害率与最终免伤率；无视护盾，直接扣减生命值；无法被转移。<br>
+虚化与放逐（规则级免疫伤害）依然生效。<br>
+目前由钉崎野蔷薇的「共鸣」与「稻草人」产生：稻草人受到的伤害会等量传导给连接目标。</span></div>
 
 <div class="demo-box">
 <h4>伤害计算演示</h4>
@@ -6572,7 +7589,7 @@ html: `<h3>神魂系统</h3>
 <h4>一、神魂的构成</h4>
 <p>每个神魂有三项要素：</p>
 <ul>
-<li><span class="k">套装</span>：决定套装效果（共 6 套）。</li>
+<li><span class="k">套装</span>：决定套装效果（共 7 套）。</li>
 <li><span class="k">号位</span>：1 / 2 / 3 号位，每个角色每个号位只能装 1 个，共 3 个槽位。</li>
 <li><span class="k">稀有度</span>：普通 / 罕见 / 珍贵 / 史诗 / 传说 / 神话，决定数值高低。</li>
 </ul>
@@ -6611,6 +7628,7 @@ html: `<h3>神魂系统</h3>
 <div class="buff-card bc-shenhun" data-s="束缚"><div class="bn">束缚</div><div class="bd">1件 攻击+15%　·　2件 额外耗1怒气，本回合最终伤害+30%</div></div>
 <div class="buff-card bc-shenhun" data-s="怒源"><div class="bn">怒源</div><div class="bd">1件 防御+15%　·　2件 先机：自身与随机1友方各+2怒气</div></div>
 <div class="buff-card bc-shenhun" data-s="招财"><div class="bn">招财</div><div class="bd">1件 生命+15%　·　2件 回合开始50%概率+2怒气</div></div>
+<div class="buff-card bc-shenhun" data-s="狱门疆"><div class="bn">狱门疆</div><div class="bd">1件 效果命中+15%　·　2件 首次攻击70%基础概率放逐目标（至自身下回合结束或阵亡，多名友方仅生效一次）</div></div>
 </div>
 <div class="demo-out" id="shenhun-out">点击上方任一套装，查看其效果详解与判定细节。</div>
 
@@ -6686,7 +7704,8 @@ const detail = {
 '百穿': '· 只影响【直接伤害】的免伤率，真实伤害本就无视防御，不受影响\n· 逐段独立判定：多段技能每一段各自 roll 一次\n· 50% 为「直接概率」，不受效果命中 / 效果抵抗影响',
 '束缚': '· 「怒气足够」= 付完技能 cost 后还剩 ≥1 点\n· 判定在技能结算之前，因此本次技能本身立刻吃到 30%\n· 仅主动技能触发：普攻不算「施放技能」，额外技能多为他人回合触发，同样不算\n· 加成至回合结束清除',
 '怒源': '· 在角色先机全部结算之后才执行，不会被角色先机给的怒气顶掉上限\n· 只给存活友方，不给敌方；怒气已满时自动截断',
-'招财': '· 每个回合只判定一次（回合内分支重入不会重复触发）\n· 50% 为「直接概率」，不受效果命中 / 效果抵抗影响\n· 怒气已满时不触发提示，避免刷屏'
+'招财': '· 每个回合只判定一次（回合内分支重入不会重复触发）\n· 50% 为「直接概率」，不受效果命中 / 效果抵抗影响\n· 怒气已满时不触发提示，避免刷屏',
+'狱门疆': '· 只在该角色【首次攻击】时判定一次；70% 为「基础概率」：实际 = 70% × (1 + 效果命中 − 目标效果抵抗)\n· 1 件套（3 件套则为 2 次）给的 +15% 效果命中会直接提高触发率\n· 同一阵营多名友方装备时全队仅生效一次；判定未命中也不让下一人重试\n· 放逐持续到施放者下回合结束，或施放者阵亡（立即解除）\n· 与带土「神威·虚化」共用同一套放逐规则，但到期不会追打三段\n· 放逐期间目标神魂 2 件套失效、行动条锁定、无法被选中或治疗'
 };
 host.querySelectorAll('.buff-card[data-s]').forEach(c => {
 c.onclick = () => {
@@ -6757,7 +7776,8 @@ function resetGame() {
 stopSkillCutin();
 closeConfirmDialog(false);
 speedBtnDisplay(false);
-if (gameState.rafId) cancelAnimationFrame(gameState.rafId); resetBp(); document.getElementById('bp-screen').style.display = 'none'; gameState = { phase:'modeSelect', units:[], playerTeam:[], enemyTeam:[], actionBarMax:0, paused:false, auto:{ player:false, enemy:false }, animating:false, waitingForTarget:false, targetType:null, pendingSkill:null, currentActor:null, lastTimestamp:0, rafId:null, snowballSnapshot:null, vayneKillThisTurn:false, damageLogTotal:0, damageLogSide:null, currentCastSkill:null, currentCaster:null, shouShiFiring:false, shouShiTurnCount:0, wuXianXiaTurnCount:0, pendingCasts:[], needFlushAfterActionable:false, damageLogFallen:[], actionHookBusy:false }; playerSelection = ['主角']; enemySelection = ['主角']; document.getElementById('battle-screen').style.display = 'none'; document.getElementById('result-screen').classList.remove('show'); document.getElementById('selection-screen').style.display = 'none'; document.getElementById('mode-select-screen').style.display = 'flex'; document.getElementById('battle-log').innerHTML = ''; document.getElementById('floating-container').innerHTML = '';
+if (gameState.rafId) cancelAnimationFrame(gameState.rafId); resetBp(); document.getElementById('bp-screen').style.display = 'none'; gameState = { phase:'modeSelect', units:[], playerTeam:[], enemyTeam:[], actionBarMax:0, paused:false, auto:{ player:false, enemy:false }, animating:false, waitingForTarget:false, targetType:null, pendingSkill:null, currentActor:null, lastTimestamp:0, rafId:null, snowballSnapshot:null, vayneKillThisTurn:false, damageLogTotal:0, damageLogSide:null, currentCastSkill:null, currentCaster:null, shouShiFiring:false, shouShiTurnCount:0, wuXianXiaTurnCount:0, pendingCasts:[], needFlushAfterActionable:false, damageLogFallen:[], actionHookBusy:false, summonIdx:{ player:null, enemy:null } }; playerSelection = ['主角']; enemySelection = ['主角']; document.getElementById('battle-screen').style.display = 'none'; document.getElementById('result-screen').classList.remove('show'); document.getElementById('selection-screen').style.display = 'none'; document.getElementById('mode-select-screen').style.display = 'flex'; document.getElementById('battle-log').innerHTML = ''; document.getElementById('floating-container').innerHTML = '';
+const summonAreaReset = document.getElementById('summon-area'); if (summonAreaReset) summonAreaReset.innerHTML = '';
 // 重置选人界面状态
 document.getElementById('player-selection-section').style.display = 'block';
 document.querySelector('#selection-screen h1').textContent = '⚔️ 狂想：跨界之战';
@@ -6774,6 +7794,8 @@ checkStartButton(); }
 initSelection();
 initBattleUiButtons();
 renderVersionTheme();
+startAvatarCycle();   // 角色头像多图轮换（仅配置了 HERO_AVATAR_CYCLE 的角色）
+runImageSelfCheck();  // 仅在网址带 ?imgcheck=1 时显示图片自检面板
 /* ==================== 神魂系统初始化 ====================
    必须在 HERO_DATA / gameState 之后、UI 渲染之前完成 load。
    神魂是战斗外数据，开战前一次性结算进角色基础属性。 */
@@ -6785,3 +7807,86 @@ if (typeof initShenhunUI === 'function') initShenhunUI();   // 绑定仓库 / �
 document.getElementById('changelog-btn').onclick = openChangelog;
 document.getElementById('changelog-close').onclick = closeChangelog;
 document.getElementById('changelog-overlay').addEventListener('click', (e) => { if (e.target === document.getElementById('changelog-overlay')) closeChangelog(); });
+
+/* ==================== 动态背景 ====================
+   · 主界面（body.bg-mode-select）
+       电脑：循环播放 Background2_video.mp4；播放失败 / 卡住 → Background2A.png
+       手机：BackgroundA.png 与 BackgroundB.png 交叉淡入轮播
+   · 其余所有界面（body.bg-static：角色选择、战斗、BP、结算）
+       电脑：Background2A.png
+       手机：BackgroundA.png
+       均为单张静态图，不做动画、不轮播。
+
+   设备口径：用「精确指针 + min-width:821px」而不是屏幕方向。
+   手机横屏仍是粗指针，不会去碰视频自动播放；触屏笔记本接了鼠标则走视频。
+   两种状态互斥，主界面优先；只要不在主界面，一律显示按设备分流的静态图，
+   因此结算弹层覆盖在战斗界面之上时也无需特判，背景始终一致。
+   屏幕分散在十几处切换，这里用 MutationObserver 盯各界面节点的显隐，
+   无需改动任何一处现有切屏代码，也不会因为以后新增界面而漏掉。 */
+(function initDynamicBackground() {
+const body = document.body;
+const video = document.getElementById('bg-video');
+const modeScreen = document.getElementById('mode-select-screen');
+const selectionScreen = document.getElementById('selection-screen');
+const battleScreen = document.getElementById('battle-screen');
+const resultScreen = document.getElementById('result-screen');
+if (!video || !modeScreen) return;   // 素材/节点缺失时静默跳过，不影响游戏
+
+const mqDesktop = window.matchMedia('(hover:hover) and (pointer:fine) and (min-width:821px)');
+const mqReduced = window.matchMedia('(prefers-reduced-motion: reduce)');
+let videoFailed = false, stallTimer = null;
+
+function fallbackToStatic() {
+if (videoFailed) return;
+videoFailed = true;
+body.classList.add('bg-video-failed');   // CSS 隐藏 video，露出 body 的 Background2A.png
+try { video.pause(); } catch (e) {}
+}
+function isVisible(el) { return !!el && window.getComputedStyle(el).display !== 'none'; }
+function isModeSelect() { return isVisible(modeScreen); }
+function armStallGuard() {
+if (stallTimer) clearTimeout(stallTimer);
+/* 4 秒还没真正播起来（play() 悬而未决 / 解码卡住）就退回静态图，不留黑屏。 */
+stallTimer = setTimeout(() => {
+if (!videoFailed && body.classList.contains('bg-mode-select') &&
+body.classList.contains('bg-desktop') && video.readyState < 2) fallbackToStatic();
+}, 4000);
+}
+function syncBg() {
+const desktop = mqDesktop.matches;
+body.classList.toggle('bg-desktop', desktop);
+body.classList.toggle('bg-mobile', !desktop);
+const onMode = isModeSelect();
+/* 只要不在主界面就是静态图（角色选择 / 战斗 / BP / 结算一视同仁），
+   不再逐个判界面 —— 结算弹层覆盖在战斗之上时也保持同一张图。 */
+body.classList.toggle('bg-mode-select', onMode);
+body.classList.toggle('bg-static', !onMode);
+if (!onMode || !desktop) {            // 离开主界面 / 手机端：一律不播视频
+try { video.pause(); } catch (e) {}
+if (stallTimer) { clearTimeout(stallTimer); stallTimer = null; }
+return;
+}
+if (videoFailed || mqReduced.matches) { fallbackToStatic(); return; }
+/* muted + playsinline 是 iOS 自动播放的硬性要求；play() 被策略拒绝即回退。 */
+video.muted = true;
+try {
+const p = video.play();
+if (p && typeof p.catch === 'function') p.catch(fallbackToStatic);
+} catch (e) { fallbackToStatic(); }
+armStallGuard();
+}
+video.addEventListener('error', fallbackToStatic);
+/* video 已经在播了就不必再靠兜底计时器；避免正常播放后被误判 */
+video.addEventListener('playing', () => { if (stallTimer) { clearTimeout(stallTimer); stallTimer = null; } });
+
+/* 判定只需主界面节点的 display；连同其他界面一起盯，是给将来新增界面留余量
+   （result 的显隐走 class(show)，不是 style）。 */
+const observer = new MutationObserver(syncBg);
+[modeScreen, selectionScreen, battleScreen, resultScreen].forEach(el => {
+if (el) observer.observe(el, { attributes: true, attributeFilter: ['style', 'class'] });
+});
+window.addEventListener('resize', syncBg);
+mqDesktop.addEventListener && mqDesktop.addEventListener('change', syncBg);
+mqReduced.addEventListener && mqReduced.addEventListener('change', syncBg);
+syncBg();
+})();

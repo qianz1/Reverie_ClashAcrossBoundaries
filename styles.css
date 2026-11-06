@@ -1,15 +1,15 @@
 /* ==================== 全局 ==================== */
 * { margin: 0; padding: 0; box-sizing: border-box; }
-/* ===== 全局背景图 =====
-   两张图放在 index.html【同一目录】下即可生效：
-     · Background.png  —— 竖版（手机竖屏）
-     · Background2.png —— 横版（电脑 / 平板横屏）
-   切换依据是屏幕方向，不是设备类型：手机横过来看也会用横版图。
+/* ===== 全局背景 =====
+   body 这张只是【兜底】（背景脚本未加载、素材层失效时不会露黑屏）：
+     · 竖版 → BackgroundA.png     · 横版 → Background2A.png
+   真正生效的是 #bg-layer：主界面电脑播视频 / 手机 AB 轮播，其余界面按设备
+   显示单张静态图（电脑 2A / 手机 A）。详见文件末尾。
    图片不存在时自动退回纯色背景，不会报错或破版。
    下面的 --bg-veil-* 是压暗遮罩：保证角色框、文字在图上仍然清晰可读；
    觉得背景太暗/太花，改这几个 rgba 的最后一个数字（0=全透 1=全遮）。 */
 :root {
---bg-img: url('assets/background/Background.png');
+--bg-img: url('assets/background/BackgroundA.png');
 --bg-veil:        linear-gradient(135deg, rgba(10,10,46,.62) 0%, rgba(26,26,62,.56) 50%, rgba(10,10,46,.62) 100%);
 --bg-veil-bp:     linear-gradient(135deg, rgba(20,8,46,.66) 0%, rgba(37,18,67,.60) 50%, rgba(20,8,46,.66) 100%);
 /* 战斗界面元素多（血条/怒气条/buff图标），遮罩比主界面重一档，保证读数清晰 */
@@ -17,13 +17,14 @@
 --bg-veil-result: linear-gradient(160deg, rgba(7,7,26,.78) 0%, rgba(20,20,58,.72) 55%, rgba(10,10,26,.82) 100%);
 }
 @media (orientation: landscape) {
-:root { --bg-img: url('assets/background/Background2.png'); }
+:root { --bg-img: url('assets/background/Background2A.png'); }
 }
 /* body 不滚动（overflow:hidden），各界面在自己的容器里滚 ——
    所以直接把背景图挂在 body 上就是"固定背景"，无需 background-attachment:fixed
    （后者在 iOS Safari 上有兼容问题）。 */
 body { font-family: 'Microsoft YaHei', sans-serif; background-color: #0a0a1a; background-image: var(--bg-img); background-size: cover; background-position: center center; background-repeat: no-repeat; color: #e0e0e0; overflow: hidden; height: 100vh; user-select: none; -webkit-tap-highlight-color: transparent; }
-#game-container { width: 100%; height: 100%; position: relative; }
+/* 提到 bg-layer 之上：各界面自带的半透明遮罩照常压在动态背景上，文字仍然清晰。 */
+#game-container { width: 100%; height: 100%; position: relative; z-index: 1; }
 /* ==================== 模式选择界面 ==================== */
 #mode-select-screen { width: 100%; min-height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px; padding-bottom: 40px; background: var(--bg-veil); overflow-y: auto; -webkit-overflow-scrolling: touch; }
 #mode-select-screen h1 { color: #ffd700; margin-bottom: 8px; font-size: 28px; text-align: center; }
@@ -94,6 +95,16 @@ body { font-family: 'Microsoft YaHei', sans-serif; background-color: #0a0a1a; ba
 .hero-avatar { position: relative; overflow: hidden; width: 84px; height: 84px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 34px; font-weight: bold; color: #fff; margin-bottom: 8px; border: 3px solid rgba(255,255,255,0.25); flex-shrink: 0; }
 .avatar-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; border-radius: 50%; background: #14143a; }
 .avatar-img-fail { display: none !important; }
+/* ===== 图片交叉淡入 =====
+   换图时新 <img> 叠在旧图之上淡入，过渡结束才移除旧图 —— 全程不会露出
+   首字母 / 底色，也不会闪白。两者靠 position:absolute 天然叠放，
+   不淡出旧图（否则中途会透出背景）。时长与 game.js 的 IMG_FADE_MS 保持一致。
+   ★ 减少动态效果偏好：直接硬切，不做动画。 */
+.avatar-img.img-xfade, .unit-bg.img-xfade { opacity: 0; transition: opacity .42s ease; }
+.avatar-img.img-xfade.img-xfade-in, .unit-bg.img-xfade.img-xfade-in { opacity: 1; }
+@media (prefers-reduced-motion: reduce) {
+.avatar-img.img-xfade, .unit-bg.img-xfade { transition: none; }
+}
 .hero-card .hero-name { font-weight: bold; color: #fff; margin-bottom: 6px; font-size: 14px; text-align: center; line-height: 1.2; }
 /* 数值行已移除：卡片只保留 头像 / 名字 / 定位标签 / 查看详情 */
 .hero-card .hero-tags { margin-top: 2px; text-align: center; }
@@ -303,6 +314,21 @@ body { font-family: 'Microsoft YaHei', sans-serif; background-color: #0a0a1a; ba
 #action-bar-container { flex: 0 0 auto; width: 90%; max-width: 900px; height: 60px; margin: 0 auto; position: relative; z-index: 10; }
 #action-bar-track { width: 100%; height: 40px; background: #111; border: 2px solid #333; border-radius: 20px; position: relative; }
 #action-bar-fill { position: absolute; left: 0; top: 0; height: 100%; width: 0%; background: linear-gradient(90deg, #00e5ff33, #00e5ff66); border-radius: 20px; }
+/* 召唤物：浮在中央行动条附近，不占敌我区域的 flex 空间，也不进行动条。
+   小卡片仍复用 .unit / unit-${idx} 的 id 体系，选中高亮、飘字、血条刷新自动生效。
+   ★ 每方各一只，【上下相对】：敌方场上的（红框）在行动条上方，
+     我方场上的（绿框）在行动条下方 —— 与它们各自所在的阵营区域对应。
+   容器本身只做定位参考、不吃点击；只有卡片自己可点，避免挡住行动条圆点。 */
+#summon-area { position: absolute; inset: 0; z-index: 14; pointer-events: none; }
+.unit.summon { position: absolute; left: 50%; transform: translateX(-50%); width: 88px; height: 66px; border: 2px solid #c9a227; border-radius: 8px; cursor: pointer; box-sizing: border-box; pointer-events: auto; }
+.unit.summon.enemy { bottom: 100%; margin-bottom: 4px; border-color: #ef5350; }
+.unit.summon.player { top: 100%; margin-top: 4px; border-color: #66bb6a; }
+.unit.summon .unit-content { justify-content: flex-start; gap: 1px; padding: 2px 3px; }
+.unit.summon .unit-name { font-size: 10px; }
+.summon-link { font-size: 9px; color: #ffd54f; text-shadow: 0 1px 2px #000; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.summon-note { font-size: 8px; color: #bdbdbd; text-shadow: 0 1px 2px #000; }
+.unit.summon .unit-hp-bar-wrap { width: 74px; height: 5px; margin-top: 1px; }
+.unit.summon .unit-hp-text { font-size: 8px; }
 .action-dot { overflow: hidden; box-sizing: border-box; position: absolute; top: 50%; transform: translate(-50%, -50%); width: 48px; height: 48px; border-radius: 50%; border: 2px solid #fff; display: flex; align-items: center; justify-content: center; font-size: 16px; font-weight: bold; color: #fff; transition: left 0.15s linear; z-index: 2; box-shadow: 0 0 6px rgba(0,0,0,0.6); }
 .action-dot.enemy-dot { border-color: #ef5350; } .action-dot.player-dot { border-color: #66bb6a; } .action-dot.dead-dot { opacity: 0.2; }
 /* 操作 UI 移到界面下方（原在顶部，会压住敌方单位） */
@@ -674,7 +700,7 @@ pointer-events: none; white-space: nowrap; text-shadow: 0 1px 3px rgba(0,0,0,.9)
 .log-normal { color: #ccc; } .log-damage { color: #ef5350; } .log-heal { color: #66bb6a; } .log-skill { color: #ffd700; } .log-buff { color: #42a5f5; } .log-death { color: #f44336; font-weight: bold; }
 #floating-container { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 200; }
 .floating-text { position: absolute; font-weight: bold; font-size: 18px; animation: floatUp 1s ease-out forwards; text-shadow: 0 0 4px #000; }
-.floating-damage { color: #ff5252; } .floating-crit { color: #ffd700; font-size: 24px; } .floating-heal { color: #69f0ae; } .floating-true { color: #e040fb; } .floating-miss { color: #999; font-size: 14px; } .floating-shield { color: #ffffff; } .floating-splash { color: #ff9800; } .floating-restore { color: #4dd0e1; } .floating-fixed { color: #ffab00; font-weight: bold; }
+.floating-damage { color: #ff5252; } .floating-crit { color: #ffd700; font-size: 24px; } .floating-heal { color: #69f0ae; } .floating-true { color: #e040fb; } .floating-miss { color: #999; font-size: 14px; } .floating-shield { color: #ffffff; } .floating-splash { color: #ff9800; } .floating-restore { color: #4dd0e1; } .floating-fixed { color: #ffab00; font-weight: bold; } .floating-conduction { color: #ff80ab; font-weight: bold; }
 @keyframes floatUp { 0% { opacity: 1; transform: translateY(0) scale(1); } 100% { opacity: 0; transform: translateY(-60px) scale(1.2); } }
 #overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 150; display: none; justify-content: center; align-items: center; }
 /* ==================== 技能演出（Cut-in）====================
@@ -764,6 +790,11 @@ word-break: break-word; }
 .unit { width: clamp(84px, 26vw, 110px); height: clamp(110px, 34vw, 150px); margin: 0 auto; display: block; }
 #action-bar-container { height: 54px; }
 #action-bar-container .action-dot { width: 38px; height: 38px; font-size: 14px; }
+/* 窄屏上下各一只：略缩卡片与间距，避免挤到敌我区域 */
+.unit.summon { width: 76px; height: 62px; }
+.unit.summon.enemy { margin-bottom: 2px; }
+.unit.summon.player { margin-top: 2px; }
+.unit.summon .unit-hp-bar-wrap { width: 64px; }
 #battle-log { display: none; }        /* 手机端空间不足：隐藏日志栏（动画已能承载主要反馈） */
 #control-panel { bottom: 6px; gap: 6px; padding: 6px 10px; max-width: 92vw; }
 #speed-btn { left: 10px; bottom: 8px; font-size: 14px; }
@@ -910,4 +941,73 @@ word-break: break-word; }
   .sh-cloud-field { flex-wrap: wrap; }
   .sh-cloud-field label { flex: 0 0 100%; text-align: left; }
   .sh-cloud-field input { flex: 0 0 100%; }
+}
+
+/* ==================== 动态背景层 ====================
+   两种状态互斥，由 game.js 加 body 类控制：
+     · bg-mode-select → 主界面（电脑视频 / 手机 AB 轮播）
+     · bg-static      → 其余所有界面（角色选择、战斗、BP、结算），按设备分图：
+                          电脑 Background2A.png / 手机 BackgroundA.png
+   视频自动播放失败时也显示 bg-static（电脑即 Background2A.png）。
+   fixed 全屏铺满、不套边框、不接收点击。设备分流：bg-desktop / bg-mobile。 */
+#bg-layer { position: fixed; inset: 0; z-index: 0; overflow: hidden; pointer-events: none; }
+#bg-layer > * { position: absolute; inset: 0; width: 100%; height: 100%; display: none; }
+#bg-video { object-fit: cover; border: 0; outline: 0; background: transparent; }
+.bg-slide-a { background: url('assets/background/BackgroundA.png') center center / cover no-repeat; }
+.bg-slide-b { background: url('assets/background/BackgroundB.png') center center / cover no-repeat; }
+/* 其余界面的静态图：底子只定铺法，具体图片按设备分流（下方两条）。 */
+.bg-static { background: center center / cover no-repeat; }
+body.bg-desktop #bg-layer > .bg-static { background-image: url('assets/background/Background2A.png'); }
+body.bg-mobile  #bg-layer > .bg-static { background-image: url('assets/background/BackgroundA.png'); }
+/* 带上 #bg-layer 前缀以压过 `#bg-layer > * { display:none }`。
+   非主界面、或视频播放失败，都显示这一层。 */
+body.bg-static #bg-layer > .bg-static,
+body.bg-video-failed #bg-layer > .bg-static { display: block; }
+
+/* 电脑：主界面播视频；播放失败则隐藏 video，显示 bg-static（Background2A.png） */
+body.bg-mode-select.bg-desktop #bg-video { display: block; }
+body.bg-mode-select.bg-desktop.bg-video-failed #bg-video { display: none; }
+/* 手机：两张图交叉淡入轮播。
+   带上 #bg-layer 前缀，特异性才压得过上面的 `#bg-layer > * { display:none }`。
+   容器再用 A 图垫底：两张图都处于半透明的过渡瞬间，底下露出的仍是 A，
+   不会透出 body 的竖版静态图造成忽明忽暗。 */
+body.bg-mode-select.bg-mobile #bg-layer {
+background: url('assets/background/BackgroundA.png') center center / cover no-repeat;
+}
+body.bg-mode-select.bg-mobile #bg-layer > .bg-slide-a,
+body.bg-mode-select.bg-mobile #bg-layer > .bg-slide-b { display: block; }
+:root { --bg-cycle: 12s; }   /* 一轮时长，改这里即可调快慢 */
+@keyframes bgSlideA { 0%,45% { opacity: 1; } 55%,95% { opacity: 0; } 100% { opacity: 1; } }
+@keyframes bgSlideB { 0%,45% { opacity: 0; } 55%,95% { opacity: 1; } 100% { opacity: 0; } }
+body.bg-mode-select.bg-mobile .bg-slide-a { animation: bgSlideA var(--bg-cycle) ease-in-out infinite; }
+body.bg-mode-select.bg-mobile .bg-slide-b { animation: bgSlideB var(--bg-cycle) ease-in-out infinite; }
+
+/* 系统开启「减少动态效果」：不轮播、不播视频，退回单张静态图 */
+@media (prefers-reduced-motion: reduce) {
+body.bg-mode-select.bg-mobile .bg-slide-a,
+body.bg-mode-select.bg-mobile .bg-slide-b { animation: none; }
+body.bg-mode-select.bg-mobile #bg-layer > .bg-slide-b { display: none; }
+}
+
+/* ===== 黑闪演出 =====
+   第一次触发：3s 全屏视频；之后：透明底抠图短闪。
+   整层 position:fixed 满屏、z-index 高于结算(600)/确认(700)/toast(800)，
+   所以视频能盖住结算播完再自动消失；pointer-events:none 全程不挡点击。
+   ★ 抠图请用透明底 PNG/WebP，contain 居中不会裁掉尖锐笔画。 */
+#heishan-flash { position: fixed; inset: 0; z-index: 820; display: none; pointer-events: none; overflow: hidden; background: transparent; }
+#heishan-flash.show { display: block; }
+#heishan-video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: none; }
+#heishan-video.show { display: block; }
+#heishan-cut { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%) scale(.94); width: min(92vw, 1100px); max-height: 74vh; object-fit: contain; opacity: 0; display: none; filter: drop-shadow(0 0 22px rgba(255,40,40,.55)); }
+#heishan-cut.show { display: block; animation: heishanCutIn .42s ease-out forwards; }
+@keyframes heishanCutIn {
+0%   { opacity: 0; transform: translate(-50%, -50%) scale(.86); }
+22%  { opacity: 1; transform: translate(-50%, -50%) scale(1.02); }
+68%  { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+100% { opacity: 0; transform: translate(-50%, -50%) scale(1.04); }
+}
+/* 减少动态效果：不播视频（JS 改走静态短闪），抠图也去掉缩放只做淡入淡出 */
+@media (prefers-reduced-motion: reduce) {
+#heishan-cut.show { animation: heishanCutInStill .42s linear forwards; }
+@keyframes heishanCutInStill { 0%,100% { opacity: 0; } 20%,75% { opacity: 1; } }
 }

@@ -12,6 +12,18 @@
 <link rel="stylesheet" href="styles.css">
 </head>
 <body>
+<!-- 背景层：主界面电脑播视频、手机两张图轮播；其余界面按设备显示单张静态图
+     （电脑 Background2A.png / 手机 BackgroundA.png）。
+     视频放不出来时由 game.js 加 bg-video-failed 类，自动退回静态图。 -->
+<div id="bg-layer" aria-hidden="true">
+<video id="bg-video" autoplay muted loop playsinline preload="auto" poster="assets/background/Background2A.png">
+<source src="assets/background/Background2_video.mp4" type="video/mp4">
+</video>
+<div class="bg-slide bg-slide-a"></div>
+<div class="bg-slide bg-slide-b"></div>
+<!-- 其余所有界面：电脑 Background2A.png / 手机 BackgroundA.png（由 CSS 按设备分流） -->
+<div class="bg-slide bg-static"></div>
+</div>
 <div id="game-container">
 <div id="mode-select-screen">
 <h1>⚔️ 狂想：跨界之战</h1>
@@ -222,6 +234,7 @@
 <div id="enemy-area"></div>
 <div id="action-bar-container">
 <div id="action-bar-track"><div id="action-bar-fill"></div></div>
+<div id="summon-area"></div>
 </div>
 <div id="player-area"></div>
 <div id="battle-log"></div>
@@ -277,6 +290,13 @@
 <button id="btn-rematch">再来一局</button>
 <button id="btn-quit-net">退出</button>
 </div>
+</div>
+<!-- 黑闪演出：第一次触发播 3s 视频，之后播透明底抠图短闪。
+     层级高于结算界面，视频播完自动消失、露出结算；不吃点击，不阻塞战斗逻辑。
+     素材缺失时整层保持隐藏，游戏外观与原来完全一致。 -->
+<div id="heishan-flash">
+<video id="heishan-video" muted playsinline preload="auto"></video>
+<img id="heishan-cut" alt="黑闪" />
 </div>
 <!-- 加载顺序很重要：shenhun-ui.js 必须在 game.js 之前。
      game.js 末尾会同步调用 initShenhunUI() 绑定神魂入口按钮，

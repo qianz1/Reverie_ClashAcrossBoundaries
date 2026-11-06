@@ -71,7 +71,8 @@ const SETS = [
   { type: '无双', name: '无双', one: '暴击率+15%', two: '自身每损失1%最大生命值，提升0.5%暴击伤害', impl: true },
   { type: '怒源', name: '怒源', one: '防御+15%', two: '先机：自身与随机1名其他友方各获得2点怒气', impl: true },
   { type: '招财', name: '招财', one: '生命+15%', two: '回合开始时50%概率获得2点怒气', impl: true },
-  { type: '心魔', name: '心魔', one: '效果命中+15%', two: '造成伤害时25%基础概率使目标附加混乱（持续1回合）', impl: true }
+  { type: '心魔', name: '心魔', one: '效果命中+15%', two: '造成伤害时25%基础概率使目标附加混乱（持续1回合）', impl: true },
+  { type: '狱门疆', name: '狱门疆', one: '效果命中+15%', two: '首次攻击时，有70%基础概率将目标「放逐」至狱门疆内部空间，直到自身下回合结束或阵亡。多名友方角色装备时，仅生效一次。', impl: true }
 ];
 const SET_BY_TYPE = SETS.reduce(function (o, s) { o[s.type] = s; return o; }, {});
 
@@ -557,14 +558,14 @@ function aggregateStats(roleName, baseStats) {
      ★ 3 件同套装 = 一组 2 件套（内含一次 1 件套）+ 1 个散件 1 件套 = 共 2 次，
        例如无双 3 件给 +30% 暴击率，而不是 +15%。
      2 件套效果仍只触发一次（hasTwoPiece >= 2），不随件数叠加。 */
-  const ONE_PCT = 0.15;                    // 六套 1 件套统一为 +15%
+  const ONE_PCT = 0.15;                    // 各套 1 件套统一为 +15%
   const stacks = {};
   Object.keys(setCount).forEach(function (t) { stacks[t] = onePieceStacks(setCount[t]); });
   addAtkPct    += ((stacks['百穿'] || 0) + (stacks['束缚'] || 0)) * ONE_PCT;
   addCritRate  += (stacks['无双'] || 0) * ONE_PCT;
   addDefPct    += (stacks['怒源'] || 0) * ONE_PCT;
   addHpPct     += (stacks['招财'] || 0) * ONE_PCT;
-  addEffectHit += (stacks['心魔'] || 0) * ONE_PCT;
+  addEffectHit += ((stacks['心魔'] || 0) + (stacks['狱门疆'] || 0)) * ONE_PCT;
 
   /* 合并：百分比按角色面板基数，speed 为固定值累加。
      取整口径：
@@ -714,6 +715,22 @@ function maybeApplyXinmo(attacker, target, onApply, chanceFn) {
     : XINMO_BASE_CHANCE;
   if (Math.random() >= chance) return false;
   if (typeof onApply === 'function') onApply(target, XINMO_HUNLUAN_DURATION);
+  return true;
+}
+
+/* 狱门疆 2 件套：首次攻击时 70% 基础概率放逐目标。
+   本层只管「是否穿戴 2 件」+「按基础概率 roll」；
+   「每名角色只尝试一次」与「多名友方仅生效一次」由战斗层的 gameState 闸门负责
+   （那里才有阵营 / 战斗生命周期），onApply 由战斗层注入真正的放逐逻辑。 */
+const PRISON_REALM_BASE_CHANCE = 0.70;
+function maybeApplyPrisonRealm(attacker, onApply, chanceFn) {
+  if (!attacker || !attacker.alive) return false;
+  if (!hasSetTwoPiece(attacker, '狱门疆')) return false;   // 含放逐冻结
+  const chance = typeof chanceFn === 'function'
+    ? clamp01(Number(chanceFn(PRISON_REALM_BASE_CHANCE)) || 0)
+    : PRISON_REALM_BASE_CHANCE;
+  if (Math.random() >= chance) return false;
+  if (typeof onApply === 'function') onApply();
   return true;
 }
 
@@ -894,6 +911,7 @@ root.SHENHUN = {
   /* 战斗钩子 */
   calcWushuangCritDmgBonus: calcWushuangCritDmgBonus,
   maybeApplyXinmo: maybeApplyXinmo,
+  maybeApplyPrisonRealm: maybeApplyPrisonRealm, PRISON_REALM_BASE_CHANCE: PRISON_REALM_BASE_CHANCE,
   hasSetTwoPiece: hasSetTwoPiece,
   rollBaichuanDefFactor: rollBaichuanDefFactor,
   calcShufuFinalDmgBonus: calcShufuFinalDmgBonus,
