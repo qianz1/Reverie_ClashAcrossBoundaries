@@ -3415,7 +3415,7 @@ tOverlay.addEventListener('click', (e) => { if (e.target === tOverlay) closeTuto
    castDesc = 【施放】部分，用于「同一个技能既有被动效果又有主动施放效果」的情况
    （如鬼金羊「宿影暗渡」：被动攒宿影阵 + 施放减怒气）。 */
 const SKILL_TYPE_LABEL = { aoe:'群体攻击', single:'单体攻击', buff:'增益', single_then_aoe:'单体+群体',
-banish:'控制', damageLog:'记录恢复', skip:'跳过回合' };
+banish:'控制', damageLog:'记录恢复', skip:'跳过回合', summon:'召唤' };
 function skillBlockHtml(skill, desc, castDesc, label) {
 if (!skill) return '';
 const cost = Number(skill.cost) || 0;
