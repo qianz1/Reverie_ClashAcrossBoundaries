@@ -401,9 +401,10 @@ im.src = it.src;
 }
 
 /* ===== 黑闪演出 =====
-   节奏：【每一方】虎杖第一次触发黑闪播 3s 全屏视频，之后一律播透明底抠图短闪。
+   节奏：【每一方】虎杖第一次触发黑闪播 3s 全屏视频（仅电脑端），
+        之后一律播透明底抠图短闪；手机端从第一次起就全是抠图短闪。
    「方」按 attacker.side 分开记：我方虎杖与敌方虎杖各有自己的首播；
-   联机时房主判定并广播 side，客机照播，两边口径一致。
+   联机时房主判定并广播 side，客机按【自己设备】决定视频还是抠图。
    · 纯视觉、不 await、不吃点击：伤害结算与联机队列完全不受影响；
    · 层级高于结算界面，视频能盖住结算播完再自动消失；
    · 两侧首播可能挨得很近 → 串行播放链，前一个播完才播下一个，3s 视频不会被拦腰截断；
@@ -423,6 +424,22 @@ let heishanLastBySide = { player:0, enemy:0 };
 let heishanTimer = null, heishanStageSeq = 0, heishanEpoch = 0;
 let heishanChain = Promise.resolve();
 
+/* 设备判定：与【背景分流】完全共用一套口径（精确指针 + 宽度≥821px）。
+   优先读背景模块已经写在 body 上的 class，它随窗口/外接鼠标实时同步；
+   背景模块没启动（素材或节点缺失提前 return）时再用 matchMedia 兜底。
+   判定不可用时按【手机】处理 —— 宁可少一段动画，也别在移动端误播视频。 */
+function isDesktopDevice() {
+try {
+const b = (typeof document !== 'undefined') ? document.body : null;
+if (b && (b.classList.contains('bg-desktop') || b.classList.contains('bg-mobile'))) {
+return b.classList.contains('bg-desktop');
+}
+if (typeof matchMedia === 'function') {
+return matchMedia('(hover:hover) and (pointer:fine) and (min-width:821px)').matches;
+}
+} catch (e) { /* 落到下面的手机侧 */ }
+return false;
+}
 function addHeishanToSelfCheck(items) {
 if (!Array.isArray(items)) return;
 items.push({ label: '黑闪 · 首播视频', src: HEISHAN_VIDEO, video: true });
@@ -521,7 +538,12 @@ heishanTimer = setTimeout(finish, HEISHAN_VIDEO_MAX_MS);
 function playHeishanEffect(first, fromNet, side) {
 if (fromNet && side) heishanVideoBySide[side] = true;
 clearHeishanStage();
-return first ? playHeishanVideo() : playHeishanCut();
+/* ★ 手机端不播视频：第一次也走和后续【完全一样】的抠图短闪。
+   判定放在播放端本地，所以联机房主是电脑、客机是手机时，
+   房主看视频、客机看抠图，各按自己设备来，广播内容不需要带设备信息。
+   首播标记仍照常置 true —— 只是表现降级，「每一方一次」的口径不变。 */
+const useVideo = first && isDesktopDevice();
+return useVideo ? playHeishanVideo() : playHeishanCut();
 }
 /* 串行播放链：两侧首播挨得近时，前一个播完才播下一个，谁都不会被拦腰截断。 */
 function queueHeishanEffect(first, fromNet, side) {
