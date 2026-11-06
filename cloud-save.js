@@ -16,6 +16,7 @@
        两个按钮一律 disabled，不再有「上传时自动补登录」这条暗路。
      · 登录遇非账号密码类失败会自动重连 5 次、每次间隔 1 秒（共 6 次尝试），
        期间只显示「登录中」，用尽后提示「登录失败」。
+       地址一时推导不出 / 网络抖动同样走这套重连，登录按钮不会因此被锁死。
        后端每次请求都校验密码。
 
    对外只暴露 window.CLOUD_SAVE，由 shenhun-ui.js 注册成「云存档」标签页。
@@ -32,8 +33,7 @@
      登录单次超时单独缩短，避免某次卡满 10 秒把整轮重连拖到近一分钟。
      界面只显示「登录中」，不显示第几次重连。 */
   var LOGIN_RECONNECTS = 5;
-  var __TEST_FAST__ = false;
-  var LOGIN_RETRY_MS = (__TEST_FAST__?5:1000);
+  var LOGIN_RETRY_MS = 1000;
   var LOGIN_TIMEOUT_MS = 2500;
   /* 与 game.js 的 DEFAULT_RELAY 保持一致（顶层 const 不挂 window，这里内置一份）。
      若以后改了联机默认中继，记得同步这里。玩家在联机面板选「自定义」时，
@@ -53,6 +53,9 @@
   /* 登录进行中 + 取消令牌：改账号 / 退出登录时递增 seq，让旧重连链自行停下 */
   var loginBusy = false;        // 登录 / 自动重连进行中（含页面刚打开时的自动登录）
   var loginSeq = 0;
+  /* 本次页面会话只静默自动登录一次：登录失败会重绘面板，若每次重绘都再自动登录，
+     就会 6 秒一轮无限循环，loginBusy 被长期占着，玩家连「登录 / 注册」都点不动。 */
+  var autoLoginUsed = false;
 
   function lsGet(k) { try { return root.localStorage.getItem(k); } catch (e) { return null; } }
   function lsSet(k, v) { try { root.localStorage.setItem(k, v); } catch (e) {} }
@@ -84,10 +87,11 @@
   }
 
   /* ---------- 地址推导 ----------
-     联机面板的三种模式（localStorage.net_relay_mode）：
-       cf      → 用 DEFAULT_RELAY（自建 Cloudflare Worker）
-       custom  → 用 localStorage.net_server
-       mqtt    → 公共 MQTT broker，没有 Worker 可用 → 返回空，需切模式
+     ★ 云存档用的是自建 Worker，与【联机对战当前走哪条信令通道】无关：
+       cf / mqtt → 一律用 DEFAULT_RELAY（自建 Cloudflare Worker）
+       custom    → 优先 localStorage.net_server；无效（空 / 公共 broker / 含 /mqtt）时回退默认
+     任何推导失败都回退到默认地址，不再返回空 —— 否则登录按钮会被永久禁用，
+     玩家看着「请稍后重试」却根本点不了重试（退出登录后尤其明显）。
      wss:// / ws:// 统一转成 https:// / http://；含 /mqtt 的不是自命中继，排除。 */
   function relayToHttp(v) {
     var s = String(v || '').trim().replace(/\/+$/, '');
@@ -100,9 +104,10 @@
   }
   function detectApi() {
     var mode = lsGet('net_relay_mode') || 'cf';
-    if (mode === 'mqtt') return '';
     var raw = (mode === 'custom') ? (lsGet('net_server') || '') : RELAY_DEFAULT;
-    return relayToHttp(raw);
+    /* mqtt 模式 / 自定义地址为空或无效时，仍回退到自建 Worker：
+       公共 MQTT 只是联机信令，不会让云存档服务消失。 */
+    return relayToHttp(raw) || relayToHttp(RELAY_DEFAULT);
   }
   /* 实际使用的地址：固定走自动推导，界面不提供也不接受手填 */
   function effectiveApi() { return detectApi(); }
@@ -196,9 +201,15 @@
   function refreshLoginUI() {
     var btn = document.getElementById('sh-cloud-login');
     if (btn) {
-      btn.disabled = loginBusy || !hasCred() || !effectiveApi();
+      /* ★ 只按「有没有账号密码 / 是否正在登录」放行，不再把地址临时不可用
+         当成禁用理由：那会让「请稍后重试」变成一句永远做不到的空话。
+         地址由每次 apiCall 重新推导，切模式或网络恢复后下一次重试即生效。 */
+      btn.disabled = loginBusy || !hasCred();
       btn.textContent = loginBusy ? '登录中…' : '登录 / 注册';
     }
+    /* 退出登录后重新输入账号，按钮要立刻恢复可点（原来只在 render 时算一次）。 */
+    var outBtn = document.getElementById('sh-cloud-logout');
+    if (outBtn) outBtn.disabled = !cfg.user;
     var ok = canSync();
     ['sh-cloud-push', 'sh-cloud-pull'].forEach(function (id) {
       var b = document.getElementById(id);
@@ -222,9 +233,11 @@
      只重连「非账号密码」类失败（网络错误、超时、5xx、404 等）；
      账号密码问题立即返回具体原因；用尽后 → reject('登录失败')。
      全程不向玩家显示第几次重连。 */
-  function runLogin() {
+  function runLogin(seq) {
     if (!cfg.user || !cfg.pass) return Promise.reject(new Error('请先填写账号和密码'));
-    var seq = ++loginSeq;
+    /* 调用方可自带 seq（doLogin / autoLogin 要用它识别「这次登录是否已被取消」）；
+       没给就自己占一个。 */
+    if (seq == null) seq = ++loginSeq;
     return new Promise(function (resolve, reject) {
       function attempt(n) {
         if (seq !== loginSeq) { reject(new Error('已取消')); return; }
@@ -245,13 +258,18 @@
 
   /* ---------- 操作 ---------- */
   function doLogin(render) {
-    if (!effectiveApi()) { toast('暂时无法连接服务器，请稍后重试', 'warn'); return; }
     if (!hasCred()) { toast('请填写账号和密码', 'warn'); return; }
     if (loginBusy) return;                 // 重连进行中不重复发起
+    /* 不再因地址一时不可用而直接 return：地址由每次 apiCall 重新推导，
+       连同网络抖动一起走下面 5 次重连，「稍后重试」才真的能重试。 */
+    var seq = ++loginSeq;
     loginBusy = true;
     verified = false;
     refreshLoginUI();                      // 底部显示「● 登录中…」，上传/下载保持不可点
-    runLogin().then(function (r) {
+    runLogin(seq).then(function (r) {
+      /* ★ 被退出登录 / 改账号取消的旧链，回调一律不再写状态、不再重绘，
+         否则它会在 1 秒后把新一次登录的「登录中」清掉、把按钮弄乱。 */
+      if (seq !== loginSeq) return;
       loginBusy = false;
       verified = true;                     // ★ 服务器确认成功，上传 / 下载这才亮起
       cfg.cloudUpdatedAt = Number(r.updatedAt) || 0;   // 回传云端最后更新时间
@@ -259,6 +277,7 @@
       toast(r.created ? '新账号已创建：' + cfg.user : '登录成功：' + cfg.user);
       render();
     }, function (e) {
+      if (seq !== loginSeq) return;
       loginBusy = false;
       verified = false;                    // ★ 失败一律保持不可点
       var msg = String((e && e.message) || e || '');
@@ -272,17 +291,20 @@
   /* 页面打开时若记住了账号密码，自动登录一次（同样走重连）。
      静默进行：不弹 toast，只让状态行显示「登录中」，成功后按钮自行亮起。 */
   function autoLogin(render) {
-    if (!effectiveApi() || !hasCred() || loginBusy || verified) return;
+    if (!hasCred() || loginBusy || verified) return;
+    var seq = ++loginSeq;
     loginBusy = true;
     verified = false;
     if (render) render();
-    runLogin().then(function (r) {
+    runLogin(seq).then(function (r) {
+      if (seq !== loginSeq) return;       // 已被退出登录 / 改账号取消
       loginBusy = false;
       verified = true;
       cfg.cloudUpdatedAt = Number(r.updatedAt) || cfg.cloudUpdatedAt;
       saveCfg();
       if (render) render();
     }, function () {
+      if (seq !== loginSeq) return;
       loginBusy = false;
       verified = false;
       if (render) render();               // 静默失败：不打扰，按钮保持不可点
@@ -420,6 +442,7 @@
     loginBtn.onclick = function () { doLogin(function () { render(pane); }); };
     btnRow.appendChild(loginBtn);
     var outBtn = el('button', 'sh-btn danger', '退出登录');
+    outBtn.id = 'sh-cloud-logout';
     outBtn.disabled = !cfg.user;
     outBtn.onclick = function () { doLogout(function () { render(pane); }); };
     btnRow.appendChild(outBtn);
@@ -467,7 +490,15 @@
     pane.appendChild(box2);
 
     refreshLoginUI();                    // 统一按当前登录态设置禁用 / 文案
-    if (!verified && !loginBusy) autoLogin(function () { render(pane); });
+    /* 「自动登录窗口」只在面板首次渲染那一瞬有效：当时记住了凭据才静默登录一次。
+       之后无论登录失败重绘、还是游客态后来才填账号，都不再自动发起 ——
+       一律由玩家点「登录 / 注册」，按钮不会被后台循环占住。 */
+    if (!autoLoginUsed) {
+      autoLoginUsed = true;
+      if (!verified && !loginBusy && hasCred()) {
+        autoLogin(function () { render(pane); });
+      }
+    }
   }
 
   root.CLOUD_SAVE = {
@@ -479,6 +510,7 @@
       cancelLogin();
       cfg = { user: '', pass: '', accessKey: '', lastPush: 0, lastPull: 0, cloudUpdatedAt: 0 };
       verified = false;
+      autoLoginUsed = false;
       saveCfg();
     }
   };
