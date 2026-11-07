@@ -298,9 +298,11 @@
 <video id="heishan-video" muted playsinline preload="auto"></video>
 <img id="heishan-cut" alt="黑闪" />
 </div>
-<!-- 加载顺序很重要：shenhun-ui.js 必须在 game.js 之前。
-     game.js 末尾会同步调用 initShenhunUI() 绑定神魂入口按钮，
-     若 ui 脚本在后，此时 initShenhunUI 尚未定义，入口按钮就会绑空、点不开。 -->
+<!-- 加载顺序很重要：
+     1) log.js 必须在 game.js 之前 —— 版本号、更新日志数据与渲染函数都在里面；
+     2) shenhun-ui.js 必须在 game.js 之前 —— game.js 末尾会同步调用
+        initShenhunUI() 绑定神魂入口按钮，若 ui 脚本在后，入口按钮就会绑空、点不开。 -->
+<script src="log.js"></script>
 <script src="shenhun.js"></script>
 <script src="cloud-save.js"></script>
 <script src="shenhun-ui.js"></script>

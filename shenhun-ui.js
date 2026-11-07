@@ -85,14 +85,112 @@
     toastTimer = setTimeout(function () { t.classList.remove('show'); }, 2200);
   }
 
+  /* ==================== 通用筛选（仓库 / 合成 / 重铸 / 装备共用） ====================
+     四组条件：稀有度、套装、位置、主属性，外加副属性【多选·取交集】。
+     每个面板各自持有一份状态（互不污染）；退出神魂系统时统一重置为默认。
+     属性选项直接读逻辑层 ATTR_META，以后新增属性会自动出现在所有面板。 */
+  var ATTR_KEYS = Object.keys(ATTR_META);
+  if (!ATTR_KEYS.length) {
+    ATTR_KEYS = ['atkPct', 'defPct', 'hpPct', 'speed', 'critRate', 'critDmg', 'effectHit', 'effectResist'];
+  }
+  /* 号位归一化：存档里 slot 可能是 1/2/3，也可能是 0/1/2 下标，统一换成 1/2/3。 */
+  function soulPos(soul) {
+    return (SH.normSlot ? SH.normSlot(soul.slot) : (Number(soul.slot) - 1)) + 1;
+  }
+  function makeFilterState() {
+    return { rarity: '全部', set: '全部', pos: '全部', main: '全部', subs: [], only: '全部', sort: 'rarity' };
+  }
+  /* 原地重置、保留对象引用 —— 各处闭包持有的是同一份 state，不能整个换掉。 */
+  function resetFilterState(st) {
+    var d = makeFilterState();
+    st.rarity = d.rarity; st.set = d.set; st.pos = d.pos; st.main = d.main;
+    st.subs = d.subs; st.only = d.only; st.sort = d.sort;
+    return st;
+  }
+  /* 位置 / 主属性 / 副属性交集过滤。稀有度与套装仍由各调用方自己处理。
+     ★ 副属性取交集：每一项已选 key 都必须在该神魂的 subs 里出现（不是「任一命中」）。
+     subs 固定 4 条互不重复，所以最多同时选 4 项才有结果；选 5 项以上自然为空。 */
+  function filterByExtras(list, st) {
+    if (st.pos !== '全部') list = list.filter(function (s) { return String(soulPos(s)) === st.pos; });
+    if (st.main !== '全部') list = list.filter(function (s) { return s.main && s.main.key === st.main; });
+    if (st.subs && st.subs.length) {
+      list = list.filter(function (s) {
+        var keys = (s.subs || []).map(function (x) { return x.key; });
+        return st.subs.every(function (k) { return keys.indexOf(k) >= 0; });
+      });
+    }
+    return list;
+  }
+  /* 把「位置」+「主属性」两个下拉追加到 .sh-filter。
+     lockPos 非空时（装备选择器）位置固定为该号位且不可改 —— 列表本身已按号位限定。 */
+  function appendPosMainSelects(filter, st, opts, onChange) {
+    opts = opts || {};
+    var selP = el('select');
+    [['全部', '全部位置'], ['1', '1号位'], ['2', '2号位'], ['3', '3号位']].forEach(function (p) {
+      var op = el('option', null, p[1]);
+      op.value = p[0];
+      if (p[0] === st.pos) op.selected = true;
+      selP.appendChild(op);
+    });
+    if (opts.lockPos) {
+      selP.value = opts.lockPos;
+      selP.disabled = true;
+      selP.title = '本选择器已限定 ' + opts.lockPos + ' 号位';
+    }
+    if (!selP.disabled) selP.onchange = function () { st.pos = selP.value; onChange(); };
+    filter.appendChild(selP);
+
+    var selM = el('select');
+    var mainOp = el('option', null, '全部主属性');
+    mainOp.value = '全部';
+    if (st.main === '全部') mainOp.selected = true;
+    selM.appendChild(mainOp);
+    ATTR_KEYS.forEach(function (k) {
+      var op = el('option', null, attrLabel(k));
+      op.value = k;
+      if (k === st.main) op.selected = true;
+      selM.appendChild(op);
+    });
+    selM.onchange = function () { st.main = selM.value; onChange(); };
+    filter.appendChild(selM);
+  }
+  /* 副属性多选条：单独一行，选中项之间取交集。返回该行 DOM，由调用方决定插在哪。 */
+  function buildSubFilterRow(st, onChange) {
+    var bar = el('div', 'sh-sub-filter');
+    bar.appendChild(el('span', 'sh-sub-label', '副属性（多选·取交集）'));
+    ATTR_KEYS.forEach(function (k) {
+      var on = st.subs.indexOf(k) >= 0;
+      var chip = el('button', 'sh-chip' + (on ? ' on' : ''), attrLabel(k));
+      chip.type = 'button';
+      chip.onclick = function () {
+        var i = st.subs.indexOf(k);
+        if (i >= 0) st.subs.splice(i, 1); else st.subs.push(k);
+        onChange();
+      };
+      bar.appendChild(chip);
+    });
+    if (st.subs.length) {
+      var clear = el('button', 'sh-chip clear', '清空 ' + st.subs.length + ' 项');
+      clear.type = 'button';
+      clear.onclick = function () { st.subs = []; onChange(); };
+      bar.appendChild(clear);
+    }
+    return bar;
+  }
+  function hasAnyFilter(st) {
+    return st.rarity !== '全部' || st.set !== '全部' || st.pos !== '全部' ||
+      st.main !== '全部' || (st.subs && st.subs.length > 0) || st.only !== '全部';
+  }
+
   /* ==================== 仓库 ==================== */
-  var bagState = { rarity: '全部', set: '全部', sort: 'rarity', only: '全部' };
+  var bagState = makeFilterState();
 
   function sortedBag() {
     var list = SH.getBag().slice();
     var r = bagState.rarity, s = bagState.set, o = bagState.only;
     if (r !== '全部') list = list.filter(function (soul) { return soul.rarity === r; });
     if (s !== '全部') list = list.filter(function (soul) { return soul.setType === s; });
+    list = filterByExtras(list, bagState);
     if (o === 'equipped') list = list.filter(function (soul) { return SH.isEquipped(soul.id); });
     if (o === 'locked') list = list.filter(function (soul) { return soul.locked; });
     var rr = {};
@@ -337,6 +435,9 @@
     selS.onchange = function () { bagState.set = selS.value; renderBag(); };
     filter.appendChild(selS);
 
+    /* ★ 位置 + 主属性下拉（与合成 / 重铸 / 装备选择器共用同一套控件） */
+    appendPosMainSelects(filter, bagState, {}, renderBag);
+
     var selO = el('select');
     [['全部', '全部'], ['equipped', '仅已装备'], ['locked', '仅已锁定']].forEach(function (p) {
       var op = el('option', null, p[1]);
@@ -355,9 +456,15 @@
     filter.appendChild(sortBtn);
     pane.appendChild(filter);
 
+    /* ★ 副属性多选条单独占一行，避免把上面 5 个下拉 + 排序按钮挤成窄条。 */
+    pane.appendChild(buildSubFilterRow(bagState, renderBag));
+
     var list = sortedBag();
     if (list.length === 0) {
-      pane.appendChild(el('div', 'sh-empty', '仓库空空如也，去抽卡获得神魂吧'));
+      /* 筛选条件生效时不要误报「仓库空空如也」，给可操作的提示。 */
+      pane.appendChild(el('div', 'sh-empty', hasAnyFilter(bagState)
+        ? '当前筛选条件下没有符合条件的神魂，可调回「全部」或清空副属性。'
+        : '仓库空空如也，去抽卡获得神魂吧'));
       return;
     }
     pane.appendChild(el('div', 'sh-count', '共 ' + list.length + ' 个'));
@@ -545,8 +652,9 @@
   TAB_BUILDERS.equip = buildEquip;
 
   /* 装备选择器的筛选状态：模块级持有，这样「点详情后返回」「切换号位」都保留选择。
-     与合成（synState）、重铸（recastState）各自独立，互不污染。 */
-  var pickState = { rarity: '全部', set: '全部' };
+     与仓库（bagState）、合成（synState）、重铸（recastState）各自独立，互不污染。
+     位置在打开选择器时锁定为当前号位，其余条件与仓库同款。 */
+  var pickState = makeFilterState();
 
   /* 装备 / 卸下后刷新所有相关视图：装备页、仓库卡片（金色装备态）、资源条。
      角色详情页传入 onChanged 时，由它再重绘自己的神魂标签页。 */
@@ -559,11 +667,14 @@
 
   function openEquipPicker(hero, slot, onChanged) {
     var changed = typeof onChanged === 'function' ? onChanged : null;
+    /* ★ 位置筛选固定为当前号位：列表本身已按 slot 限定，让用户切到别的号位只会筛出空列表。
+       主属性 / 副属性（多选·取交集）仍可用；角色详情里的「装备 / 更换」也走这个入口。 */
+    pickState.pos = String(slot);
     /* 用函数取列表：装备/卸下之后仓库会变，刷新时重新取快照。
-       选择器本身已限定号位，所以筛选维度只用「稀有度 + 套装」。 */
+       旧存档里 slot 可能是数字或字符串、也可能是 0/1/2 下标，统一用 soulPos 归一化。 */
     var getList = function () {
       return SH.getBag().filter(function (s) {
-        return String(s.slot) === String(slot) && !SH.isEquipped(s.id);
+        return String(soulPos(s)) === String(slot) && !SH.isEquipped(s.id);
       });
     };
     openModal('选择 ' + slot + '号位 神魂', function (body) {
@@ -577,6 +688,7 @@
         renderSelectList({
           list: getList,
           state: pickState,
+          lockPos: String(slot),
           body: body,
           emptyText: '当前筛选条件下没有符合条件的神魂，可调回「全部」。',
           /* 详情是二级弹窗，关闭后重建选择器形成「返回」，筛选条件仍在。
@@ -685,8 +797,8 @@
      第 2 步：从【同套装 + 同稀有度 + 未锁定 + 未被选为第 1 个】的候选里选第二个
      第二步页会显式提示「目标：XX · 目标稀有度」，并高亮当前选中的第一个。 */
   var craftState = { mode: 'synthesize', first: null, second: null };
-  /* 合成面板筛选状态（独立于仓库筛选） */
-  var synState = { rarity: '全部', set: '全部' };
+  /* 合成面板筛选状态（独立于仓库 / 重铸 / 装备，但筛选维度与仓库一致） */
+  var synState = makeFilterState();
 
   /* 合成 / 重铸候选统一口径：未锁定且未装备。
      与逻辑层 canSynthesize / recast 的兜底判定一致，避免界面和逻辑各说各话。 */
@@ -822,18 +934,24 @@
     return item;
   }
 
-  /* 渲染带「稀有度 + 套装」筛选条的选择面板 —— 合成 / 装备 / 重铸共用。
-     o.state  ：外部持有的筛选状态对象（刷新时保留选择），缺省用合成的 synState。
-                三处各自持有独立状态，互不污染。
-     o.hideTop：true 时隐藏「神话」档（合成专属：神话已达顶，无法继续合成）。
-     o.list   ：数组，或返回数组的函数（重铸后需重新取仓库快照，故支持函数）。 */
+  /* 渲染带完整筛选条的选择面板 —— 合成 / 装备 / 重铸共用。
+     o.state    ：外部持有的筛选状态对象（刷新时保留选择），缺省用合成的 synState。
+                  三处各自持有独立状态，互不污染。
+     o.hideTop  ：true 时隐藏「神话」档（合成专属：神话已达顶，无法继续合成）。
+     o.list     ：数组，或返回数组的函数（重铸后需重新取仓库快照，故支持函数）。
+     o.lockPos  ：装备选择器已按号位限定列表，位置下拉固定为该号位且不可改。
+     ★ 位置 / 主属性 / 副属性（多选·取交集）与仓库用的是同一套公共控件和过滤函数。 */
   function renderSelectList(opts) {
     var o = opts || {};
     var st = o.state || synState;
+    /* 筛选变化后重绘入口：所有现有调用点都传了，仍留个空函数兜底，防止以后漏传。 */
+    if (typeof o.refresh !== 'function') o.refresh = function () {};
+    if (o.lockPos) st.pos = String(o.lockPos);
     var src = typeof o.list === 'function' ? o.list() : (o.list || SH.getBag().slice());
     var list = src.slice();
     if (st.rarity !== '全部') list = list.filter(function (s) { return s.rarity === st.rarity; });
     if (st.set !== '全部') list = list.filter(function (s) { return s.setType === st.set; });
+    list = filterByExtras(list, st);
 
     var filter = el('div', 'sh-filter');
     /* 合成场景下神话已到顶、无法继续合成，下拉里直接隐藏该档；
@@ -841,6 +959,8 @@
     var rarities = o.hideTop ? RARITY_ORDER.filter(function (r) { return r !== '神话'; }) : RARITY_ORDER.slice();
     if (st.rarity !== '全部' && rarities.indexOf(st.rarity) < 0) st.rarity = '全部';
     if (st.set !== '全部' && !SET_BY_TYPE[st.set]) st.set = '全部';
+    if (st.main !== '全部' && ATTR_KEYS.indexOf(st.main) < 0) st.main = '全部';
+    if (!o.lockPos && ['全部', '1', '2', '3'].indexOf(st.pos) < 0) st.pos = '全部';
     var selR = el('select');
     ['全部'].concat(rarities).forEach(function (r) {
       var op = el('option', null, r === '全部' ? '全部稀有度' : r);
@@ -862,8 +982,13 @@
     selS.onchange = function () { st.set = selS.value; o.refresh(); };
     filter.appendChild(selS);
 
+    /* ★ 位置 + 主属性下拉；装备选择器传 lockPos 时位置固定不可改 */
+    appendPosMainSelects(filter, st, { lockPos: o.lockPos }, o.refresh);
+
     if (typeof o.extraFilter === 'function') o.extraFilter(filter);
     o.body.appendChild(filter);
+    /* ★ 副属性多选条（取交集），与仓库同款 */
+    o.body.appendChild(buildSubFilterRow(st, o.refresh));
 
     o.body.appendChild(el('div', 'sh-count', '共 ' + list.length + ' 个'));
     if (list.length === 0) {
@@ -977,7 +1102,7 @@
   }
 
   /* 重铸的筛选状态：模块级持有，刷新列表 / 从详情返回都保留选择。 */
-  var recastState = { rarity: '全部', set: '全部' };
+  var recastState = makeFilterState();
 
   function openRecast() {
     /* 函数取列表：重铸会改写这个神魂，成功后重新取快照才能看到新属性。
@@ -1027,16 +1152,28 @@
   };
 
   /* ==================== 弹窗开关 ==================== */
+  /* 退出神魂系统时，把仓库 / 合成 / 重铸 / 装备四个面板的筛选统一恢复默认：
+     稀有度、套装、位置、主属性、副属性多选、状态、排序，全部回到初始值。
+     只清「筛选」，不动仓库数据、装备状态、合成两步已选的神魂。
+     注意：内层弹窗（详情 / 选择器）走的是 closeModal()，不在这里重置。 */
+  function resetAllFilters() {
+    [bagState, synState, recastState, pickState].forEach(resetFilterState);
+  }
   function openModal_() {
     var ov = $('shenhun-overlay');
     if (ov) ov.classList.add('show');
     SH.dailyLogin();
+    /* 双保险：即使上次没走 closeModal_，重新打开也是干净状态 */
+    resetAllFilters();
     refreshHeader();
     switchTab('bag');
   }
   function closeModal_() {
     var ov = $('shenhun-overlay');
     if (ov) ov.classList.remove('show');
+    resetAllFilters();
+    /* 面板已隐藏但 DOM 还在，立刻按默认状态重绘，避免残留上次的筛选结果 */
+    renderBag();
   }
 
   /* 订阅：仓库变化（分解、合成、重铸、抽卡后）自动刷新当前页 */

@@ -449,6 +449,19 @@ pointer-events: none; white-space: nowrap; text-shadow: 0 1px 3px rgba(0,0,0,.9)
 /* ---- 筛选 ---- */
 .sh-filter { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; align-items: center; }
 .sh-filter select { padding: 5px 8px; background: #1a1a3e; border: 1px solid #4fc3f7; border-radius: 5px; color: #fff; font-size: 12px; font-family: inherit; }
+/* 装备选择器：号位已由列表限定，位置下拉只作展示、不可更改 */
+.sh-filter select:disabled { opacity: .58; border-color: #555; cursor: not-allowed; }
+
+/* 仓库：副属性多选筛选条（选中项之间取交集） */
+.sh-sub-filter { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin-bottom: 10px; }
+.sh-sub-filter .sh-sub-label { font-size: 12px; color: #9e9e9e; margin-right: 2px; }
+.sh-chip { padding: 4px 10px; font-size: 12px; border-radius: 14px; border: 1px solid #555; background: #1a1a3e; color: #9e9e9e; cursor: pointer; font-family: inherit; transition: border-color .2s, color .2s, background .2s; }
+.sh-chip:hover { border-color: #8e24aa; color: #cfd8dc; }
+.sh-chip.on { background: #3a1a5c; color: #ce93d8; border-color: #8e24aa; font-weight: bold; }
+.sh-chip.clear { border-color: #c62828; color: #ef9a9a; }
+@media (max-width: 420px) {
+  .sh-sub-filter .sh-sub-label { width: 100%; }
+}
 
 /* ---- 抽卡 ---- */
 .sh-draw-info { font-size: 13px; color: #bbb; margin-bottom: 14px; line-height: 1.8; }

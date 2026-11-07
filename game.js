@@ -568,12 +568,12 @@ Net.onHeishan(first, side);
 }
 }
 const HERO_DATA = {
-"主角": { atk:800, def:300, hp:6840, spd:150, effectHit:0, effectResist:0, critRate:0.1, critDmg:1.5, color:'#ffd700', tag:'均衡',
+"主角": { atk:800, def:300, hp:6840, spd:110, effectHit:0, effectResist:0, critRate:0.1, critDmg:1.5, color:'#ffd700', tag:'均衡',
 normal: { name:"斩击", type:"single", dmgRate:1.0, target:"enemy" },
 skill: { name:"剑爆", cost:4, type:"aoe", dmgRate:1.4, target:"enemy", selfEffect:"rageAll1" },
 descNormal: "对敌方目标造成 <span class='dmg'>100%</span> 伤害。", descSkill: "对敌方全体造成 <span class='dmg'>140%</span> 伤害，恢复我方全体 <span class='buff'>1点怒气</span>。",
 mechanics: [] },
-"捷克罗姆": { atk:1100, def:350, hp:7560, spd:156, effectHit:0, effectResist:0, critRate:0.24, critDmg:1.8, color:'#1565c0', tag:'攻击',   // 深蓝
+"捷克罗姆": { atk:1100, def:350, hp:7560, spd:117, effectHit:0, effectResist:0, critRate:0.12, critDmg:1.6, color:'#1565c0', tag:'攻击',   // 深蓝
 normal: { name:"电击", type:"single", dmgRate:0.9, trueRate:0.3, target:"enemy" },
 skill: { name:"交错闪电", cost:4, type:"single_then_aoe", dmgRate:1.8, trueRate:0.9, aoeDmgRate:1.0, aoeTrueRate:0.5, target:"enemy", selfEffect:"thunderPress" },
 descNormal: "对敌方目标造成 <span class='dmg'>90%</span> 伤害和 <span class='true-dmg'>30%真实伤害</span>。",
@@ -581,7 +581,7 @@ descSkill: "对敌方目标造成 <span class='dmg'>180%</span> 伤害和 <span 
 mechanics: [
 { type:'mark', name:'雷压', desc:'增益印记：提升自身30%速度、20%最终伤害、30%暴击率，不可叠加。' },
 { type:'note', name:'护盾', desc:'优先于生命值承受伤害。' }] },
-"东丈": { atk:945, def:270, hp:6858, spd:161, effectHit:0, effectResist:0, critRate:0.15, critDmg:1.6, color:'#ffd700', tag:'攻击',   // 黄（与主角同色）
+"东丈": { atk:945, def:270, hp:6858, spd:115, effectHit:0, effectResist:0, critRate:0.1, critDmg:1.5, color:'#ffd700', tag:'攻击',   // 黄（与主角同色）
 normal: { name:"风拳", type:"single", dmgRate:1.2, target:"enemy", selfEffect:"windWalk" },
 skill: { name:"龙卷风", cost:4, type:"single", dmgRate:3.4, target:"enemy", effect:"stun", selfEffect:"galeWind" },
 /* 「不屈」每局游戏限触发一次：次数记在单位上（buquUsed），startBattle 时随单位重建归零。 */
@@ -592,7 +592,7 @@ mechanics: [
 { type:'mark', name:'风行', desc:'增益印记：提升自身速度25点，最多叠加5层。' },
 { type:'mark', name:'狂风', desc:'增益印记：提升自身攻击150点、防御100点，最多叠加3层。' },
 { type:'state', name:'眩晕', desc:'减益状态：控制效果，目标无法行动。不可叠加。' } ] },
-"白藏主": { atk:550, def:320, hp:7680, spd:300, effectHit:0, effectResist:0, critRate:0.05, critDmg:1.5, color:'#26c6da', tag:'防御',   // 浅蓝（与鬼金羊同色）
+"白藏主": { atk:550, def:320, hp:7680, spd:171, effectHit:0, effectResist:0, critRate:0.05, critDmg:1.5, color:'#26c6da', tag:'防御',   // 浅蓝（与鬼金羊同色）
 normal: { name:"炎影", type:"single", dmgRate:1.0, target:"enemy", effect:"rageDown" },
 skill: { name:"梦山狐影", cost:4, type:"buff", target:"ally", selfEffect:"foxGuard" },
 descNormal: "对敌方目标造成 <span class='dmg'>100%</span> 伤害，有 <span class='buff'>50%概率</span> 使目标减 <span class='buff'>1点怒气</span>。",
@@ -601,7 +601,7 @@ mechanics: [
 { type:'mark', name:'狐守', desc:'增益印记：提升20%最终免伤率；拥有印记的友方所受伤害由白藏主代为承受。随施放者阵亡清空。不可叠加。' },
 { type:'mark', name:'狐佑', desc:'增益印记：提升自身25%最终免伤率，不可叠加。' }
 ] },
-"宇智波带土": { atk:1000, def:250, hp:6840, spd:182, effectHit:0, effectResist:0, critRate:0.15, critDmg:1.6, color:'#d32f2f', tag:'攻击',
+"宇智波带土": { atk:1000, def:250, hp:6840, spd:115, effectHit:0, effectResist:0, critRate:0.12, critDmg:1.6, color:'#d32f2f', tag:'攻击',
 normal: { name:"突袭", type:"single", dmgRate:0.63, hitCount:2, target:"enemy", effect:"kamuiMark" },
 skill: { name:"神威·虚化", cost:4, type:"banish", target:"enemy", selfEffect:"intangibility" },
 descNormal: "对敌方目标造成两段 <span class='dmg'>63%</span> 伤害，并使目标附加 <span class='m-mark'>1层神威</span>。",
@@ -610,7 +610,7 @@ mechanics: [
 { type:'mark', name:'神威', desc:'减益印记：受到攻击时，每层额外附加施加者12%真实伤害（该伤害不可转移），同时施加者+12%行动条，最多叠加3层。随施放者阵亡清空。' },
 { type:'rule', name:'放逐', desc:'规则：视为离开战局。期间无法行动，无法选中，无法被治疗、恢复，行动条锁定；目标相关的所有状态、印记失效，神魂失效（2件套效果），免疫伤害，取消效果buff的变化。随施放者阵亡清空。' },
 { type:'rule', name:'虚化', desc:'规则：免疫伤害与减益效果。进入时移除自身所有减益状态与减益印记，持续期间免疫减益状态与减益印记。' } ] },
-"镰鼬": { atk:700, def:285, hp:6780, spd:272, effectHit:0, effectResist:0, critRate:0.08, critDmg:1.5, color:'#aed581', tag:'辅助',
+"镰鼬": { atk:700, def:285, hp:6780, spd:117, effectHit:0, effectResist:0, critRate:0.08, critDmg:1.5, color:'#aed581', tag:'辅助',
 normal: { name:"胖揍", type:"single", dmgRate:1.0, target:"enemy", effect:"stunChance" },
 skill: { name:"兄弟之绊", cost:4, type:"buff", target:"ally", selfEffect:"bond" },
 passive: { name:"人多势众", turnEnd:'renDuoShiZhong',
@@ -620,7 +620,7 @@ descSkill: "全体行动条+<span class='buff'>30%</span>，同时全体获得 <
 mechanics: [
 { type:'state', name:'牵绊', desc:'增益状态：+25%攻击、+10%防御、+10%暴击率，持续2回合。不可叠加。' },
 { type:'state', name:'眩晕', desc:'减益状态：控制效果，目标无法行动。不可叠加。' } ] },
-"鬼王酒吞童子": { atk:800, def:300, hp:6960, spd:209, effectHit:0, effectResist:0, critRate:0.08, critDmg:1.5, color:'#ffd700', tag:'均衡',
+"鬼王酒吞童子": { atk:800, def:300, hp:6960, spd:109, effectHit:0, effectResist:0, critRate:0.08, critDmg:1.5, color:'#ffd700', tag:'均衡',
 normal: { name:"焚天", type:"single", dmgRate:1.2, target:"enemy" },
 skill: { name:"天火怒焱", cost:4, type:"aoe", dmgRate:0, target:"enemy", effect:"dispelAndPush", selfEffect:"guiWangZiTai", requireNoMark:"鬼王姿态" },
 opening: 'jiutunMarks',
@@ -632,13 +632,13 @@ mechanics: [
 { type:'mark', name:'大妖之力', desc:'增益印记：每损失1%最大生命值，提升1%最终伤害率与0.5%最终免伤率。随施放者阵亡清空。不可叠加。' },
 { type:'mark', name:'鬼王姿态', desc:'增益印记：强化自身普攻。不可叠加。' },
 { type:'note', name:'先机', desc:'战斗开始时，触发一次相应效果。' } ] },
-"雪拉比": { atk:500, def:310, hp:7200, spd:220, effectHit:0, effectResist:0, critRate:0.08, critDmg:1.5, color:'#69f0ae', tag:'辅助',
+"雪拉比": { atk:500, def:310, hp:7200, spd:115, effectHit:0, effectResist:0, critRate:0.08, critDmg:1.5, color:'#69f0ae', tag:'辅助',
 normal: { name:"治愈", type:"single", healRate:1.8, target:"ally", healEffect:"targetRageUp1" },
 skill: { name:"预知未来", cost:4, type:"damageLog", target:"ally", cooldown: 2 },
 descNormal: "<span class='heal'>治疗</span>单个友方 <span class='heal'>180%</span> 生命，并使目标获得 <span class='buff'>1点怒气</span>。",
 descSkill: "施放后记录所有友方受到的总伤害值至雪拉比下回合开始，雪拉比下回合开始时，将记录值的 <span class='heal'>80%</span> 平均分配<span class='restore'>恢复</span>至所有存活友方，并使所有存活友方<span class='restore'>恢复</span>雪拉比最大生命值 <span class='heal'>9%</span> 的生命值。若记录期间友方阵亡，则雪拉比的恢复结算后额外复活记录期间阵亡友方至 <span class='buff'>1点</span>生命。技能冷却：2回合。",
 mechanics: [] },
-"纲手": { atk:700, def:360, hp:8160, spd:142, effectHit:0, effectResist:0, critRate:0.2, critDmg:1.8, color:'#f48fb1', tag:'辅助',
+"纲手": { atk:700, def:360, hp:8160, spd:108, effectHit:0, effectResist:0, critRate:0.2, critDmg:1.6, color:'#f48fb1', tag:'辅助',
 normal: { name:"怪力", type:"single", dmgRate:1.5, target:"enemy", effect:"guaiLi" },
 skill: { name:"百豪之术", cost:4, type:"buff", target:"ally", selfEffect:"hundredHeal" },
 descNormal: "对敌方单个目标造成 <span class='dmg'>150%</span> 伤害，<span class='buff'>30%基础概率</span>使目标附加 <span class='m-state'>眩晕</span>（持续1回合），并使当前生命值最低的友方<span class='buff'>+15%</span>行动条。",
@@ -646,13 +646,13 @@ descSkill: "<span class='heal'>治疗所有友方200%生命</span>，使所有�
 mechanics: [
 { type:'state', name:'百豪', desc:'增益状态：提升10%攻击、20%治疗加成，持续3回合。不可叠加。' },
 { type:'state', name:'眩晕', desc:'减益状态：控制效果，目标无法行动。不可叠加。' } ] },
-"裂空座": { atk:1050, def:270, hp:7440, spd:154, effectHit:0, effectResist:0, critRate:0.24, critDmg:1.8, color:'#00c853', tag:'攻击',
+"裂空座": { atk:1050, def:270, hp:7440, spd:113, effectHit:0, effectResist:0, critRate:0.12, critDmg:1.6, color:'#00c853', tag:'攻击',
 normal: { name:"龙爪", type:"single", dmgRate:1.2, target:"enemy", selfEffect:"dragonDance" },
 skill: { name:"画龙点睛", cost:4, type:"aoe", dmgRate:2.6, target:"enemy", selfEffect:"defDownPerm" },
 descNormal: "对敌方目标造成 <span class='dmg'>120%</span> 伤害，获得 <span class='m-mark'>1层龙之舞</span>。",
 descSkill: "对敌方全体造成 <span class='dmg'>260%</span> 伤害。自身防御永久降低 <span class='dmg'>80</span>。",
 mechanics: [{ type:'mark', name:'龙之舞', desc:'增益印记：提升15%最终伤害率、10点速度，最多叠加3层。' }] },
-"流光追月神": { atk:550, def:296, hp:7320, spd:256, effectHit:0, effectResist:0, critRate:0.05, critDmg:1.5, color:'#9575cd', tag:'辅助',
+"流光追月神": { atk:550, def:296, hp:7320, spd:111, effectHit:0, effectResist:0, critRate:0.05, critDmg:1.5, color:'#9575cd', tag:'辅助',
 normal: { name:"流明", type:"single", dmgRate:1.0, target:"enemy", effect:"rageDown" },
 skill: { name:"飞彩凝辉", cost:4, type:"buff", target:"ally", selfEffect:"flowingLight" },
 opening: 'liuguangRage',
@@ -664,7 +664,7 @@ mechanics: [
 { type:'mark', name:'流光', desc:'增益印记：携带者怒气减少时（不包括技能消耗的怒气），恢复1点怒气，然后移除此印记。随施放者阵亡清空。不可叠加。' },
 { type:'mark', name:'照君', desc:'增益印记：提升8%攻击、5点速度，最多叠加5层。' },
 { type:'note', name:'先机', desc:'战斗开始时，触发一次相应效果。' } ] },
-"维迦": { atk:1000, def:250, hp:6480, spd:155, effectHit:0, effectResist:0, critRate:0.5, critDmg:2.0, color:'#6a1b9a', tag:'攻击',
+"维迦": { atk:1000, def:250, hp:6480, spd:112, effectHit:0, effectResist:0, critRate:0.3, critDmg:1.8, color:'#6a1b9a', tag:'攻击',
 normal: { name:"黑暗祭祀", type:"single", dmgRate:1.0, target:"enemy", selfEffect:"darkEssence" },
 /* 技能1「扭曲空间」cost 2：击杀只给 1 层超凡邪力（无全套收益）。
    技能2「能量爆裂」cost 4：击杀给全套（超凡邪力 + 4怒气 + 行动条60% + 恢复30%）。
@@ -676,7 +676,7 @@ descSkill: "对敌方目标造成 <span class='dmg'>140%</span> 伤害，并附�
 descSkill2: "对敌方目标造成 <span class='dmg'>300%</span> 伤害，若造成击杀（非召唤物）则获得 <span class='m-mark'>1层超凡邪力</span>，且回合结束后自身 <span class='buff'>+60%行动条</span>，获得 <span class='buff'>4点怒气</span>，<span class='restore'>恢复</span>自身最大生命值 <span class='heal'>30%</span> 的生命值。",
 mechanics: [{ type:'mark', name:'超凡邪力', desc:'增益印记：永久提升攻击20%、暴击率10%、暴击伤害20%、最终伤害率10%，最多叠加5层。' },
 { type:'state', name:'眩晕', desc:'减益状态：控制效果，目标无法行动。不可叠加。' }] },
-"心友犬神": { atk:900, def:270, hp:6720, spd:154, effectHit:0, effectResist:0, critRate:0.12, critDmg:1.6, color:'#26c6da', tag:'均衡',   // 浅蓝（与鬼金羊同色）
+"心友犬神": { atk:900, def:270, hp:6720, spd:110, effectHit:0, effectResist:0, critRate:0.1, critDmg:1.5, color:'#26c6da', tag:'均衡',   // 浅蓝（与鬼金羊同色）
 normal: { name:"天心斩", type:"single", dmgRate:1.2, target:"enemy", effect:"queZhiYin" },
 skill: { name:"浪客归刃", cost:4, type:"buff", target:"ally", selfEffect:"langKeGuiRen" },
 opening: 'langKeOpening',
@@ -692,7 +692,7 @@ mechanics: [
 { type:'mark', name:'守势', desc:'增益印记：获得270点防御。拥有护盾的友方单位受到攻击时，施放「一誓归心」。不可叠加。' },
 { type:'note', name:'先机', desc:'战斗开始时，触发一次相应效果。' },
 { type:'note', name:'护盾', desc:'优先于生命值承受伤害。' } ] },
-"鬼金羊": { atk:510, def:340, hp:7380, spd:274, effectHit:0, effectResist:0, critRate:0.08, critDmg:1.5, color:'#26c6da', tag:'辅助',
+"鬼金羊": { atk:510, def:340, hp:7380, spd:118, effectHit:0, effectResist:0, critRate:0.08, critDmg:1.5, color:'#26c6da', tag:'辅助',
 normal: { name:"奇袭", type:"single", dmgRate:1.0, target:"enemy" },
 /* 技能1「宿影暗渡」：同时具备【被动效果】与【主动施放】两部分。
    被动部分写在 passive.desc；主动部分写在 castDesc，详情页分开渲染。
@@ -717,7 +717,7 @@ mechanics: [
 { type:'mark', name:'宿影阵', desc:'增益印记：上限5层。达到上限时，施放「宿影暗渡」，移除所有层数。' },
 { type:'mark', name:'长星锁', desc:'减益印记：携带者行动条达到100%时，鬼金羊对其施放「鬼宿奇惊·谜夜」，然后移除此印记。随施放者阵亡清空。不可叠加。' },
 { type:'note', name:'先机', desc:'战斗开始时，触发一次相应效果。' } ] },
-"禅心云外镜": { atk:500, def:302, hp:7536, spd:240, effectHit:0, effectResist:0, critRate:0.05, critDmg:1.5, color:'#8d6e63', tag:'防御',   // 棕（心友犬神改前用色）
+"禅心云外镜": { atk:500, def:302, hp:7536, spd:113, effectHit:0, effectResist:0, critRate:0.05, critDmg:1.5, color:'#8d6e63', tag:'防御',   // 棕（心友犬神改前用色）
 normal: { name:"水无垠", type:"single", dmgRate:1.0, target:"enemy", selfEffect:"shuiWuYin" },
 /* 技能1「心净明」：与鬼金羊「宿影暗渡」同一模式 ——
    被动部分（行动阶段重新分配友方生命）写在 passive.desc 且用 boundSkill 绑定，
@@ -737,7 +737,7 @@ mechanics: [
 { type:'mark', name:'万法', desc:'增益印记：提升10%速度，不可叠加。' },
 { type:'note', name:'翻转', desc:'当前生命值与已损失生命值互换。' },
 { type:'note', name:'护盾', desc:'优先于生命值承受伤害。' } ] },
-"两面宿傩": { atk:1020, def:310, hp:7450, spd:180, effectHit:0, effectResist:0, critRate:0.15, critDmg:1.7, color:'#d50000', tag:'攻击',
+"两面宿傩": { atk:1020, def:310, hp:7450, spd:118, effectHit:0, effectResist:0, critRate:0.12, critDmg:1.6, color:'#d50000', tag:'攻击',
 normal: { name:"解·捌", type:"single", dmgRate:1.0, target:"enemy", sukunaForm:"jie" },
 skill: { name:"灶", cost:2, type:"single", dmgRate:1.34, trueRate:0.67, fixedMaxHpRate: 0.1, target:"enemy" },
 skill2: { name:"伏魔神龛", cost:4, type:"aoe", trueRate:1.0, fixedMaxHpRate: 0.1, target:"enemy", selfEffect:"fuMo", canExecute:true },   // 0.1 = SUKUNA_FIXED_MAXHP_RATE
@@ -750,7 +750,7 @@ mechanics: [
 { type:'mark', name:'伏魔', desc:'增益印记：强化两面宿傩的普攻，不可叠加。' },
 { type:'note', name:'斩杀', desc:'达成斩杀条件时，目标立即死亡。' },
 { type:'note', name:'固定伤害', desc:'造成固定数值的伤害，不受任何影响，无视护盾。' } ] },
-"五条悟": { atk:1010, def:300, hp:6900, spd:181, effectHit:0, effectResist:0, critRate:0.10, critDmg:1.5, color:'#40c4ff', tag:'攻击',
+"五条悟": { atk:1010, def:300, hp:6900, spd:119, effectHit:0, effectResist:0, critRate:0.1, critDmg:1.5, color:'#40c4ff', tag:'攻击',
 normal: { name:"苍", type:"single", dmgRate:1.2, target:"enemy" },
 skill: { name:"无量空处", cost:4, type:"aoe", trueRate:0.8, fixedMaxHpRate:0.08, target:"enemy", effect:"hunLuan" },
 /* 技能2「茈」：纯直接伤害的群体技。
@@ -768,7 +768,7 @@ mechanics: [
 { type:'note', name:'护盾', desc:'优先于生命值承受伤害。' } ] },
 /* 虎杖悠仁：noCrit = 被动「自身无法暴击」，critRate 只用于黑闪的溢出判定。
    segments = 同一技能内各段倍率不同（与 hitCount「同一段重复 N 次」不同）。 */
-"虎杖悠仁": { atk:900, def:350, hp:7800, spd:162, effectHit:0, effectResist:0, critRate:0, critDmg:0, color:'#ff80ab', tag:'攻击',   // 粉
+"虎杖悠仁": { atk:900, def:350, hp:7800, spd:117, effectHit:0, effectResist:0, critRate:0, critDmg:0, color:'#ff80ab', tag:'攻击',   // 粉
 noCrit: true,
 normal: { name:"径庭拳", type:"single", target:"enemy", segments:[{ dmgRate:0.5 }, { dmgRate:0.7 }] },
 skill: { name:"穿血", cost:2, type:"single", dmgRate:1.6, target:"enemy" },
@@ -787,7 +787,7 @@ mechanics: [
      伤害量由统一入口透传，不另开钩子。
    · 技能 type:'summon' —— 需要选单个敌方目标，因此不加入 NO_TARGET_SKILL_TYPES。
    · 「传导伤害」与「稻草人」两条机制见下方 mechanics，教程伤害类型页另有完整定义。 */
-"钉崎野蔷薇": { atk:800, def:280, hp:6700, spd:184, effectHit:0, effectResist:0, critRate:0.10, critDmg:1.5, color:'#ff9800', tag:'均衡',   // 橙
+"钉崎野蔷薇": { atk:800, def:280, hp:6700, spd:118, effectHit:0, effectResist:0, critRate:0.1, critDmg:1.5, color:'#ff9800', tag:'均衡',   // 橙
 normal: { name:"锤击", type:"single", dmgRate:1.2, target:"enemy" },
 skill: { name:"刍灵咒法·共鸣", cost:4, type:"summon", target:"enemy" },
 passive: { name:"共鸣", onDamaged:"gongming",
@@ -2387,171 +2387,9 @@ function toggleSpeed() {
 SPEED_MULTIPLIER = SPEED_MULTIPLIER === 1 ? 2 : 1;
 applySpeedBtn();
 }
-/* ==================== 更新日志 ====================
-   数据结构：{ ver, theme?, items:[] }，ver 与主题一一对应。
-   新增版本时往 CHANGELOG 数组**开头**加一条即可（渲染按数组顺序，最新的在最上面）。
-   CURRENT_VERSION / CURRENT_THEME 同时驱动模式选择页底部那行文字。 */
-const CURRENT_VERSION = 'v1.5.2';
-const CURRENT_THEME   = '咒术·最强之战Ⅱ·神魂';   // 1.5.0 起用的主题，v1.5.1 / v1.5.2 沿用（故这两版日志不再重复挂主题）
-const CHANGELOG = [
-{ ver:'v1.5.2', items:[
-'新增：虎杖悠仁 —— 攻击型角色，攻击时可能触发「黑闪」，首次触发后进入「未来」全面强化自身；技能「穿血」强化后改为群体伤害。',
-'新增：钉崎野蔷薇 —— 均衡型角色，可召唤与敌人连接的稻草人，将其受到的伤害传导给目标；新增伤害类型「传导伤害」。',
-'优化：优化界面与演出表现 —— 主界面背景、角色头像与战斗立绘分别配置并加入轮换与切换过渡，黑闪触发时追加专属动画，整体体验提升。',
-'新增：神魂套装「狱门疆」 —— 1 件套提升效果命中，2 件套首次攻击时有概率将目标「放逐」至内部空间；多名角色同时装备也只生效一次。',
-] },
-{ ver:'v1.5.1', items:[
-'新增：云存档 —— 登录账号后可手动上传 / 下载神魂进度，换设备不用再来回传文件；不登录仍可离线游玩。',
-'移除：本地「导入 / 导出」页，跨设备同步统一由云存档承担。',
-'调整：平衡性优化 —— 全角色基础面板与部分技能数值统一调整，神魂套装效果与状态说明一并优化。',
-'优化：优化神魂系统的ui和交互逻辑，提升体验',
-] },
-{ ver:'v1.5.0', theme:'咒术·最强之战Ⅱ·神魂', items:[
-/* ---- 神魂系统（本版主题）---- */
-'新增：神魂系统 —— 战斗外养成，开战前一次性结算进角色基础属性；每个角色 1/2/3 号位各装 1 个。',
-'新增：6 套神魂套装，各有 1 件套（属性）与 2 件套（战斗内效果）：无双、心魔、百穿、束缚、怒源、招财。',
-'新增：神魂抽卡（每 10 抽必出史诗、每 30 抽必出传说）、合成、重铸、分解与锁定。',
-'新增：教程新增「神魂」标签页，可点击套装卡片查看效果与判定细节。',
-'新增：角色详情属性以「基础值+金色加成」显示，并补齐效果命中 / 效果抵抗卡片。',
-'新增：战斗中携带 2 件套的角色，其套装名以金色标签显示在状态栏。',
-/* ---- 角色 / 平衡性（沿用历史版本的「角色名：改动」写法，一角色一条）---- */
-'维迦：「扭曲空间」伤害 100% → 140%。',
-'两面宿傩：「灶」伤害 120% → 134%、真实伤害 60% → 67%、固定伤害 8% → 10%；「伏魔神龛」真实伤害 90% → 100%。',
-'五条悟：新增技能2「茈」（消耗 5 点怒气，敌方全体 200% 伤害）；「无量空处」真实伤害 75% → 80%。',
-'纲手：「百豪之术」新增全体友方 +20% 行动条。',
-/* ---- 沿用上一版（原 v1.4.10，已并入本版）---- */
-'新增：联机对战模式 —— 两台设备各控一方，房主生成房间码，对手输入即连。',
-'新增：全局背景图 —— 主界面、选人、BP、战斗、结算统一生效，竖屏与横屏自动适配不同画面。',
-'调整：狐守、流光、雀之印、长星锁随施放者阵亡清空（仅清施加者一方的，双方同名角色互不影响）；放逐同步补充描述。',
-'调整：照君攻击提升 10% → 8%。',
-'调整：联机对战中双方各用自己设备上的神魂（两种 BP 模式均适用）。',
-] },
-{ ver:'v1.4.9', items:[
-'五条悟重做：普攻固定为「苍」120%；被动改为「六眼·无下限」（友方施放技能时附加「视」；受击时获得护盾）；新增机制「视」。',
-'两面宿傩：被动「斩击反转」恢复量 5% → 6%。',
-'禅心云外镜：「心净明」施放增加 1 回合冷却。',
-'鬼王酒吞童子：被动「红莲」移除「自身大妖之力伤害翻倍」。',
-'调整：「视」优先附加给尚未携带「视」的敌方单位；取消持续时间，改为造成3次伤害后移除；场上最多3个敌方单位携带，随施放者阵亡清空；伤害不可转移。',
-'修复：白藏主「狐守」的清空范围误为全场，敌方白藏主施放技能会抹掉我方队友的狐守（同类问题：「大妖之力」/「视」的阵亡清空亦然）。',
-] },
-{ ver:'v1.4.8', items:[
-'流光追月神「绮罗舞」与「流光」调整。',
-'两面宿傩：强化「捌」斩杀线 30% → 10%；「伏魔神龛」真实伤害 80% → 90%，并新增斩杀；斩杀时机改为「造成伤害过程中或结束后」。',
-'五条悟：「茈」真实伤害 40% → 45%；「无量空处」真实伤害 60% → 75%。',
-'鬼王酒吞童子调整：普攻「焚天」（强化「烈焰焚天」）；新增被动「红莲」；「天火怒焱」新增「鬼王姿态」。',
-'修复：「雷压」「狐守」「狐佑」「大妖之力」「鬼王姿态」重复获得时会叠加层数，而非按描述「不可叠加」刷新时长。',
-'禅心云外镜：防御 380 → 360。',
-'修复：固定伤害致死未走统一死亡流程，导致东丈「不屈」不触发。',
-'新增：BP 模式分为「征召BP」与「同轮BP」（每轮双方各选1人，本轮选完统一亮出，英雄不独占）；双方禁用可为同一英雄。',
-] },
-{ ver:'v1.4.7-patch.3', items:[
-'修复：鬼金羊「宿影暗渡」满层时连续施放两次。',
-'修复：放逐被误判为控制效果，免疫控制不应免疫放逐。',
-'修复：白藏主「狐守」代伤未先结算友方护盾——改为伤害先打护盾，溢出部分才由白藏主承担。',
-'修复：心友犬神「守势」在被白藏主「狐守」代伤时不触发——「受到攻击」早于伤害结算，判定对象应为原目标。',
-'调整：虚化算「受到攻击」，守势可触发；放逐因无法选中，不算被攻击目标，守势不触发。',
-'修正：五条悟被动「无下限」时机描述由「受到攻击前」改为「受到攻击时」。',
-'修复：「混乱」未走控制效果入口，免疫控制无法免疫混乱。',
-'修正：「混乱」描述补充「控制效果」，并将「行动时」明确为「行动阶段时」（回合外行动不受影响）。',
-'修复：白藏主已有「狐佑」时再次施放技能不刷新持续时间（且本回合即开始递减），导致狐佑提前消失。',
-'调整：白藏主「梦山狐影」改为施放时先清空我方狐守再重新授予，并刷新技能描述。',
-'修复：镰鼬「牵绊」、纲手「百豪」在已携带时不刷新持续时间（同狐佑）。',
-'镰鼬：攻击 600 → 500。',
-] },
-{ ver:'v1.4.7-patch.2', items:[
-'修复：东丈身上挂有「神威」时受到致死伤害会直接阵亡的问题。',
-] },
-{ ver:'v1.4.7-patch.1', items:[
-'修复：东丈技能「龙卷风」层数与描述不符的问题。',
-'禅心云外镜：技能1「心净明」不可选择的问题。'
-] },
-{ ver:'v1.4.7', theme:'咒术·最强之战', items:[
-'新增 BP 模式（双人对战专用）：选人界面右上角「BP模式」入口，独立全屏界面。',
-'禅心云外镜：普攻「水无垠」改为只移除自身减益；新增技能1「心净明」，原「万法皆空」调整为技能2。',
-'维迦：新增技能1「扭曲空间」；原「能量爆裂」调整为技能2。',
-'镰鼬：新增被动「人多势众」——回合结束后 30% 概率使自身 +100% 行动条。',
-'捷克罗姆：攻击 1050 → 1100，暴击率 20% → 24%，普攻 80%+20%真实 → 90%+30%真实。',
-'裂空座：攻击 1000 → 1050，暴击率 20% → 24%。',
-'东丈：暴击率 12% → 15%。',
-'宇智波带土：暴击率 12% → 15%。',
-'纲手：普攻「怪力」拉条 10% → 15%。',
-'雪拉比：攻击 375 → 390。',
-'两面宿傩：暴击伤害 170% → 180%。',
-'五条悟：暴击伤害 170% → 180%。',
-'修复：五条悟被动「无下限」的护盾未计入结算面板统计。',
-'修复：雪拉比复活后头像仍为置灰状态。',
-'修复：固定伤害此前不触发受击后被动，现已纳入。',
-] },
-{ ver:'v1.4.6', theme:'咒术·最强之战', items:[
-'新增角色：五条悟（普攻「苍·赫」切换、被动「无下限」、技能「茈」「无量空处」）。',
-'新增机制：混乱（行动时随机普攻，不分敌我）、复活（预知未来复活阵亡友方）、不屈（致命伤害免死反击）。',
-'新增「更新日志」入口与当前版本主题展示，位于模式选择页底部。',
-'新增机制：技能冷却统一入口、单体技能固定伤害、状态类增删查统一 API。',
-'东丈：新增被动「不屈」；技能「龙卷风」伤害系数 320% → 340%。',
-'禅心云外镜：普攻「水无垠」额外移除随机一名携带减益友方的全部减益。',
-'两面宿傩：被动定名「斩击反转」；新增技能「灶」（消耗2点怒气），原「伏魔神龛」调整为技能2。',
-'雪拉比：技能「预知未来」新增复活效果，并加入 2 回合冷却。',
-'纲手：普攻「怪力」新增 30% 概率眩晕，并使当前生命值最低的友方 +10% 行动条。',
-'优化：多技能与额外技能体系、额外技能标题配色统一。'
-] },
-{ ver:'v1.4.5-patch-2', items:[
-'修复人机模式概率不能开始游戏的问题。'
-] },
-{ ver:'v1.4.5-patch-1', items:[
-'修复带土放逐 buff 不显示的问题。'
-] },
-{ ver:'v1.4.5', items:[
-'新增技能动画、重新开始、返回、取消等 UI。',
-'新增机制：双主动技能、额外技能。',
-'鬼金羊技能调整，心友犬神技能调整。'
-] },
-{ ver:'v1.4.4-beta', items:[
-'中间过渡版本。'
-] },
-{ ver:'v1.4.3', items:[
-'修复带土无限虚化的 bug，优化代码逻辑。'
-] },
-{ ver:'v1.4.2', items:[
-'修正教程描述问题。'
-] },
-{ ver:'v1.4.1', items:[
-'新增教程，优化文字描述。'
-] },
-{ ver:'v1.4.0', theme:'咒术·最强之战', items:[
-'新增角色：两面宿傩。',
-'新增机制：普攻转换、强化普攻、固定伤害、斩杀机制。'
-] },
-{ ver:'v1.3.x-rc', theme:'阴阳之门', items:[
-'新增角色：流光追月神、鬼金羊、禅心云外镜、心友犬神。',
-'新增机制：被动、技能冷却、翻转机制。'
-] },
-{ ver:'v1.2-beta', theme:'神威', items:[
-'新增角色：宇智波带土。',
-'新增机制：放逐、虚化。规则类效果 buff。'
-] },
-{ ver:'v1.1-beta', items:[
-'玩法框架与基础战斗流程完善。'
-] },
-{ ver:'v1.0-alpha', items:[
-'首个可运行版本：选人、行动条、伤害与治疗公式。'
-] }
-];
-function renderVersionTheme() {
-const el = document.getElementById('version-theme-text');
-if (!el) return;
-el.innerHTML = `${CURRENT_VERSION} · 主题<span class="theme-name">「${CURRENT_THEME}」</span><br>——Qianrise`;
-}
-function renderChangelog() {
-const body = document.getElementById('changelog-body');
-if (!body) return;
-body.innerHTML = CHANGELOG.map(e => {
-const theme = e.theme ? `<div class="cl-theme">主题：<span class="tn">${e.theme}</span></div>` : '';
-const cur = e.ver === CURRENT_VERSION ? `<div class="cl-cur">当前版本</div>` : '';
-return `<div class="cl-ver">${e.ver}</div>${theme}${cur}<ul>${e.items.map(i => `<li>${i}</li>`).join('')}</ul>`;
-}).join('');
-}
-function openChangelog() { renderChangelog(); document.getElementById('changelog-overlay').classList.add('show'); }
-function closeChangelog() { document.getElementById('changelog-overlay').classList.remove('show'); }
+/* 更新日志（CURRENT_VERSION / CURRENT_THEME / CHANGELOG 及渲染函数）
+   已拆到同目录的 log.js；该脚本须在 game.js 之前加载。
+   此处仅保留依赖方：renderVersionTheme() 调用、按钮绑定、三击调试面板包装。 */
 
 /* ==================== 后台调试面板 ====================
    进入方式：在更新日志面板中连点「当前版本」文字 3 次（2 秒内）。
@@ -5718,7 +5556,7 @@ await castExtraSkill(shouShiDog, 'yiShiGuiXin');
 } finally { gameState.shouShiFiring = false; }
 }
 
-/* 【固定伤害】—— 第四种伤害类型。严谨定义：
+/* 【固定伤害】—— 独立伤害类型（顺序统一见 DAMAGE_TYPES）。严谨定义：
       固定伤害是一种伤害类型，无视护盾，无法被转移，伤害量为条件固定值。
    逐条对应实现：
    · 伤害量为条件固定值：由调用方按条件算出（如「目标最大生命 × 10%」），
@@ -5767,7 +5605,7 @@ await handleLethalDamage(target, attacker);
 return dealt;
 }
 
-/* 【传导伤害】—— 第五种伤害类型。定义（钉崎野蔷薇「共鸣」/「稻草人」）：
+/* 【传导伤害】—— 独立伤害类型（顺序统一见 DAMAGE_TYPES）。定义（钉崎野蔷薇「共鸣」/「稻草人」）：
       不参与伤害公式计算，直接造成伤害，无视护盾。
    逐条对应实现：
    · 伤害量 = 另一次伤害的【实际数值】（调用方算好传入），不再乘任何倍率/免伤率/暴击
@@ -7441,11 +7279,31 @@ body: `<p>屏幕中央的横条为<span class="k">行动条</span>，每名角�
 ];
 
 /* ---------- 专项详解：按需查阅，非必读 ---------- */
+/* ★ 教程里会随版本增长的数量文案，一律不从字面写死：
+     · 套装套数 → 读 shenhun.js 的 SETS 长度；
+     · 伤害类型总数 → 读下面 DAMAGE_TYPES 长度。
+   以前「共 6 套 / 共 7 套」「五种伤害」都要手工跟着改，漏一次就是玩家可见的错。
+   两个都在【渲染时】求值（html 写成函数），不依赖脚本加载顺序；
+   模块未加载 / 出异常时退回当前实际数量，教程照常显示。 */
+const DAMAGE_TYPES = ['直接伤害', '溅射伤害', '真实伤害', '固定伤害', '传导伤害'];
+function cnNum(n) {
+const d = ['零', '一', '二', '三', '四', '五', '六', '七', '八', '九', '十'];
+if (n >= 0 && n <= 10) return d[n];
+if (n > 10 && n < 20) return '十' + d[n - 10];
+return String(n);                 // 20 以上用阿拉伯数字，不会写错
+}
+function tutorialSetCount() {
+try {
+/* SETS 是 shenhun.js 对外导出的数组本体，加新套装时长度自己会变。 */
+if (typeof SHENHUN !== 'undefined' && SHENHUN.SETS && SHENHUN.SETS.length) return SHENHUN.SETS.length;
+} catch (e) { /* 落到下面的兜底 */ }
+return 7;                         // 神魂模块未加载时的当前实际套数
+}
 const TUTORIAL_TABS = [
 {
 key: 'damage', label: '伤害',
-html: `<h3>伤害类型与计算</h3>
-<p>游戏中存在五种彼此独立的伤害类型，其计算方式各不相同。以下公式均为游戏内实际采用的计算方式。</p>
+html: () => `<h3>伤害类型与计算</h3>
+<p>游戏中存在${cnNum(DAMAGE_TYPES.length)}种彼此独立的伤害类型，其计算方式各不相同。以下公式均为游戏内实际采用的计算方式。</p>
 
 <h4>一、直接伤害</h4>
 <p>未作特殊说明的伤害均为直接伤害，其计算受目标防御影响。</p>
@@ -7605,25 +7463,25 @@ html: `<h3>行动条规则详解</h3>
 },
 {
 key: 'shenhun', label: '神魂',
-html: `<h3>神魂系统</h3>
+html: () => `<h3>神魂系统</h3>
 <p>神魂是<span class="k">战斗外</span>的养成系统：在开战前一次性结算进角色基础属性，<span class="k">战斗过程中不再变化</span>。</p>
 
 <h4>一、神魂的构成</h4>
 <p>每个神魂有三项要素：</p>
 <ul>
-<li><span class="k">套装</span>：决定套装效果（共 7 套）。</li>
+<li><span class="k">套装</span>：决定套装效果（共 ${tutorialSetCount()} 套）。</li>
 <li><span class="k">号位</span>：1 / 2 / 3 号位，每个角色每个号位只能装 1 个，共 3 个槽位。</li>
 <li><span class="k">稀有度</span>：普通 / 罕见 / 珍贵 / 史诗 / 传说 / 神话，决定数值高低。</li>
 </ul>
 
 <h4>二、主属性与副属性</h4>
-<p><span class="k">主属性</span>只会出现百分比类属性，按号位限定池子随机：</p>
+<p><span class="k">主属性</span>按号位限定池子随机；百分比类带 %，<span class="g">速度</span>按固定点数（不带 %，数值与其它主属性对齐）：</p>
 <ul>
-<li><span class="b">1 号位</span>：攻击加成 / 防御加成 / 生命加成</li>
-<li><span class="b">2 号位</span>：上述三种 + 效果命中 / 效果抵抗</li>
-<li><span class="b">3 号位</span>：上述三种 + 暴击率 / 暴击伤害</li>
+<li><span class="b">1 号位</span>：攻击加成 / 防御加成 / 生命加成 / 速度</li>
+<li><span class="b">2 号位</span>：上述前三种 + 效果命中 / 效果抵抗</li>
+<li><span class="b">3 号位</span>：上述前三种 + 暴击率 / 暴击伤害</li>
 </ul>
-<p><span class="k">副属性</span>固定 4 条、互不重复，从 8 条属性中随机抽取，各自在对应稀有度的区间内独立取值。<span class="g">速度</span>只能作为副属性出现，不会成为主属性。</p>
+<p><span class="k">副属性</span>固定 4 条、互不重复，从 8 条属性中随机抽取，各自在对应稀有度的区间内独立取值。<span class="g">速度</span>既可作 1 号位主属性，也可作副属性；两者都按固定点数累加。</p>
 <div class="formula"><span class="fname">属性结算</span>
 <code>百分比类：最终值 = 面板基数 × (1 + 各加成之和)</code>
 <code>速度：最终值 = 面板基数 + 各加成之和</code>
@@ -7697,7 +7555,8 @@ document.getElementById('tut-next').textContent = tutorialStep === TUTORIAL_STEP
 footer.style.display = '';
 } else {
 const tab = TUTORIAL_TABS.find(t => t.key === tutorialTab);
-body.innerHTML = tab.html;
+/* 数量随版本增长的页面写成函数，每次打开都重新求值；其余页面仍是静态字符串。 */
+body.innerHTML = typeof tab.html === 'function' ? tab.html() : tab.html;
 footer.style.display = 'none';
 mountTutorialDemo(tutorialTab, body);
 }
