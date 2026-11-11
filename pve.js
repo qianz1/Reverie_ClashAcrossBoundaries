@@ -110,6 +110,9 @@
   var lockMap = readStore(LOCK_STORE_KEY, {});
   var autoMap = readStore(AUTO_STORE_KEY, {});
   var autoReturnTimer = null, autoStartTimer = null, countdownTimer = null, autoLoopRunning = false;
+  /* 神魂副本战斗时长（墙钟时间，按真实经过毫秒算，倍速/动画暂停都不影响）。
+     独立于自动挑战的计时器：自动循环里每局 startBattle 都会重开一局计时。 */
+  var battleStartAt = 0, battleTimerId = null, battleFinalMs = 0;
 
   function heroKeys() {
     try {
@@ -242,6 +245,78 @@
     hideCountdown();
   }
 
+  /* ---------------- 神魂副本：战斗时长 ----------------
+     只显示 mm:ss（如 01:07），不加「时长：」等前缀。
+     用 Date.now() 差值而非累加 tick 次数，切后台/浏览器节流后能立刻追上正确值。
+     只在两个神魂副本显示；演武场与联机对战一律隐藏。 */
+  function battleTimerEl() {
+    var el = document.getElementById('pve-battle-timer');
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'pve-battle-timer';
+      el.textContent = '00:00';
+      var host = document.getElementById('battle-screen') || document.body;
+      host.appendChild(el);
+    }
+    return el;
+  }
+  function formatDuration(ms) {
+    var total = Math.max(0, Math.floor((Number(ms) || 0) / 1000));
+    var m = Math.floor(total / 60), s = total % 60;
+    return String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
+  }
+  function renderBattleTimer(ms) {
+    var el = battleTimerEl();
+    el.textContent = formatDuration(ms);
+    el.style.display = 'block';
+  }
+  function hideBattleTimer() {
+    var el = document.getElementById('pve-battle-timer');
+    if (el) el.style.display = 'none';
+  }
+  function stopBattleTimer(keepVisible) {
+    clearTimeoutSafe(battleTimerId); battleTimerId = null;
+    battleStartAt = 0;                       // 在途 tick 也会因这个标志直接返回
+    if (!keepVisible) hideBattleTimer();
+  }
+  function startBattleTimer() {
+    stopBattleTimer(false);
+    hideResultTime();             // 新的一局开始，结算页不再显示上一局的用时
+    battleStartAt = Date.now();
+    battleFinalMs = 0;
+    renderBattleTimer(0);                   // 开局立刻显示 00:00
+    function tick() {
+      if (!battleStartAt) return;
+      battleFinalMs = Date.now() - battleStartAt;
+      renderBattleTimer(battleFinalMs);
+      battleTimerId = setTimeout(tick, 250);
+    }
+    battleTimerId = setTimeout(tick, 250);
+  }
+
+  /* 结算界面「本次用时 xx:xx」：节点挂在 .result-header 内、跟在副标题之后。
+     非副本结算时隐藏，避免残留上一局副本的旧数值。 */
+  function resultTimeEl() {
+    var el = document.getElementById('pve-result-time');
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'pve-result-time';
+      var host = document.querySelector('#result-screen .result-header') ||
+                 document.getElementById('result-screen') || document.body;
+      host.appendChild(el);
+    }
+    return el;
+  }
+  function hideResultTime() {
+    var el = document.getElementById('pve-result-time');
+    if (el) el.style.display = 'none';
+  }
+  function showResultTime(ms) {
+    var el = resultTimeEl();
+    el.textContent = '本次用时 ' + formatDuration(ms);
+    el.style.display = 'block';
+  }
+
   /* ---------------- 对外的小接口 ---------------- */
   function isDungeon() { return !!currentDungeon; }
   function isExploreFlow() { return !!exploreFlow; }
@@ -308,6 +383,15 @@
     '  text-align:center; letter-spacing:.5px; line-height:1.5;',
     '  background:#101a35ee; border:1px solid #ffb300; border-radius:20px; }',
     '#pve-lock-bar .pve-countdown { flex-basis:100%; margin:4px auto 2px; }',
+    /* 神魂副本战斗计时：只显示 mm:ss，右上角常驻，不吃点击 */
+    '#pve-battle-timer { display:none; position:absolute; top:10px; right:14px; z-index:102;',
+    '  padding:4px 10px; color:#ffd700; font-size:15px; font-weight:bold;',
+    '  font-variant-numeric:tabular-nums; letter-spacing:1px; line-height:1.4;',
+    '  background:#101a35cc; border:1px solid #ffb30066; border-radius:8px;',
+    '  pointer-events:none; user-select:none; -webkit-tap-highlight-color:transparent; }',
+    /* 结算界面「本次用时」：独立一行，跟在 result-sub 之后 */
+    '#pve-result-time { display:none; margin-top:6px; font-size:14px; color:#ffd700;',
+    '  font-variant-numeric:tabular-nums; letter-spacing:.5px; }',
     '#selection-screen.pve-locked #player-hero-grid .hero-card { pointer-events:none; opacity:.72; }',
     '#selection-screen.pve-locked #player-hero-grid .hero-card .detail-btn { pointer-events:auto; opacity:1; }',
     '@media (max-width:820px) {',
@@ -318,6 +402,7 @@
     '  .pve-intro { font-size:12px; margin-bottom:12px; }',
     '  #pve-confirm-btn { padding:10px 32px; font-size:16px; }',
     '  #pve-lock-bar { gap:8px; font-size:12px; padding:7px 9px; }',
+    '  #pve-battle-timer { top:6px; right:8px; font-size:13px; padding:3px 8px; }',
     '}'
   ].join('\n');
 
@@ -597,7 +682,9 @@
   /* ---------------- 自动挑战：开局挂机 ---------------- */
   function onBattleStart() {
     hideCountdown();          // 手动开局 / 自动开局都一样：进场后不再显示读秒
-    if (!isDungeon()) return;
+    /* 战斗时长：仅神魂副本计时，每局从 00:00 重新开始。 */
+    if (!isDungeon()) { stopBattleTimer(false); return; }
+    startBattleTimer();
     var key = currentDungeon;
     if (isLocked(key)) {
       var r = getCurrentRoster();
@@ -620,7 +707,13 @@
      只在「副本 + 胜利」时发放；失败 / 平局不发。
      自动挑战开启时：结算 3 秒后回该副本选人，再等 3 秒自动开下一局。 */
   function onBattleEnd(resultClass) {
-    if (!isDungeon()) return;
+    /* 非副本（演武场 / 双人对战 / 联机）不显示，且清掉上一局副本的残留数值。 */
+    if (!isDungeon()) { hideResultTime(); return; }
+    /* 先补一次精确差值（tick 每 250ms 一次，直接停在最后一次会少最多 250ms），
+       再停表：战斗层计时定格，结算界面另起一行显示本次用时。 */
+    if (battleStartAt) battleFinalMs = Date.now() - battleStartAt;
+    stopBattleTimer(true);
+    showResultTime(battleFinalMs);
     var d = DUNGEONS[currentDungeon];
     var sub = document.getElementById('result-sub');
     var title = document.getElementById('result-title');
@@ -712,6 +805,9 @@
      锁定 / 自动开关本身保留，下次进入同一副本仍生效。 */
   function reset() {
     cancelAutoLoop();
+    stopBattleTimer(false);
+    hideResultTime();
+    battleFinalMs = 0;
     currentDungeon = null;
     exploreFlow = false;
     selectedKey = null;
@@ -727,6 +823,7 @@
   function init() {
     injectStyle();
     buildScreen();
+    battleTimerEl();          // 预建隐藏节点，保证「非副本不显示」是确定的 DOM 状态
   }
 
   window.PVE = {
@@ -739,6 +836,7 @@
     onBattleStart: onBattleStart, blockPlayerSelection: blockPlayerSelection,
     isLocked: isLocked, isAutoChallenge: isAutoChallenge,
     getAutoFlag: getAutoFlag, lockedRoster: lockedRoster,
+    formatDuration: formatDuration, battleElapsedMs: function () { return battleFinalMs || (battleStartAt ? Date.now() - battleStartAt : 0); },
     /* 暴露配置便于教程 / 调试读取，运行时只读 */
     MONSTERS: MONSTERS, DUNGEONS: DUNGEONS, IMG_BASE: IMG_BASE
   };
