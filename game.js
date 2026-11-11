@@ -795,6 +795,7 @@ mechanics: [
    · 被动「共鸣」走 PASSIVE_ON_DAMAGED 注册表（onDamaged:'gongming'），
      伤害量由统一入口透传，不另开钩子。
    · 技能 type:'summon' —— 需要选单个敌方目标，因此不加入 NO_TARGET_SKILL_TYPES。
+     自动战斗时该技能锁定当前绝对血量最高的敌方角色（见 AUTO_SKILL_HIGH_HP），普攻仍取最低血。
    · 「传导伤害」与「稻草人」两条机制见下方 mechanics，教程伤害类型页另有完整定义。 */
 "钉崎野蔷薇": { atk:800, def:280, hp:6700, spd:118, effectHit:0, effectResist:0, critRate:0.1, critDmg:1.5, color:'#ff9800', tag:'均衡',   // 橙
 normal: { name:"锤击", type:"single", dmgRate:1.2, target:"enemy" },
@@ -3726,11 +3727,17 @@ return list.slice().sort((a, b) => (b.atk - a.atk) || (a.pos - b.pos))[0];
 function findLowestHpTarget(targetType, actor) {
 return findLowestHpAmong(getTargets(actor, targetType));
 }
-/* 自动战斗专用索敌：默认仍取绝对血量最低。
-   捷克罗姆仅「交错闪电」改为取【敌方当前绝对血量最高的角色】（不把召唤物算作角色）；
-   普攻「电击」及其余角色一律仍取最低血。手动选目标不受影响。 */
+/* 自动战斗中「技能锁定敌方当前绝对血量最高的角色」的例外表。
+   仅表中【角色 + 指定技能】生效；普攻与其余角色一律仍取最低血。
+   召唤物不算「角色」，不参与比较（稻草人本身也不能作为连接目标）。
+   手动选目标不受影响。以后加同类角色只改这张表。 */
+const AUTO_SKILL_HIGH_HP = {
+'捷克罗姆': ['交错闪电'],
+'钉崎野蔷薇': ['刍灵咒法·共鸣'],
+};
 function autoTargetFor(unit, targetType, skill) {
-if (unit && unit.name === '捷克罗姆' && skill && skill.name === '交错闪电' && targetType === 'enemy') {
+const names = unit && AUTO_SKILL_HIGH_HP[unit.name];
+if (names && skill && names.includes(skill.name) && targetType === 'enemy') {
 const roles = getAliveEnemies(unit).filter(u => !isSummonUnit(u));
 return findHighestHpAmong(roles) || findLowestHpTarget('enemy', unit);
 }
@@ -4990,7 +4997,7 @@ const skill = getEffectiveSkillShape(unit, rawSkill);
 if (isNoTargetSkill(skill)) { await executeAction(unit, skill); return; }
 // 目标取向：技能自带 target 字段优先，否则按是否治疗判断
 const targetType = skill.target || (skill.healRate ? 'ally' : 'enemy');
-/* 捷克罗姆「交错闪电」取最高血角色，普攻及其余角色仍取最低血；skill 一并传入判定。 */
+/* 例外表中的技能取最高血角色，普攻及其余角色仍取最低血；skill 一并传入判定。 */
 await executeAction(unit, skill, autoTargetFor(unit, targetType, skill));
 }
 // 施放前置校验：不满足条件直接不消耗怒气
