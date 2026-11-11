@@ -27,12 +27,12 @@
 <div id="game-container">
 <div id="mode-select-screen">
 <h1>⚔️ 狂想：跨界之战</h1>
-<p class="mode-subtitle">选择对战模式</p>
-<p class="mode-intro">本游戏提供两种对战模式，请根据需求选择：</p>
+<p class="mode-subtitle">选择游戏模式</p>
+<p class="mode-intro">探索副本赢取神魂养成资源，或与其他玩家对战：</p>
 <div class="mode-cards">
-<div class="mode-card" id="mode-pve" data-mode="pve">
-<div class="mc-head"><span class="mode-icon">🤖</span><span class="mode-title">人机对战</span></div>
-<div class="mode-desc">你控制我方阵容，敌方由AI自动操控</div>
+<div class="mode-card" id="mode-explore" data-mode="explore">
+<div class="mc-head"><span class="mode-icon">🧭</span><span class="mode-title">探索</span></div>
+<div class="mode-desc">神魂副本（狩魔 / 荒古）与演武场</div>
 </div>
 <div class="mode-card" id="mode-pvp" data-mode="pvp">
 <div class="mc-head"><span class="mode-icon">👥</span><span class="mode-title">双人对战</span></div>
@@ -306,6 +306,8 @@
 <script src="shenhun.js"></script>
 <script src="cloud-save.js"></script>
 <script src="shenhun-ui.js"></script>
+<!-- 探索模式（神魂副本 / 演武场）：自带界面与数据，须在 game.js 之前加载 -->
+<script src="pve.js"></script>
 <script src="game.js"></script>
 </body>
 </html>

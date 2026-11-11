@@ -59,6 +59,11 @@ const HERO_IMG_FILE = {
 '五条悟':'GojoSatoru', '虎杖悠仁':'ItadoriYuji', '钉崎野蔷薇':'KugisakiNobara'
 };
 function heroImgSrc(name) {
+/* 探索模式怪物：贴图在 assets/pve/character/英文名.png（由 pve.js 提供） */
+if (window.PVE && typeof window.PVE.imgSrc === 'function') {
+const pveSrc = window.PVE.imgSrc(name);
+if (pveSrc) return pveSrc;
+}
 const file = HERO_IMG_FILE[name];
 return file ? (HERO_IMG_BASE + file + HERO_IMG_EXT) : '';
 }
@@ -365,6 +370,10 @@ add(`${name} · 战斗图默认`, cfg.base);
 });
 [...new Set(Object.keys(HERO_AVATAR_CYCLE).concat(Object.keys(HERO_BATTLE_IMG)))]
 .forEach(name => add(`${name} · 原路径兜底`, heroImgSrc(name)));
+/* 探索模式怪物贴图（assets/pve/character/英文名.png） */
+if (window.PVE && typeof window.PVE.imgCheckList === 'function') {
+window.PVE.imgCheckList().forEach(it => add(it.label, it.src));
+}
 return out;
 }
 function runImageSelfCheck() {
@@ -2519,6 +2528,8 @@ if (typeof Net !== 'undefined' && Net.active) {
 showConfirmDialog('返回将断开联机连接，确定吗？', () => { Net.disconnect(); resetGame(); });
 return;
 }
+/* 探索流程（副本 / 演武场）：返回探索界面，不直接回主界面 */
+if (window.PVE && typeof window.PVE.onBack === 'function' && window.PVE.onBack()) return;
 const playerSection = document.getElementById('player-selection-section');
 const inPvpStage2 = gameMode === 'pvp' && playerSection && playerSection.style.display === 'none';
 if (inPvpStage2) {
@@ -2592,6 +2603,11 @@ confirmBtn.addEventListener('click', () => {
 if (!gameMode) return;
 /* 联机对战：先连上服务器，再进选人界面 */
 if (gameMode === 'online') { openNetPanel(); return; }
+/* 探索模式：打开 pve.js 的探索界面（神魂副本 / 演武场），不直接进选人 */
+if (gameMode === 'explore') {
+if (window.PVE && window.PVE.openExplore) window.PVE.openExplore();
+return;
+}
 modeScreen.style.display = 'none';
 document.getElementById('selection-screen').style.display = 'block';
 // 更新模式徽章
@@ -2600,7 +2616,7 @@ if (gameMode === 'pvp') {
 badge.textContent = '👥 双人对战模式';
 badge.className = 'pvp';
 } else {
-badge.textContent = '🤖 人机对战模式';
+badge.textContent = '🪵 演武场';
 badge.className = 'pve';
 }
 // 双人对战模式下隐藏敌方选人区（双方各自选人）
@@ -3394,6 +3410,8 @@ grid.appendChild(card);
 updateSelectionStatus(side);
 }
 function toggleSelection(side, name) {
+/* 神魂副本阵容锁定：开启后无需手动选人，也不允许误点改动已锁定阵容。 */
+if (window.PVE && typeof window.PVE.blockPlayerSelection === 'function' && window.PVE.blockPlayerSelection(side)) return;
 const selection = side === 'player' ? playerSelection : enemySelection;
 if (name === '主角') return;
 const idx = selection.indexOf(name);
@@ -3454,6 +3472,10 @@ function checkStartButton() {
 /* 联机：房主侧走专属刷新（要同时看自己与对手的进度），客机侧沿用原逻辑 */
 if (typeof Net !== 'undefined' && Net.active && Net.role === 'host') { netRefreshStartButton(); return; }
 const btn = document.getElementById('start-battle-btn');
+/* 神魂副本：敌方阵容固定，只判断我方是否选满 6 人（必选主角） */
+if (window.PVE && typeof window.PVE.isDungeon === 'function' && window.PVE.isDungeon()) {
+window.PVE.refreshStartButton(btn); return;
+}
 if (gameMode === 'pvp') {
 const isPlayer1Done = playerSelection.length === 6;
 const isPlayer2Done = enemySelection.length === 6;
@@ -3533,8 +3555,11 @@ document.getElementById('hero-detail-overlay').classList.remove('show');
 const bs = document.getElementById('battle-screen'); bs.style.display = 'flex'; gameState.phase = 'fighting';
 gameState.units = []; gameState.playerTeam = []; gameState.enemyTeam = [];
 gameState.summonIdx = { player:null, enemy:null };   // 新对局不继承上一局的稻草人（每方各一个槽）
+/* 神魂副本：敌方用副本固定阵容（怪物不在 HERO_DATA、玩家不可选），不读选人界面的敌方区 */
+const foeRoster = (window.PVE && typeof window.PVE.isDungeon === 'function' && window.PVE.isDungeon())
+? window.PVE.getEnemyRoster() : enemySelection;
 playerSelection.forEach((name, i) => { const u = createUnit(name, 'player', i); gameState.units.push(u); gameState.playerTeam.push(gameState.units.length - 1); });
-enemySelection.forEach((name, i) => { const u = createUnit(name, 'enemy', i); gameState.units.push(u); gameState.enemyTeam.push(gameState.units.length - 1); });
+foeRoster.forEach((name, i) => { const u = createUnit(name, 'enemy', i); gameState.units.push(u); gameState.enemyTeam.push(gameState.units.length - 1); });
 /* 行动条总长度 = 开局（先机之前）速度最高者的速度值 × ACTION_BAR_LENGTH_FACTOR。
    必须在先机之前算：先机可能改变速度，若在其后计算就不是「开局速度」了。 */
 gameState.actionBarMax = Math.max(1, Math.max(...gameState.units.map(getEffectiveSpd)) * ACTION_BAR_LENGTH_FACTOR);
@@ -3542,6 +3567,13 @@ renderUnits(); renderActionBarDots();
 document.getElementById('battle-log').innerHTML = '';
 if (gameMode === 'pvp') { log('⚔️ 双人对战开始！玩家1 vs 玩家2', 'log-skill'); }
 else { log('⚔️ 战斗开始！', 'log-skill'); }
+/* 神魂副本：登场提示放在日志清空之后，否则会被 renderUnits 后的 innerHTML='' 抹掉 */
+if (window.PVE && typeof window.PVE.isDungeon === 'function' && window.PVE.isDungeon()) {
+const di = window.PVE.currentDungeonInfo && window.PVE.currentDungeonInfo();
+if (di) log('🗡️ 神魂副本 · ' + di.name + '：' + foeRoster.length + ' 名敌方魔物登场！', 'log-skill');
+}
+/* 神魂副本自动挑战：在战斗循环启动前把 player 侧切为自动，并写入开局日志。 */
+if (window.PVE && typeof window.PVE.onBattleStart === 'function') window.PVE.onBattleStart();
 /* 联机：把双方阵容与行动条上限同步给客机（客机据此建本地只读单位并渲染） */
 if (typeof Net !== 'undefined' && Net.active && Net.role === 'host') { Net.sendInit(); Net.setStatus('✅ 对局进行中（你是房主 · 我方）'); }
 /* 开局站位：必须在「先机」之前结算。
@@ -3559,7 +3591,7 @@ document.getElementById('btn-normal').onclick = () => onActionBtn('normal');
 document.getElementById('btn-skill').onclick = () => onActionBtn('skill');
 document.getElementById('btn-skill2').onclick = () => onActionBtn('skill2');
 document.getElementById('btn-auto').onclick = toggleAuto;
-updateAutoBtn();   // 每局重开后按钮文案回到 OFF（避免沿用上一局残留的 ON）
+updateAutoBtn();   // 每局重开后按当前 auto 状态刷新（自动挑战开启时为 ON）
 // 用 onclick 赋值：与 btn-normal / btn-skill 一致，避免每次开局重复叠加监听器
 document.getElementById('speed-btn').onclick = toggleSpeed;
 document.getElementById('btn-cancel').onclick = cancelTargetSelection;
@@ -3682,12 +3714,27 @@ function findLowestHpAmong(list) {
 if (!list || list.length === 0) return null;
 return list.slice().sort((a, b) => (a.hp - b.hp) || (a.maxHp - b.maxHp) || (a.pos - b.pos))[0];
 }
+/* 当前绝对血量最高：并列时按最大生命 → 站位，保证结果可复现。 */
+function findHighestHpAmong(list) {
+if (!list || list.length === 0) return null;
+return list.slice().sort((a, b) => (b.hp - a.hp) || (b.maxHp - a.maxHp) || (a.pos - b.pos))[0];
+}
 function findHighestAtkAmong(list) {
 if (!list || list.length === 0) return null;
 return list.slice().sort((a, b) => (b.atk - a.atk) || (a.pos - b.pos))[0];
 }
 function findLowestHpTarget(targetType, actor) {
 return findLowestHpAmong(getTargets(actor, targetType));
+}
+/* 自动战斗专用索敌：默认仍取绝对血量最低。
+   捷克罗姆仅「交错闪电」改为取【敌方当前绝对血量最高的角色】（不把召唤物算作角色）；
+   普攻「电击」及其余角色一律仍取最低血。手动选目标不受影响。 */
+function autoTargetFor(unit, targetType, skill) {
+if (unit && unit.name === '捷克罗姆' && skill && skill.name === '交错闪电' && targetType === 'enemy') {
+const roles = getAliveEnemies(unit).filter(u => !isSummonUnit(u));
+return findHighestHpAmong(roles) || findLowestHpTarget('enemy', unit);
+}
+return findLowestHpTarget(targetType, unit);
 }
 
 /* ---- 怒气 ---- */
@@ -4117,7 +4164,10 @@ if (extraKey) skill.__extraKey = extraKey;
 return skill;
 }
 function createUnit(name, side, pos) {
-const d = HERO_DATA[name];
+/* 探索模式怪物不在 HERO_DATA 里（玩家不可选），数据由 pve.js 提供。
+   怪物不参与神魂养成，下面会跳过神魂结算。 */
+const isPveMonster = !HERO_DATA[name] && !!(window.PVE && window.PVE.getMonster && window.PVE.getMonster(name));
+const d = HERO_DATA[name] || (window.PVE && window.PVE.getMonster ? window.PVE.getMonster(name) : null);
 // 额外技能：不可主动施放，仅由特定条件触发，但**有技能演出**
 if (d.extraSkills) Object.keys(d.extraSkills).forEach(k => markSkill(d.extraSkills[k], 'extra', k));
 markSkill(d.normal, 'normal');
@@ -4140,7 +4190,9 @@ buquUsed:false };
      本机仓库里没有它的神魂，只能按它发来的「加成增量」还原。 */
 u.shenhunSets = {};
 const peerSide = (typeof Net !== 'undefined' && Net.active) ? netPeerSide() : null;
-if (peerSide && side === peerSide && Net.peerSouls) {
+if (isPveMonster) {
+/* 探索怪物：面板即最终值，不吃神魂、不吃对端神魂快照。 */
+} else if (peerSide && side === peerSide && Net.peerSouls) {
 const b = Net.peerSouls[name];
 if (b) {
 u.atk += Number(b.atk) || 0;
@@ -4938,7 +4990,8 @@ const skill = getEffectiveSkillShape(unit, rawSkill);
 if (isNoTargetSkill(skill)) { await executeAction(unit, skill); return; }
 // 目标取向：技能自带 target 字段优先，否则按是否治疗判断
 const targetType = skill.target || (skill.healRate ? 'ally' : 'enemy');
-await executeAction(unit, skill, findLowestHpTarget(targetType, unit));
+/* 捷克罗姆「交错闪电」取最高血角色，普攻及其余角色仍取最低血；skill 一并传入判定。 */
+await executeAction(unit, skill, autoTargetFor(unit, targetType, skill));
 }
 // 施放前置校验：不满足条件直接不消耗怒气
 /* 施放前置校验：返回不可用原因（null = 可用）。此处只判定、不打日志，
@@ -6007,7 +6060,12 @@ function isImmuneControl(unit) {
 if (!unit) return false;
 /* 免疫控制属【被动效果】部分：不需要角色本体施放，
    因此不受【无法行动】约束，只要存活即免疫（与鬼金羊免疫长星锁同一口径）。 */
-return unit.name === '鬼王酒吞童子';
+return unit.name === '鬼王酒吞童子' || unit.name === '魔物首领' || unit.name === '荒古魔龙';
+}
+/* 放逐是规则类效果，不属于 CONTROL_STATES，需单独免疫。
+   探索模式两只首领级怪物（魔物首领 / 荒古魔龙）带此被动；魔物精英不带。 */
+function isImmuneBanish(unit) {
+return !!unit && (unit.name === '魔物首领' || unit.name === '荒古魔龙');
 }
 /* 施加控制效果的唯一入口：免疫控制与虚化都在这里拦。
    ★ 所有控制都必须走这里 —— 此前「混乱」绕开本入口直接 addState，
@@ -6603,6 +6661,11 @@ async function performBanish(caster, skill, target) {
 /* ★ 放逐是【规则】类效果（视为离开战局），不是控制效果 ——
    「无法行动」只是它的附属结果，判定免疫要看效果类别而非后果。
    因此免疫控制不能拦下放逐；免疫的是 tryApplyControl 那条路上的状态（眩晕等）。 */
+if (isImmuneBanish(target)) {
+if (typeof showFloatingText === 'function') showFloatingText(target, '免疫放逐', 'floating-miss');
+log(`${getSideLabel(target)}${target.name} 免疫放逐！`, 'log-buff');
+return;
+}
 // 先快照当前位置，再置 banished —— 之后行动条即被锁定在该位置，任何推进/击退都无效
 lockActionValue(target);
 target.banished = true; target.banishedBy = caster;
@@ -6623,6 +6686,12 @@ await sleep(500);
    「或阵亡」：killUnit 按 banishedBy 统一解除。 */
 function applyPrisonRealmBanish(caster, target) {
 if (!caster || !target || !target.alive || target.banished) return;
+if (isImmuneBanish(target)) {
+if (typeof showFloatingText === 'function') showFloatingText(target, '免疫放逐', 'floating-miss');
+log(`🟣 ${getSideLabel(target)}${target.name} 免疫放逐，狱门疆内部空间无法困住它！`, 'log-buff');
+refreshUnit(target);
+return;
+}
 lockActionValue(target);
 target.banished = true; target.banishedBy = caster;
 const ru = addRule(target, '放逐', { duration: BANISH_DURATION, effect: 'prisonRealm', extra: { casterIdx: idxOf(caster) } });
@@ -7158,6 +7227,8 @@ btn.addEventListener('click', () => {
    双方一起回到联机选人界面（连接保持）。 */
 const online = (typeof Net !== 'undefined' && Net.active);
 if (!online) {
+/* 神魂副本：直接回到同一副本选人（保留阵容），省去重新点一遍探索 */
+if (window.PVE && typeof window.PVE.replay === 'function' && window.PVE.replay()) return;
 document.getElementById('result-screen').classList.remove('show');
 resetGame();
 return;
@@ -7178,6 +7249,8 @@ const rs = document.getElementById('result-screen');
 rs.classList.add('show');
 rs.scrollTop = 0;
 bindRematchButton();
+/* 神魂副本：胜利发券 / 发石，结算副标题写明奖励结果 */
+if (window.PVE && typeof window.PVE.onBattleEnd === 'function') window.PVE.onBattleEnd(resultClass);
 }
 function fmt(n) { return (Number(n) || 0).toLocaleString('zh-CN'); }
 function renderResultTable() {
@@ -7654,6 +7727,8 @@ text = `免伤率 = 防御 ${def} ÷ (${def} + 攻击 ${atk}) = ${(dr * 100).toF
 document.getElementById('dmg-out').innerHTML = text;
 }
 function resetGame() {
+/* 回主界面时清掉探索流程状态，避免下一局误判成副本 */
+if (window.PVE && typeof window.PVE.reset === 'function') window.PVE.reset();
 stopSkillCutin();
 closeConfirmDialog(false);
 speedBtnDisplay(false);
