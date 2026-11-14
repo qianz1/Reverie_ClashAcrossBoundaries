@@ -413,6 +413,9 @@ pointer-events: none; white-space: nowrap; text-shadow: 0 1px 3px rgba(0,0,0,.9)
 .sh-soul-card.sh-r珍贵 { border-color: #42a5f5; box-shadow: 0 0 6px rgba(66,165,245,.3); }
 .sh-soul-card.sh-r罕见 { border-color: #66bb6a; box-shadow: 0 0 6px rgba(102,187,106,.3); }
 .sh-soul-card.sh-r普通 { border-color: #9e9e9e; }
+/* 当前打开详情的神魂：只保留内部金色描边（与「已锁定」一致），
+   不再加外 outline / 外发光，避免看起来厚重。 */
+.sh-soul-card.selected { box-shadow: 0 0 0 2px #ffd700 inset; }
 .sh-card-inner { width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; text-align: center; }
 .sh-set { font-size: 14px; font-weight: bold; color: #e0e0e0; line-height: 1.2; word-break: break-all; }
 .sh-slot { font-size: 11px; color: #aaa; background: #1a1a3e; padding: 2px 8px; border-radius: 4px; }
@@ -427,6 +430,81 @@ pointer-events: none; white-space: nowrap; text-shadow: 0 1px 3px rgba(0,0,0,.9)
   color: #ffd700;
   font-weight: bold;
 }
+/* ---- 神魂贴图（assets/shenhun/套装拼音.png）----
+   只有 <img> 成功解码、卡片拿到 .has-art 才生效；缺图 / 加载失败时以下规则
+   全部不命中，卡片保持原来的「套装名 + 号位 + 装备者名字」布局，不会破图。 */
+.sh-card-art { display: none; }
+/* 号位标签里的「套装名·」前缀：只在贴图模式显示。
+   旧 UI 回退时隐藏，卡片仍是「套装名 / x号位 / 装备者」三行，不重复。 */
+.sh-slot .sh-slot-set { display: none; }
+/* 贴图区：做成正方形并水平居中，让 object-fit:contain 的正方形贴图正好填满盒子，
+   圆角才能落在图片本身上（否则盒子四角是留白，看不到圆角）。
+   底部仍空出 26px 给标签，两者分区互不遮挡；contain 保证不裁切。 */
+.sh-soul-card.has-art .sh-card-art {
+  display: block;
+  position: absolute;
+  top: 6px; left: 50%;
+  transform: translateX(-50%);
+  height: calc(100% - 32px);
+  width: auto;
+  max-width: calc(100% - 12px);
+  aspect-ratio: 1 / 1;
+  object-fit: contain;
+  object-position: center;
+  border-radius: 12px;
+  pointer-events: none;
+  z-index: 0;
+}
+/* 文字层：只留「套装名·x号位」，居于方形卡片内部下方，半透明小胶囊不压贴图。
+   显式写 row，避免继承基础 .sh-card-inner 的 column 方向在此产生怪异收缩。 */
+.sh-soul-card.has-art .sh-card-inner {
+  position: absolute;
+  left: 0; right: 0; bottom: 4px;
+  height: 20px;
+  display: flex;
+  flex-direction: row;
+  align-items: center; justify-content: center;
+  gap: 0;
+  z-index: 1;
+  pointer-events: none;
+}
+.sh-soul-card.has-art .sh-set,
+.sh-soul-card.has-art .sh-card-owner { display: none; }
+/* 标签整体：字号 10→9px、内边距 8→6px、字间距归零，挤出约 10px 余量，
+   让「套装名·x号位」在手机 3 列窄卡片里能完整显示。
+   上限用 100%（相对宽度确定的 inner）+ border-box，不再用
+   calc(100% - 8px) 那种把可用宽度再砍一刀的写法。 */
+.sh-soul-card.has-art .sh-slot {
+  display: inline-flex;
+  align-items: center;
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+  padding: 1px 6px;
+  font-size: 9px;
+  letter-spacing: 0;
+  line-height: 1.3;
+  white-space: nowrap;
+  background: #0d1426cc;
+  border: 1px solid #ffffff22;
+  border-radius: 10px;
+}
+/* 前缀「套装名·」：只有极端窄 / 超长套装名时才省略；
+   「x号位」段 flex:0 0 auto，永远完整显示，不会再出现「百穿 · 2…」。 */
+.sh-soul-card.has-art .sh-slot .sh-slot-set {
+  display: inline;
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sh-soul-card.has-art .sh-slot .sh-slot-pos {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+.sh-soul-card.has-art.equipped .sh-slot { color: #ffd700; font-weight: bold; }
 .sh-subs { font-size: 12px; color: #bbb; display: flex; flex-wrap: wrap; gap: 4px 10px; }
 .sh-subs .pct { color: #ffd700; }
 .sh-subs .flat { color: #69f0ae; }
@@ -517,6 +595,21 @@ pointer-events: none; white-space: nowrap; text-shadow: 0 1px 3px rgba(0,0,0,.9)
 #sh-modal-overlay.show { display: flex; }
 .sh-modal { background: #12122e; border: 2px solid #8e24aa; border-radius: 12px; width: 100%; max-width: 560px; max-height: 82vh; display: flex; flex-direction: column; overflow: hidden; }
 .sh-modal-lg { max-width: 640px; }
+/* 神魂详情小窗：不再铺满屏幕；遮罩调浅让仓库与选中卡片仍清晰可见。
+   位置由 shenhun-ui.js 按那张卡片的矩形算好写入 left/top（transform 会被清掉）；
+   找不到锚点时保持这里的居中兜底。
+   外壳全部去掉：不要紫色外框、标题栏「百穿·2号位」和右上角 ×，
+   视觉上只剩内部那张带稀有度红框的详情卡片。关闭改为点弹窗外空白处。 */
+/* 详情用独立层，叠在选择器弹窗（700）之上：
+   打开详情时下面的「当前筛选界面」原样留在背景里，不再被清空，
+   关闭详情直接回到它，不会出现「先退回主界面、再重建选择器」的跳变。 */
+#sh-detail-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.2); z-index: 720; display: none; align-items: center; justify-content: center; padding: 12px; }
+#sh-detail-overlay.show { display: flex; }
+.sh-modal-detail { position: absolute; width: 200px; max-width: calc(100vw - 24px); max-height: 52vh;
+  left: 50%; top: 50%; transform: translate(-50%, -50%);
+  background: transparent; border: 0; border-radius: 0; box-shadow: none; }
+.sh-modal-detail .sh-modal-title { display: none; }
+.sh-modal-detail .sh-modal-body { padding: 0; overflow-y: auto; }
 .sh-modal-title { position: relative; padding: 12px 46px 12px 18px; font-size: 15px; font-weight: bold; color: #ffd700; background: linear-gradient(135deg,#4a148c44,#1a237e44); border-bottom: 1px solid #333; }
 .sh-modal-actions { display: inline-flex; gap: 6px; align-items: center; margin-left: 10px; }
 .sh-detail-act { padding: 3px 10px; font-size: 11px; }
@@ -566,8 +659,42 @@ pointer-events: none; white-space: nowrap; text-shadow: 0 1px 3px rgba(0,0,0,.9)
 .sh-detail-main { font-size: 13px; color: #fff; margin-bottom: 8px; }
 .sh-detail-label { font-size: 12px; color: #9e9e9e; margin: 10px 0 6px; }
 .sh-detail-sub { display: flex; justify-content: space-between; font-size: 13px; color: #cfd8dc; padding: 3px 0; border-bottom: 1px dashed #2a2a4a; }
-.sh-detail-sub .sh-val { color: #ffd700; }
+/* 历史遗留的副属性行：数值同样不再单独标金，与行文字同色（当前已无节点使用）。 */
+.sh-detail-sub .sh-val { color: #cfd8dc; }
 .sh-detail-meta { margin-top: 12px; font-size: 12px; color: #777; }
+/* 精简后的详情：主属性与副属性同一组行、正常间距；套装效果纯文字两行。
+   颜色分工：主属性整行（名称 + 数值）金色；副属性名称与数值都用行文字色 #cfd8dc。
+   两个 span 都显式给色，不依赖继承，主属性规则特异性更高直接压过默认配色。 */
+.sh-detail-attrs { margin: 6px 0 8px; }
+.sh-detail-attr { display: flex; align-items: center; justify-content: space-between;
+  font-size: 13px; padding: 3px 0; }
+.sh-detail-attr,
+.sh-detail-attr > span { color: #cfd8dc; }
+.sh-detail-attr.sh-detail-attr-main,
+.sh-detail-attr.sh-detail-attr-main > span { color: #ffd700; }
+.sh-detail-fx { margin-top: 8px; }
+.sh-detail-fx-line { font-size: 12px; color: #9e9e9e; line-height: 1.6; padding: 2px 0; }
+
+/* ---- 详情小窗紧凑版 ----
+   外框尺寸锁死：宽 200px / max-height 52vh（≈上一版的 3/4），面积不再变化。
+   这一版把间距再压一档，把字号往回提：属性行 10→12px、套装说明 9→10px、
+   头部 11→12px、号位 9→10px、按钮 9→10px。省下的间距多于字号增量，
+   折算后的内容总高度不升反降，所以弹窗不会被撑大，只是字更大、行更紧。
+   全部规则带 .sh-modal-detail 前缀：合成预览里也叫 .sh-detail-card，
+   但它在普通弹窗内，不会被这里波及。 */
+.sh-modal-detail .sh-detail-card { padding: 6px; border-radius: 8px; }
+.sh-modal-detail .sh-detail-head { font-size: 12px; margin-bottom: 2px; }
+.sh-modal-detail .sh-detail-slot { font-size: 10px; margin-bottom: 3px; }
+.sh-modal-detail .sh-detail-attrs { margin: 2px 0 3px; }
+.sh-modal-detail .sh-detail-attr { font-size: 12px; padding: 1px 0; }
+.sh-modal-detail .sh-detail-fx { margin-top: 3px; }
+.sh-modal-detail .sh-detail-fx-line { font-size: 10px; line-height: 1.45; padding: 1px 0; }
+.sh-modal-detail .sh-detail-card .sh-detail-actions {
+  gap: 4px; margin-top: 6px; padding-top: 6px;
+}
+.sh-modal-detail .sh-detail-card .sh-detail-actions .sh-btn {
+  padding: 3px 8px; font-size: 10px;
+}
 
 /* ---- 提示 ---- */
 .sh-toast { position: fixed; top: 20px; left: 50%; transform: translateX(-50%); background: #1b3a2e; border: 1px solid #2e7d32; color: #69f0ae; padding: 10px 20px; border-radius: 8px; font-size: 13px; z-index: 800; opacity: 0; transition: opacity .3s; pointer-events: none; }
@@ -1024,3 +1151,34 @@ body.bg-mode-select.bg-mobile #bg-layer > .bg-slide-b { display: none; }
 #heishan-cut.show { animation: heishanCutInStill .42s linear forwards; }
 @keyframes heishanCutInStill { 0%,100% { opacity: 0; } 20%,75% { opacity: 1; } }
 }
+
+/* ===== 神魂方框卡片单元（全项目统一） =====
+   仓库、抽卡结果、合成、重铸、装备、角色详情全部复用 .sh-soul-card。
+   卡片下方挂一个竖排按钮条，按钮不进卡片，避免遮住贴图和「xx·x号位」标签。
+   sh-grid-fixed 把列宽锁在 96~112px：弹窗再宽也不会把卡片拉成大块，
+   与手机仓库里每张约 100px 的观感一致。 */
+.sh-soul-grid.sh-grid-fixed {
+  grid-template-columns: repeat(auto-fill, minmax(96px, 112px));
+  justify-content: start;
+}
+.sh-soul-cell { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.sh-soul-cell-note { font-size: 10px; color: #ffd700; text-align: center; line-height: 1.2; }
+.sh-soul-cell-actions { display: flex; flex-direction: column; gap: 3px; }
+.sh-soul-cell-actions .sh-btn {
+  width: 100%; padding: 3px 2px; font-size: 11px; line-height: 1.3;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+/* 空号位：同尺寸虚线卡片，与已装备卡片并排不跳高 */
+.sh-soul-card.sh-empty-slot {
+  border: 2px dashed #555; background: rgba(22,33,62,.55);
+  box-shadow: none;
+}
+.sh-soul-card.sh-empty-slot:hover { border-color: #8e24aa; background: rgba(22,33,62,.8); }
+.sh-empty-plus { font-size: 24px; color: #8e24aa; line-height: 1; font-weight: bold; }
+.sh-empty-label { font-size: 11px; color: #cfd8dc; }
+.sh-empty-slotno { font-size: 10px; color: #888; }
+.sh-equip-grid, .sh-hero-soul-grid { margin-bottom: 10px; }
+.sh-syn-prev { margin: 0 0 10px; }
+.sh-pick-grid { margin-bottom: 4px; }
+/* 注：旧「文字列表行」的样式规则仍留在文件上方，但改造后已无任何节点使用它们，
+   不参与当前渲染；保留是为了不动历史样式片段，避免误伤同前缀的在用类。 */

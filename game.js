@@ -374,6 +374,10 @@ add(`${name} · 战斗图默认`, cfg.base);
 if (window.PVE && typeof window.PVE.imgCheckList === 'function') {
 window.PVE.imgCheckList().forEach(it => add(it.label, it.src));
 }
+/* 神魂卡片贴图（assets/shenhun/套装拼音.png） */
+if (window.SHENHUN_UI && typeof window.SHENHUN_UI.imgCheckList === 'function') {
+window.SHENHUN_UI.imgCheckList().forEach(it => add(it.label, it.src));
+}
 return out;
 }
 function runImageSelfCheck() {

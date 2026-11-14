@@ -12,6 +12,33 @@
   var RARITY_ORDER = SH.RARITY_ORDER;
   var SET_BY_TYPE = SH.SET_BY_TYPE;
 
+  /* ---------------- 神魂贴图 ----------------
+     路径 assets/shenhun/套装拼音.png（首字母大写、逐字连写，如 ZhaoCai.png）。
+     「狱门疆」按约定用 v 表示 ü，文件名为 YvMenJiang.png。
+     新增套装时只需在这里加一行；没有映射的套装名会保持原来的文字卡片。
+     <img> 只有真正加载成功才给卡片加 .has-art，加载失败时所有贴图样式都不生效，
+     卡片自动回到原来的「套装名 + 号位 + 装备者」布局，不会出现破图或空白方块。 */
+  var SOUL_ART_BASE = 'assets/shenhun/';
+  var SOUL_ART_FILE = {
+    '百穿': 'BaiChuan',
+    '束缚': 'ShuFu',
+    '无双': 'WuShuang',
+    '怒源': 'NuYuan',
+    '招财': 'ZhaoCai',
+    '心魔': 'XinMo',
+    '狱门疆': 'YvMenJiang'
+  };
+  function soulArtSrc(setType) {
+    var f = SOUL_ART_FILE[setType];
+    return f ? SOUL_ART_BASE + f + '.png' : '';
+  }
+  /* 供 ?imgcheck=1 自检面板逐张探测，定位缺图 / 后缀不符最方便。 */
+  function soulArtCheckList() {
+    return Object.keys(SOUL_ART_FILE).map(function (n) {
+      return { label: n + ' · 神魂贴图', src: soulArtSrc(n) };
+    });
+  }
+
   /* ---------------- DOM 工具 ---------------- */
   function $(id) { return document.getElementById(id); }
   function el(tag, cls, text) {
@@ -21,6 +48,12 @@
     return e;
   }
   function h(type, payload) { return SH.formatAttr(type, payload.value != null ? payload.value : payload); }
+  /* 详情弹窗里的属性数值统一带正号（+55.0% / +34.2）。
+     formatAttr 本身不带符号；这里仍做一次防重复，将来若返回带符号值也不会变成 ++。 */
+  function plusVal(v) {
+    var s = String(v);
+    return (/^[+-]/.test(s) ? '' : '+') + s;
+  }
 
   var ATTR_META = SH.ATTR_META || {};
   /* attrLabel：兼容两种入参 —— 直接传属性 key（字符串），或传 {key,value} 对象。
@@ -216,63 +249,232 @@
     return key;
   }
 
-  /* 神魂卡片（正方形）：套装名 + 号位；若已装备，在号位下方直接显示装备者名字。
-     稀有度仍由外框发光表达，但【已装备】优先用金色背景盖过稀有度配色。
-     withActions 参数已废弃 —— 操作按钮统一移到详情弹窗右上角。 */
-  function buildSoulCard(soul, withActions) {
+  /* 神魂卡片（正方形）—— 全项目唯一的神魂展示单元：
+     仓库 / 抽卡结果 / 合成 / 重铸 / 装备 / 角色详情都用它，视觉完全统一。
+     · 贴图加载成功 → 只留「套装名·x号位」标签（如 招财·1号位），
+       贴在卡片内部下方、与贴图分区互不遮挡；
+     · 贴图缺失 / 加载失败 → 回到原布局「套装名 + 号位 + 装备者名字」。
+     稀有度仍由外框发光表达，已装备的号位文字仍为金色，locked 金框也不变。
+     opts（可选对象，传 false 也兼容旧调用）：
+       empty / slot / emptyText —— 画一个虚线「+ 装备」空槽卡片；
+       onClick                 —— 覆盖默认的「打开详情」；
+       extraClass              —— 追加到卡片 class。
+     操作按钮不塞进卡片里（会遮贴图），由 buildSoulCell 放在卡片下方。 */
+  function buildSoulCard(soul, opts) {
+    opts = (opts && typeof opts === 'object') ? opts : {};
+
+    /* 空号位：同样尺寸的方框卡片，虚线边 + 「+ 装备」。没有 data-soul-id，
+       因此不会被详情弹窗的锚点 / 选中描边误认成一张真实神魂。 */
+    if (opts.empty) {
+      var ec = el('div', 'sh-soul-card sh-empty-slot' + (opts.extraClass ? ' ' + opts.extraClass : ''));
+      var ei = el('div', 'sh-card-inner');
+      ei.appendChild(el('div', 'sh-empty-plus', '+'));
+      ei.appendChild(el('div', 'sh-empty-label', opts.emptyText || '装备'));
+      ei.appendChild(el('div', 'sh-empty-slotno', opts.slot + '号位'));
+      ec.appendChild(ei);
+      ec.onclick = function () { if (typeof opts.onClick === 'function') opts.onClick(); };
+      return ec;
+    }
+
     var owner = SH.findEquipOwner ? SH.findEquipOwner(soul.id) : null;
-    var card = el('div', 'sh-soul-card sh-r' + soul.rarity);
+    var card = el('div', 'sh-soul-card sh-r' + soul.rarity + (opts.extraClass ? ' ' + opts.extraClass : ''));
+    /* 供详情弹窗定位锚点与选中描边使用；重绘（锁定 / 分解后）也能按 id 还原选中态。 */
+    card.setAttribute('data-soul-id', soul.id);
+    if (selectedSoulId != null && String(selectedSoulId) === String(soul.id)) card.classList.add('selected');
     if (owner || SH.isEquipped(soul.id)) card.classList.add('equipped');
     if (soul.locked) card.classList.add('locked');
 
     var inner = el('div', 'sh-card-inner');
     inner.appendChild(el('div', 'sh-set', soul.setType));
-    inner.appendChild(el('div', 'sh-slot', soul.slot + '号位'));
+    /* 号位标签：贴图模式下显示「套装名·x号位」（例：招财·1号位）。
+       前缀放在独立 span 里，旧 UI 回退时由 CSS 隐藏 —— 那样仍是
+       「套装名」一行 + 「x号位」一行，不会出现重复的套装名。 */
+    var slotEl = el('div', 'sh-slot');
+    slotEl.appendChild(el('span', 'sh-slot-set', soul.setType + '·'));
+    /* 「x号位」独立成段：贴图模式下这段永不压缩、永不省略，
+       空间实在不够时只省略前面的套装名前缀。 */
+    slotEl.appendChild(el('span', 'sh-slot-pos', soul.slot + '号位'));
+    inner.appendChild(slotEl);
     /* 直接写装备者名字，不加「装备：」前缀 —— 正方形卡片空间有限 */
     if (owner) inner.appendChild(el('div', 'sh-card-owner', heroDisplayName(owner.role)));
     card.appendChild(inner);
 
-    /* 点击整张卡片 = 打开详情（与主入口保持一致） */
-    card.onclick = function () { showSoulDetail(soul); };
+    var src = soulArtSrc(soul.setType);
+    if (src) {
+      var img = el('img', 'sh-card-art');
+      img.alt = '';
+      img.decoding = 'async';
+      /* 先绑事件再赋 src，避免缓存命中时错过 onload。
+         只有成功解码才切换；失败什么都不做 → 旧 UI 原样保留。 */
+      img.onload = function () { card.classList.add('has-art'); };
+      img.onerror = function () { card.classList.remove('has-art'); };
+      card.insertBefore(img, card.firstChild);
+      img.src = src;
+    }
+
+    /* 默认点击整张卡片 = 打开详情（与仓库一致，详情按钮已统一取消）。
+       详情用独立层，下面的界面原样保留，关闭后自然回到原处，无需任何「返回」回调。
+       只有空槽卡会传自定义 onClick 去打开装备选择器。 */
+    card.onclick = function () {
+      if (typeof opts.onClick === 'function') opts.onClick(soul);
+      else showSoulDetail(soul);
+    };
     return card;
   }
 
-  function bagActions(soul) {
-    var box = el('div', 'sh-actions');
-    var detail = el('button', 'sh-btn', '详情');
-    detail.onclick = function (ev) { ev.stopPropagation(); showSoulDetail(soul); };
-    box.appendChild(detail);
-    var lock = el('button', 'sh-btn', soul.locked ? '解锁' : '锁定');
-    lock.onclick = function (ev) {
-      ev.stopPropagation();
-      SH.setLocked(soul.id, !soul.locked);
-      renderBag();
-      toast(soul.locked ? '已解锁' : '已锁定');
-    };
-    box.appendChild(lock);
-    var d = el('button', 'sh-btn danger', '分解');
-    d.onclick = function (ev) {
-      ev.stopPropagation();
-      if (SH.isEquipped(soul.id)) { toast('请先卸下再分解', 'warn'); return; }
-      if (soul.locked) { toast('已锁定的神魂无法分解', 'warn'); return; }
-      SH.dismantle(soul.id);
-      renderBag();
-      toast('已分解');
-    };
-    box.appendChild(d);
-    return box;
+  /* 方框卡片单元 = 可选小标题 + 卡片 + 卡片下方的竖排按钮条。
+     ★ 详情按钮已统一取消：所有真实神魂卡片都是「点卡片 = 看详情」。
+       按钮条只留各面板自己的主操作（更换 / 装备 / 选这个 / 合成 / 重铸 / 卸下），
+       放在卡片外面，既保住贴图和「xx·x号位」标签的完整显示，也仍一键可达。
+       空槽卡没有详情可看，走自定义 onClick 打开装备选择器。
+       onDetail 现在只是「详情关闭后的轻量回调」，不再重建弹窗。 */
+  function buildSoulCell(soul, opts) {
+    opts = opts || {};
+    var cell = el('div', 'sh-soul-cell');
+    if (opts.note) cell.appendChild(el('div', 'sh-soul-cell-note', opts.note));
+    var cardOpts = {};
+    Object.keys(opts).forEach(function (k) { cardOpts[k] = opts[k]; });
+    if (typeof opts.onClick !== 'function') {
+      cardOpts.onClick = function (s) { showSoulDetail(s, opts.onDetail); };
+    }
+    cell.appendChild(buildSoulCard(soul, cardOpts));
+    var acts = (opts.buttons || []).slice();
+    if (acts.length) {
+      var bar = el('div', 'sh-soul-cell-actions');
+      acts.forEach(function (b) {
+        var btn = el('button', b.cls || 'sh-btn primary', b.text);
+        btn.onclick = function (ev) { ev.stopPropagation(); b.onClick(soul); };
+        bar.appendChild(btn);
+      });
+      cell.appendChild(bar);
+    }
+    return cell;
   }
 
-  /* 通用弹窗：允许在标题右侧挂自定义控件（如详情弹窗的锁定/分解按钮）。
-     第三个参数 opts.actions 为 HTMLElement[]，会追加到 .sh-modal-title 末尾。
-     opts.onClose：关闭时回调（只触发一次）—— 用于「从选择器里打开详情」后回到选择器。
-     弹窗层只有一份（layer.innerHTML=''），二级弹窗会顶掉一级，
-     所以这类"返回"必须由调用方在 onClose 里自行重建。 */
+  /* ==================== 详情弹窗：独立层 + 小窗避让 + 选中卡片描边 ====================
+     点任意面板里的方形卡片时，把这张卡片记成「当前选中」并加金色描边；
+     详情弹窗缩成小窗，自动放到不与它重叠的位置（右 → 左 → 下 → 上择优）。
+     ★ 详情用独立层 #sh-detail-overlay，叠在选择器弹窗之上：
+       打开详情不再清空选择器，所以「当前筛选界面」始终留在背景里；
+       关闭详情只隐藏这一层，直接回到原界面，不再靠回调重建弹窗，
+       也就没有了以前「先退回主界面、再回到筛选界面」的跳变。 */
+  var selectedSoulId = null;
+  var detailLayer = null;
+  var detailOnClose = null;
+  var detailDirty = false;          // 详情里改过数据（锁定 / 分解）才需要刷新下面的选择列表
+  var activeSelectRefresh = null;   // 当前选择器列表的重绘函数，由 renderSelectList 注册
+
+  function ensureDetailLayer() {
+    if (detailLayer && document.body.contains(detailLayer)) return detailLayer;
+    detailLayer = document.createElement('div');
+    detailLayer.id = 'sh-detail-overlay';
+    document.body.appendChild(detailLayer);
+    detailLayer.addEventListener('click', function (ev) {
+      if (ev.target === detailLayer) closeDetail();
+    });
+    return detailLayer;
+  }
+  /* 只收起，不触发 onClose —— 供关闭外层弹窗 / 退出神魂系统时兜底。 */
+  function dismissDetail() {
+    if (detailLayer) {
+      detailLayer.classList.remove('show');
+      detailLayer.innerHTML = '';
+    }
+    clearSelectedCard();
+  }
+  /* 关闭详情：收起 → 执行轻量回调 → 仅当改过数据时刷新下面的选择器列表。
+     正常「看一眼就关」不会重建任何弹窗，筛选与滚动位置原样保留。 */
+  function closeDetail() {
+    var dirty = detailDirty;
+    dismissDetail();
+    detailDirty = false;
+    var fn = detailOnClose; detailOnClose = null;
+    if (typeof fn === 'function') { try { fn(); } catch (e) { console.warn('[神魂UI] 详情 onClose 出错', e); } }
+    if (dirty && modalLayer && modalLayer.classList.contains('show') &&
+        typeof activeSelectRefresh === 'function') {
+      try { activeSelectRefresh(); } catch (e) { console.warn('[神魂UI] 选择列表刷新出错', e); }
+    }
+  }
+
+  function selectedCardEl() {
+    if (selectedSoulId == null) return null;
+    var all = document.querySelectorAll('.sh-soul-card');
+    for (var i = 0; i < all.length; i++) {
+      var c = all[i];
+      if (c.getAttribute('data-soul-id') !== String(selectedSoulId)) continue;
+      var r = c.getBoundingClientRect();
+      if (r.width > 0 && r.height > 0) return c;   // 隐藏容器里的卡片不算锚点
+    }
+    return null;
+  }
+  function markSelectedCard(soul) {
+    document.querySelectorAll('.sh-soul-card.selected').forEach(function (c) {
+      c.classList.remove('selected');
+    });
+    selectedSoulId = (soul && soul.id != null) ? soul.id : null;
+    var c = selectedCardEl();
+    if (c) c.classList.add('selected');
+    return c;
+  }
+  function clearSelectedCard() {
+    document.querySelectorAll('.sh-soul-card.selected').forEach(function (c) {
+      c.classList.remove('selected');
+    });
+    selectedSoulId = null;
+  }
+
+  /* 小窗定位：四个候选先 clamp 进视口（保证完整可见），再取与锚点矩形
+     重叠面积最小的一个。坐标用弹窗层的 rect 换算，layer 不铺满时也正确。 */
+  function placeDetailModal(modal, anchor) {
+    if (!anchor) return;                            // 无锚点 → 保持 CSS 居中
+    var r = anchor.getBoundingClientRect();
+    if (!(r.width > 0 && r.height > 0)) return;
+    var base = (modal.parentNode || document.body).getBoundingClientRect();
+    var vw = window.innerWidth || document.documentElement.clientWidth;
+    var vh = window.innerHeight || document.documentElement.clientHeight;
+    var mw = modal.offsetWidth, mh = modal.offsetHeight;
+    if (!mw || !mh) return;
+    var gap = 12, pad = 10;
+    var cx = r.left + r.width / 2 - mw / 2;
+    var clampX = function (x) { return Math.max(pad, Math.min(x, vw - mw - pad)); };
+    var clampY = function (y) { return Math.max(pad, Math.min(y, vh - mh - pad)); };
+    var cands = [
+      { x: r.right + gap, y: r.top },             // 右侧优先
+      { x: r.left - mw - gap, y: r.top },         // 左侧
+      { x: cx, y: r.bottom + gap },               // 下方
+      { x: cx, y: r.top - mh - gap }              // 上方
+    ];
+    var best = null;
+    cands.forEach(function (c) {
+      var x = clampX(c.x), y = clampY(c.y);
+      var ox = Math.max(0, Math.min(x + mw, r.right) - Math.max(x, r.left));
+      var oy = Math.max(0, Math.min(y + mh, r.bottom) - Math.max(y, r.top));
+      var overlap = ox * oy;
+      if (!best || overlap < best.overlap - 0.5) best = { x: x, y: y, overlap: overlap };
+    });
+    if (!best) return;
+    modal.style.left = Math.round(best.x - base.left) + 'px';
+    modal.style.top = Math.round(best.y - base.top) + 'px';
+    modal.style.transform = 'none';
+  }
+  /* 窗口尺寸变化时重新避让（卡片会跟着网格重排）。 */
+  window.addEventListener('resize', function () {
+    if (!detailLayer || !detailLayer.classList.contains('show')) return;
+    var m = detailLayer.querySelector('.sh-modal-detail');
+    if (m) placeDetailModal(m, selectedCardEl());
+  });
+
+  /* 通用弹窗（选择器 / 合成 / 重铸 / 装备）。
+     弹窗层只有一份（layer.innerHTML=''），新弹窗会顶掉旧的。
+     详情小窗已改用独立层 #sh-detail-overlay，不再走这里，也就不会顶掉选择器。
+     opts.onClose 仍保留为「关闭该弹窗时触发一次」的通用回调。 */
   var modalOnClose = null;
   function openModal(titleText, buildBody, opts) {
     opts = opts || {};
+    if (detailLayer && detailLayer.classList.contains('show')) dismissDetail();
     var layer = ensureModalLayer();
     layer.innerHTML = '';
+    layer.classList.remove('sh-detail-mode');
     modalOnClose = typeof opts.onClose === 'function' ? opts.onClose : null;
     var modal = el('div', 'sh-modal' + (opts.large ? ' sh-modal-lg' : ''));
     var head = el('div', 'sh-modal-title', titleText);
@@ -293,7 +495,14 @@
     return { modal: modal, body: body, close: closeModal };
   }
   function closeModal() {
-    if (modalLayer) modalLayer.classList.remove('show');
+    /* 兜底：关外层弹窗时若详情还开着，先静默收起，避免小窗浮在已关闭界面上 */
+    if (detailLayer && detailLayer.classList.contains('show')) dismissDetail();
+    if (modalLayer) {
+      modalLayer.classList.remove('show');
+      modalLayer.classList.remove('sh-detail-mode');
+    }
+    activeSelectRefresh = null;
+    clearSelectedCard();
     var fn = modalOnClose; modalOnClose = null;
     /* 先置空再执行：回调里通常会再开一个弹窗，避免被自己覆盖掉 */
     if (typeof fn === 'function') { try { fn(); } catch (e) { console.warn('[神魂UI] onClose 出错', e); } }
@@ -309,14 +518,13 @@
     function sync() {
       lock.textContent = soul.locked ? '解锁' : '锁定';
       lock.classList.toggle('on', soul.locked);
-      var meta = document.querySelector('.sh-detail-meta');
-      if (meta) meta.textContent = 'ID: ' + soul.id + (soul.locked ? '  ·  已锁定' : '');
     }
 
     lock.onclick = function (ev) {
       ev.stopPropagation();
       /* setLocked 内部已就地修改 soul.locked，切勿再手动翻转，否则会被改回原值 */
       SH.setLocked(soul.id, !soul.locked);
+      detailDirty = true;
       sync();
       renderBag();
       toast(soul.locked ? '已锁定' : '已解锁');
@@ -328,8 +536,9 @@
       if (SH.isEquipped(soul.id)) { toast('请先卸下再分解', 'warn'); return; }
       if (soul.locked) { toast('已锁定的神魂无法分解', 'warn'); return; }
       SH.dismantle(soul.id);
+      detailDirty = true;
       renderBag();
-      closeModal();
+      closeDetail();
       toast('已分解');
     };
 
@@ -338,73 +547,63 @@
     return box;
   }
 
-  /* 套装效果块：1 件 / 2 件各一行，并标出当前是否已达成。
-     owner 为该神魂的穿戴者（未穿戴则 null）—— 只有穿戴后才知道凑了几件。 */
-  function buildSetEffectBlock(soul, owner) {
-    var set = SET_BY_TYPE[soul.setType];
-    if (!set) return null;
-    var box = el('div', 'sh-detail-setfx');
-    box.appendChild(el('div', 'sh-detail-label', '套装效果 · ' + soul.setType));
-    var cnt = 0;
-    if (owner && SH.getEquippedSouls) {
-      /* 按「套装类型」统计该角色身上这套有几件 */
-      SH.getEquippedSouls(owner.role).forEach(function (s) {
-        if (s && s.setType === soul.setType) cnt++;
-      });
-    }
-    /* 3 件同套装 = 一组 2 件套（内含一次 1 件套）+ 1 个散件 → 1 件套共生效 2 次。
-       角标带上次数，避免界面看起来仍只加了一次。 */
-    var oneStacks = SH.onePieceStacks ? SH.onePieceStacks(cnt) : (cnt >= 1 ? 1 : 0);
-    [['1', set.one || set['1']], ['2', set.two || set['2']]].forEach(function (p) {
-      if (!p[1]) return;
-      var need = Number(p[0]);
-      var on = cnt >= need;
-      var times = need === 1 ? oneStacks : 1;   // 2 件套只激活一次
-      var row = el('div', 'sh-setfx-row' + (on ? ' on' : ''));
-      row.innerHTML = '<span class="sh-setfx-piece">' + need + '件</span>' +
-        '<span class="sh-setfx-desc">' + p[1] + '</span>' +
-        (on ? '<span class="sh-setfx-on">已生效' + (times > 1 ? ' ×' + times : '') + '</span>' : '');
-      box.appendChild(row);
-    });
-    /* 注意：el() 第三个参数是 textContent，会原样显示标签，
-       所以带 <b> 的这行必须走 innerHTML。 */
-    var hint = el('div', 'sh-setfx-hint');
-    hint.innerHTML = (!owner)
-      ? '未装备：装到角色身上后才会计入套装件数。'
-      : '当前由 <b>' + owner.role + '</b> 装备于 ' + owner.slot + '号位，本套共 ' + cnt + ' 件。';
-    box.appendChild(hint);
-    return box;
-  }
-
-  /* onClose：详情关闭后的回调（可选）。从装备选择器里打开详情时传入，
-     用于关闭后回到候选列表；不传则直接关闭（仓库等场景）。 */
+  /* onClose：详情关闭后的「轻量回调」（可选）。
+     现在详情用独立层，下面的界面原样保留，所以回调只用来刷新视图
+     （如装备页反映锁定 / 分解），不再负责重建任何弹窗。
+     详情按精简口径呈现：不显示编号 / 装备者，不标注「主属性·副属性」字样，
+     套装效果直接写文字，也不再单独开带标题、角标、达成情况的 UI 区块。 */
   function showSoulDetail(soul, onClose) {
-    openModal(soul.setType + ' · ' + soul.slot + '号位', function (body) {
-      var sub = el('div', 'sh-detail-card sh-r' + soul.rarity);
-      var head = el('div', 'sh-detail-head');
-      head.innerHTML = '<span class="sh-detail-set">' + soul.setType + '</span>' +
-        ' <span class="sh-detail-rarity" style="color:' + rarityHex(soul.rarity) + '">' + soul.rarity + '</span>';
-      sub.appendChild(head);
-      sub.appendChild(el('div', 'sh-detail-slot', soul.slot + '号位'));
-      var ml = el('div', 'sh-detail-main');
-      ml.innerHTML = '主属性：<span class="sh-tag main">' + attrLabel(soul.main.key) + ' +' + h(soul.main.key, soul.main) + '</span>';
-      sub.appendChild(ml);
-      var sl = el('div', 'sh-detail-label', '副属性');
-      sub.appendChild(sl);
-      soul.subs.forEach(function (s) {
-        var row = el('div', 'sh-detail-sub');
-        row.innerHTML = '<span>' + attrLabel(s.key) + '</span><span class="sh-val">' + h(s.key, s) + '</span>';
-        sub.appendChild(row);
+    /* 以当前可见的这张方形卡片为锚点：小窗避开它，同时给它加金色描边。 */
+    var anchor = markSelectedCard(soul);
+    detailOnClose = typeof onClose === 'function' ? onClose : null;
+    detailDirty = false;
+
+    var layer = ensureDetailLayer();
+    layer.innerHTML = '';
+    var modal = el('div', 'sh-modal sh-modal-detail');
+    var body = el('div', 'sh-modal-body');
+    modal.appendChild(body);
+    layer.appendChild(modal);
+    layer.classList.add('show');
+
+    var sub = el('div', 'sh-detail-card sh-r' + soul.rarity);
+    var head = el('div', 'sh-detail-head');
+    head.innerHTML = '<span class="sh-detail-set">' + soul.setType + '</span>' +
+      ' <span class="sh-detail-rarity" style="color:' + rarityHex(soul.rarity) + '">' + soul.rarity + '</span>';
+    sub.appendChild(head);
+    sub.appendChild(el('div', 'sh-detail-slot', soul.slot + '号位'));
+
+    /* 主属性与副属性放同一组行、统一间距，不再写「主属性：」「副属性」标题。
+       主属性也不再单独开 pill 标签：与副属性一样是「名称 + 数值」两列。
+       主属性行挂 -main 标记：整行（名称 + 数值）走金色，副属性数值跟随行文字色，
+       两者只靠颜色区分，不加标签、不改结构。 */
+    var attrs = el('div', 'sh-detail-attrs');
+    var mainRow = el('div', 'sh-detail-attr sh-detail-attr-main');
+    mainRow.innerHTML = '<span>' + attrLabel(soul.main.key) + '</span>' +
+      '<span class="sh-val">' + plusVal(h(soul.main.key, soul.main)) + '</span>';
+    attrs.appendChild(mainRow);
+    soul.subs.forEach(function (s) {
+      var row = el('div', 'sh-detail-attr');
+      row.innerHTML = '<span>' + attrLabel(s.key) + '</span>' +
+        '<span class="sh-val">' + plusVal(h(s.key, s)) + '</span>';
+      attrs.appendChild(row);
+    });
+    sub.appendChild(attrs);
+
+    /* 套装效果：直接写 1 件 / 2 件文字，不单独开 UI 区块。 */
+    var set = SET_BY_TYPE[soul.setType];
+    if (set) {
+      var fx = el('div', 'sh-detail-fx');
+      [['1', set.one || set['1']], ['2', set.two || set['2']]].forEach(function (p) {
+        if (p[1]) fx.appendChild(el('div', 'sh-detail-fx-line', p[0] + '件：' + p[1]));
       });
-      /* 套装效果：1 件 / 2 件说明 + 当前达成情况 */
-      var owner = SH.findEquipOwner ? SH.findEquipOwner(soul.id) : null;
-      var fx = buildSetEffectBlock(soul, owner);
-      if (fx) sub.appendChild(fx);
-      sub.appendChild(el('div', 'sh-detail-meta', 'ID: ' + soul.id + (soul.locked ? '  ·  已锁定' : '')));
-      /* 操作按钮挂在卡片内部（与截图一致），标题栏只保留 × 关闭 */
-      sub.appendChild(buildDetailActions(soul));
-      body.appendChild(sub);
-    }, { onClose: onClose });
+      sub.appendChild(fx);
+    }
+    sub.appendChild(buildDetailActions(soul));
+    body.appendChild(sub);
+
+    /* 先填内容再定位：内容决定弹窗高度，量到的 mh 才准。 */
+    placeDetailModal(modal, anchor);
   }
 
   function renderBag() {
@@ -573,49 +772,38 @@
        于是按字符遍历得到一个 { undefined: 2 } 的假结果。 */
     var equippedSouls = SH.getEquippedSouls ? SH.getEquippedSouls(equipState.hero) : [];
     var setCount = SH.countSets ? SH.countSets(equippedSouls) : {};
+    /* 三个号位与仓库同款方框卡片：已装备显示贴图卡，空位显示虚线「+ 装备」卡。
+       ★ 点已装备的卡片 = 看详情；「更换 / 卸下」放在卡片下方按钮条。
+       点空槽卡（或它的「装备」按钮）= 打开选择器，因为空位没有详情可看。 */
+    var grid = el('div', 'sh-soul-grid sh-grid-fixed sh-equip-grid');
     var slots = ['1', '2', '3'];
     slots.forEach(function (slot) {
-      var row = el('div', 'sh-equip-row');
-      row.appendChild(el('span', 'sh-equip-name', slot + '号位'));
-      var box = el('div', 'sh-slot-box');
-      var off = null, detail = null;
       /* 按「号位」取神魂：不能用 cur[slot] 直接下标数组（'1' 落在 0/1/2 的数组上是取不到的） */
       var soul = SH.getSlotSoul ? SH.getSlotSoul(equipState.hero, slot)
                                 : (SH.getSoul ? SH.getSoul((SH.getEquip(equipState.hero) || [])[Number(slot) - 1]) : null);
+      var open = function () { openEquipPicker(equipState.hero, slot); };
       if (soul) {
-        box.classList.add('filled', 'sh-r' + soul.rarity);
-        box.innerHTML = '<span class="sl" style="color:' + rarityHex(soul.rarity) + '">' + soul.setType + '</span>' +
-          '<span class="smain">' + attrLabel(soul.main.key) + ' +' + h(soul.main.key, soul.main) + '</span>';
-        /* 装备页直接看该神魂详情。详情是上层弹窗，关闭后回到装备页并刷新，
-           这样在详情里做的锁定 / 分解等操作也会同步反映。 */
-        detail = el('button', 'sh-btn', '详情');
-        detail.onclick = function (ev) {
-          ev.stopPropagation();
-          showSoulDetail(soul, function () { refreshEquipViews(); });
-        };
-        off = el('button', 'sh-btn sh-slot-off', '卸下');
-        off.onclick = function (ev) {
-          ev.stopPropagation();
-          SH.unequipSoul(equipState.hero, slot);
-          toast('已卸下');
-          refreshEquipViews();
-        };
+        grid.appendChild(buildSoulCell(soul, {
+          /* 详情是独立层，装备页一直留在背景里；关闭后刷新以反映锁定 / 分解。 */
+          onDetail: function () { refreshEquipViews(); },
+          buttons: [
+            { text: '更换', cls: 'sh-btn primary', onClick: open },
+            { text: '卸下', cls: 'sh-btn danger sh-slot-off', onClick: function () {
+              SH.unequipSoul(equipState.hero, slot);
+              toast('已卸下');
+              refreshEquipViews();
+            } }
+          ]
+        }));
       } else {
-        box.appendChild(el('span', 'sl', '+ 装备'));
+        grid.appendChild(buildSoulCell(null, {
+          empty: true, slot: slot, emptyText: '装备',
+          onClick: open,
+          buttons: [{ text: '装备', cls: 'sh-btn primary', onClick: open }]
+        }));
       }
-      box.onclick = function () { openEquipPicker(equipState.hero, slot); };
-      /* 顺序：槽位框在前，按钮组在后。
-         原来是先 append 卸下按钮、再 insertBefore 把框插到它前面，
-         没装神魂时 lastChild 是「1号位」标签，框会被插到标签前面去。 */
-      row.appendChild(box);
-      if (detail || off) {
-        var btns = el('div', 'sh-equip-btns');
-        if (detail) btns.appendChild(detail);
-        if (off) btns.appendChild(off);
-        row.appendChild(btns);
-      }
-      pane.appendChild(row);
     });
+    pane.appendChild(grid);
 
     /* 套装加成预览 */
     var prev = el('div', 'sh-preview');
@@ -691,9 +879,8 @@
           lockPos: String(slot),
           body: body,
           emptyText: '当前筛选条件下没有符合条件的神魂，可调回「全部」。',
-          /* 详情是二级弹窗，关闭后重建选择器形成「返回」，筛选条件仍在。
+          /* 详情是独立层，选择器一直留在背景里，关闭详情无需重建、筛选与滚动位置都不动。
              从角色详情进入时把 onChanged 一路带回去，装备成功后仍能重绘详情页。 */
-          onDetail: function () { openEquipPicker(hero, slot, changed); },
           refresh: function () { refresh(); },
           buttons: function (soul) {
             return [{ text: '装备', cls: 'sh-btn primary', onClick: function (s) {
@@ -726,44 +913,35 @@
       '已装备的神魂不会出现在合成 / 重铸列表中；卸下后即可使用。'));
     container.appendChild(el('div', 'hero-soul-summary', '已装备 ' + count + ' / 3 件'));
 
+    /* 与仓库同款方框卡片：★ 点已装备的卡片 = 看详情（不再是「更换」），
+       「更换 / 卸下」放到卡片下方按钮条；空槽卡仍走装备选择器。
+       详情是独立层，本页始终留在背景里，关闭后只重绘一次以反映锁定 / 分解。 */
+    var grid = el('div', 'sh-soul-grid sh-grid-fixed sh-hero-soul-grid');
     ['1', '2', '3'].forEach(function (slot) {
       var soul = SH.getSlotSoul ? SH.getSlotSoul(hero, slot) : null;
-      var row = el('div', 'hero-soul-row');
-      row.appendChild(el('div', 'hero-soul-slot', slot + '号位'));
-
-      var info = el('div', 'hero-soul-info' + (soul ? ' filled sh-r' + soul.rarity : ''));
+      var open = function () { openEquipPicker(hero, slot, changed); };
       if (soul) {
-        var subs = (soul.subs || []).map(function (s) {
-          return attrLabel(s.key) + ' +' + h(s.key, s);
-        }).join(' · ');
-        info.innerHTML = '<div class="hero-soul-line"><b>' + soul.setType + '</b> · <span style="color:' + rarityHex(soul.rarity) + '">' + soul.rarity + '</span></div>' +
-          '<div class="hero-soul-main">主属性：' + attrLabel(soul.main.key) + ' +' + h(soul.main.key, soul.main) + '</div>' +
-          '<div class="hero-soul-subs">' + subs + '</div>';
+        grid.appendChild(buildSoulCell(soul, {
+          /* 关闭详情后重绘本页：锁定 / 分解等操作也要同步反映 */
+          onDetail: changed,
+          buttons: [
+            { text: '更换', cls: 'sh-btn primary', onClick: open },
+            { text: '卸下', cls: 'sh-btn danger', onClick: function () {
+              SH.unequipSoul(hero, slot);
+              toast('已卸下');
+              refreshEquipViews(changed);
+            } }
+          ]
+        }));
       } else {
-        info.innerHTML = '<div class="hero-soul-empty">未装备神魂</div>';
+        grid.appendChild(buildSoulCell(null, {
+          empty: true, slot: slot, emptyText: '装备',
+          onClick: open,
+          buttons: [{ text: '装备', cls: 'sh-btn primary', onClick: open }]
+        }));
       }
-      row.appendChild(info);
-
-      var btns = el('div', 'hero-soul-btns');
-      var equipBtn = el('button', 'sh-btn primary', soul ? '更换' : '装备');
-      equipBtn.onclick = function () { openEquipPicker(hero, slot, changed); };
-      btns.appendChild(equipBtn);
-      if (soul) {
-        var detailBtn = el('button', 'sh-btn', '详情');
-        /* 关闭详情后重绘本页：锁定 / 分解等操作也要同步反映 */
-        detailBtn.onclick = function () { showSoulDetail(soul, changed); };
-        btns.appendChild(detailBtn);
-        var offBtn = el('button', 'sh-btn danger', '卸下');
-        offBtn.onclick = function () {
-          SH.unequipSoul(hero, slot);
-          toast('已卸下');
-          refreshEquipViews(changed);
-        };
-        btns.appendChild(offBtn);
-      }
-      row.appendChild(btns);
-      container.appendChild(row);
     });
+    container.appendChild(grid);
 
     var prev = el('div', 'sh-preview');
     prev.appendChild(el('div', 'sh-preview-title', '套装加成预览'));
@@ -909,29 +1087,16 @@
     return RARITY_ORDER[idx + 1];
   }
 
-  /* 构造一个「神魂行」：左侧信息 + 操作按钮组（合成弹窗通用）。
-     buttons 为 { text, cls, onClick } 数组；detail 为 true 时附加「详情」按钮。
-     onDetail：详情关闭后的回调 —— 合成弹窗用它「返回上一级」，
-     否则关闭详情会直接回到神魂主界面，两步流程被打断。 */
+  /* 合成 / 重铸 / 装备选择器的候选单元 —— 与仓库同款方框卡片。
+     ★ 详情按钮已取消：点卡片 = 看详情（独立层，选择器原样留在背景里）。
+       按钮条只留该面板的主操作（选这个 / 合成 / 重铸 / 装备）。
+     签名保留兼容（detail / onDetail 已不再用于重建弹窗）：
+     详情关闭不再触发「返回上一级」，因为根本没离开过。 */
   function buildSoulRow(soul, buttons, detail, onDetail) {
-    var item = el('div', 'sh-pick-item sh-r' + soul.rarity);
-    var left = el('div', 'sh-pick-left');
-    left.innerHTML = '<div><b>' + soul.setType + '</b> · <span style="color:' + rarityHex(soul.rarity) + '">' + soul.rarity + '</span> · ' + soul.slot + '号位</div>' +
-      '<div class="sh-pick-main">' + attrLabel(soul.main.key) + ' +' + h(soul.main.key, soul.main) + '</div>';
-    item.appendChild(left);
-    var box = el('div', 'sh-actions');
-    if (detail) {
-      var dt = el('button', 'sh-btn', '详情');
-      dt.onclick = function (ev) { ev.stopPropagation(); showSoulDetail(soul, onDetail); };
-      box.appendChild(dt);
-    }
-    (buttons || []).forEach(function (b) {
-      var btn = el('button', b.cls || 'sh-btn primary', b.text);
-      btn.onclick = function (ev) { ev.stopPropagation(); b.onClick(soul); };
-      box.appendChild(btn);
+    return buildSoulCell(soul, {
+      onDetail: null,
+      buttons: buttons || []
     });
-    item.appendChild(box);
-    return item;
   }
 
   /* 渲染带完整筛选条的选择面板 —— 合成 / 装备 / 重铸共用。
@@ -944,8 +1109,11 @@
   function renderSelectList(opts) {
     var o = opts || {};
     var st = o.state || synState;
-    /* 筛选变化后重绘入口：所有现有调用点都传了，仍留个空函数兜底，防止以后漏传。 */
+    /* 筛选变化后重绘入口：所有现有调用点都传了，仍留个空函数兜底，防止以后漏传。
+       注册为「当前选择列表」的重绘函数：只有详情里真的改了数据（锁定 / 分解）
+       且选择器还开着时，关闭详情才会调它一次；正常看一眼就关完全不重建。 */
     if (typeof o.refresh !== 'function') o.refresh = function () {};
+    activeSelectRefresh = o.refresh;
     if (o.lockPos) st.pos = String(o.lockPos);
     var src = typeof o.list === 'function' ? o.list() : (o.list || SH.getBag().slice());
     var list = src.slice();
@@ -995,9 +1163,10 @@
       o.body.appendChild(el('div', 'sh-empty', o.emptyText || '没有符合条件的神魂。'));
       return;
     }
-    var wrap = el('div', 'sh-pick-list');
-    /* onDetail 透传：让调用方决定「看完详情回到哪」 */
-    list.forEach(function (soul) { wrap.appendChild(buildSoulRow(soul, o.buttons(soul), true, o.onDetail)); });
+    /* 与仓库同款卡片网格（列宽固定，弹窗再宽也不会把卡片拉成大块）。
+       点卡片看详情时详情是独立层，本列表原样留在背景里，无需「返回」回调。 */
+    var wrap = el('div', 'sh-soul-grid sh-grid-fixed sh-pick-grid');
+    list.forEach(function (soul) { wrap.appendChild(buildSoulRow(soul, o.buttons(soul), true, null)); });
     o.body.appendChild(wrap);
   }
 
@@ -1023,8 +1192,7 @@
           body: body,
           state: synState, hideTop: true,   // 合成：隐藏「神话」档
           emptyText: '当前筛选条件下没有可选择的神魂。',
-          /* 看完详情回到「合成第 1 步」，而不是退回神魂主界面 */
-          onDetail: function () { openSynthesize(); },
+          /* 详情是独立层，本步列表原样留在背景里，关闭详情不重建、不重置筛选 */
           refresh: renderStep1,
           buttons: function (soul) {
             return [{ text: '选这个', onClick: function () { craftState.first = soul; openSynthesizeStep2(close); } }];
@@ -1045,7 +1213,7 @@
              s.rarity === a.rarity && s.rarity !== '神话';
     });
     /* 复用同一个弹窗：只清空 body 并重建，不重建弹窗本身，避免丢失引用。
-       从「详情」返回时弹窗层已被 closeModal 隐藏，这里补回 show。 */
+       筛选变化 / 数据变更时会再走一次这里；详情已改用独立层，不会顶掉它。 */
     var layer = ensureModalLayer();
     layer.classList.add('show');
     var body = layer.querySelector('.sh-modal-body');
@@ -1058,26 +1226,17 @@
     tip.innerHTML = '已选第 1 个：<b>' + a.setType + '</b> · <span style="color:' + rarityHex(a.rarity) + '">' + a.rarity + '</span>　→　目标：<b>' + a.setType + ' · ' + target + '</b>';
     body.appendChild(tip);
 
-    /* 已选第一个的卡片预览：点击整张卡 = 打开详情（与主入口保持一致） */
-    var prev = el('div', 'sh-detail-card sh-r' + a.rarity + ' sh-syn-pick');
-    prev.style.cursor = 'pointer';
-    prev.innerHTML =
-      '<div class="sh-detail-head"><span class="sh-detail-set">' + a.setType + '</span> <span class="sh-detail-rarity" style="color:' + rarityHex(a.rarity) + '">' + a.rarity + '</span></div>' +
-      '<div class="sh-detail-slot">' + a.slot + '号位</div>' +
-      '<div>主属性：<span class="sh-tag main">' + attrLabel(a.main.key) + ' +' + h(a.main.key, a.main) + '</span></div>' +
-      '<div class="sh-syn-tap">点击查看详情</div>';
-    /* 看完详情回到「合成第 2 步」 */
-    var backToStep2 = function () { openSynthesizeStep2(closeAll); };
-    prev.onclick = function () { showSoulDetail(a, backToStep2); };
-    body.appendChild(prev);
+    /* 已选第 1 个：与候选列表同款方框卡片，点卡片 = 看详情。
+       详情是独立层，第 2 步界面原样留在背景里，无需「返回」回调。 */
+    var prevWrap = el('div', 'sh-soul-grid sh-grid-fixed sh-syn-prev');
+    prevWrap.appendChild(buildSoulCell(a, { note: '已选第 1 个' }));
+    body.appendChild(prevWrap);
 
-    var self = this;
     renderSelectList({
       list: candidates,
       body: body,
       state: synState, hideTop: true,   // 与第 1 步共用同一份筛选状态
       emptyText: '没有符合条件的第 2 个神魂。需要另一个「' + a.setType + ' · ' + a.rarity + '」且未锁定、未装备的神魂。',
-      onDetail: backToStep2,
       refresh: function () { openSynthesizeStep2(closeAll); },
       buttons: function (soul) {
         return [{ text: '合成 → ' + target, onClick: function (s) {
@@ -1123,8 +1282,7 @@
           state: recastState,
           body: body,
           emptyText: '当前筛选条件下没有可重铸的神魂，可调回「全部」。',
-          /* 详情是二级弹窗，关闭后回到重铸列表（筛选条件保留） */
-          onDetail: function () { openRecast(); },
+          /* 详情是独立层，重铸列表原样留在背景里，关闭详情不重建、筛选保留 */
           refresh: function () { refresh(); },
           buttons: function (soul) {
             return [{ text: '重铸', cls: 'sh-btn danger', onClick: function (s) {
@@ -1160,15 +1318,22 @@
     [bagState, synState, recastState, pickState].forEach(resetFilterState);
   }
   function openModal_() {
+    /* 双保险：即使上次没走 closeModal_，重新打开也是干净状态 */
+    if (modalLayer && modalLayer.classList.contains('show')) closeModal();
+    if (detailLayer && detailLayer.classList.contains('show')) dismissDetail();
     var ov = $('shenhun-overlay');
     if (ov) ov.classList.add('show');
     SH.dailyLogin();
-    /* 双保险：即使上次没走 closeModal_，重新打开也是干净状态 */
     resetAllFilters();
     refreshHeader();
     switchTab('bag');
   }
   function closeModal_() {
+    /* 退出神魂系统时，把可能还开着的选择器弹窗与详情小窗一并收起，
+       避免弹窗浮在已关闭的界面上、或下次打开时残留上次的状态。 */
+    if (modalLayer && modalLayer.classList.contains('show')) closeModal();
+    if (detailLayer && detailLayer.classList.contains('show')) dismissDetail();
+    activeSelectRefresh = null;
     var ov = $('shenhun-overlay');
     if (ov) ov.classList.remove('show');
     resetAllFilters();
@@ -1217,7 +1382,9 @@
     renderBag: renderBag, toast: toast,
     switchTab: switchTab,
     /* 供 game.js 的角色详情「神魂」标签页使用 */
-    renderHeroSoulConfig: renderHeroSoulConfig
+    renderHeroSoulConfig: renderHeroSoulConfig,
+    /* 供 ?imgcheck=1 自检面板探测 7 张神魂贴图 */
+    soulArtSrc: soulArtSrc, imgCheckList: soulArtCheckList
   };
 
   if (document.readyState === 'loading') {
